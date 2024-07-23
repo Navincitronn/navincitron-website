@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - From Elvis In Memphis</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Elvis Presley – From Elvis In Memphis (1969)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/from_elvis_in_memphis.png" alt="From Elvis In Memphis" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/From Elvis In Memphis (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Wearin' That Loved On Look - 00:00</span></p>
+                    <p><span onclick="setTime(165)">Only the Strong Survive - 02:45</span></p>
+                    <p><span onclick="setTime(326)">I'll Hold You in My Heart (Till I Can Hold You in My Arms) - 05:26</span></p>
+                    <p><span onclick="setTime(598)">Long Black Limousine - 09:58</span></p>
+                    <p><span onclick="setTime(819)">It Keeps Right On A-Hurtin' - 13:39</span></p>
+                    <p><span onclick="setTime(977)">I'm Movin' On - 16:17</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1157)">Power of My Love - 19:17</span></p>
+                    <p><span onclick="setTime(1313)">Gentle on My Mind - 21:53</span></p>
+                    <p><span onclick="setTime(1516)">After Loving You - 25:16</span></p>
+                    <p><span onclick="setTime(1702)">True Love Travels on a Gravel Road - 28:22</span></p>
+                    <p><span onclick="setTime(1860)">Any Day Now - 31:00</span></p>
+                    <p><span onclick="setTime(2040)">In the Ghetto - 34:00</span></p>
+                    <p><span onclick="setTime(2207)">Suspicious Minds - 36:47</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

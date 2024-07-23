@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Bringing It All Back Home</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Bob Dylan – Bringing It All Back Home (1965)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/bringing_it_all_back_home.png" alt="Bringing It All Back Home" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/Bringing It All Back Home (Instrumentals) .mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Subterranean Homesick Blues - 00:00</span></p>
+                    <p><span onclick="setTime(141)">She Belongs to Me - 02:21</span></p>
+                    <p><span onclick="setTime(308)">Maggie's Farm - 05:08</span></p>
+                    <p><span onclick="setTime(542)">Love Minus Zero/No Limit - 09:02</span></p>
+                    <p><span onclick="setTime(713)">Outlaw Blues - 11:53</span></p>
+                    <p><span onclick="setTime(897)">On the Road Again - 14:57</span></p>
+                    <p><span onclick="setTime(1053)">Bob Dylan's 115th Dream - 17:33</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1427)">Mr. Tambourine Man - 23:47</span></p>
+                    <p><span onclick="setTime(1758)">Gates of Eden - 29:18</span></p>
+                    <p><span onclick="setTime(2100)">It's Alright, Ma (I'm Only Bleeding) - 35:00</span></p>
+                    <p><span onclick="setTime(2550)">It's All Over Now, Baby Blue - 42:30</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

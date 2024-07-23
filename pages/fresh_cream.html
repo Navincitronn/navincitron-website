@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Fresh Cream</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Cream – Fresh Cream (1966)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/fresh_cream.png" alt="Fresh Cream" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/Fresh Cream (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">I Feel Free - 00:00</span></p>
+                    <p><span onclick="setTime(171)">N.S.U. - 02:51</span></p>
+                    <p><span onclick="setTime(335)">Sleepy Time Time - 05:35</span></p>
+                    <p><span onclick="setTime(595)">Dreaming - 09:55</span></p>
+                    <p><span onclick="setTime(715)">Sweet Wine - 11:55</span></p>
+                    <p><span onclick="setTime(912)">Spoonful - 15:12</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1310)">Cat's Squirrel - 21:50</span></p>
+                    <p><span onclick="setTime(1494)">Four Until Late - 24:54</span></p>
+                    <p><span onclick="setTime(1622)">Rollin' And Tumblin' - 27:02</span></p>
+                    <p><span onclick="setTime(1905)">I'm So Glad - 31:45</span></p>
+                    <p><span onclick="setTime(2143)">Toad - 35:43</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Odessey and Oracle</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Zombies – Odessey and Oracle (1968)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/odessey_and_oracle.png" alt="Odessey and Oracle" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/Odessey and Oracle (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Care Of Cell 44 - 00:00</span></p>
+                    <p><span onclick="setTime(236)">A Rose For Emily - 03:55</span></p>
+                    <p><span onclick="setTime(375)">Maybe After He's Gone - 06:15</span></p>
+                    <p><span onclick="setTime(513)">Beechwood Park - 08:33</span></p>
+                    <p><span onclick="setTime(677)">Brief Candles - 11:17</span></p>
+                    <p><span onclick="setTime(887)">Hung Up On A Dream - 14:47</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1073)">Changes - 17:53</span></p>
+                    <p><span onclick="setTime(1272)">I Want Her She Wants Me - 21:12</span></p>
+                    <p><span onclick="setTime(1445)">This Will Be Our Year - 24:05</span></p>
+                    <p><span onclick="setTime(1573)">Butchers Tale (Western Front 1914) - 26:13</span></p>
+                    <p><span onclick="setTime(1740)">Friends Of Mine - 29:00</span></p>
+                    <p><span onclick="setTime(1878)">Time Of The Season - 31:18</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

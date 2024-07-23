@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Dusty in Memphis</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Dusty Springfield – Dusty in Memphis (1969)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/dusty_in_memphis.png" alt="Dusty in Memphis" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/Dusty in Memphis (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Just a Little Lovin' - 00:00</span></p>
+                    <p><span onclick="setTime(138)">So Much Love - 02:18</span></p>
+                    <p><span onclick="setTime(349)">Son of a Preacher Man - 05:49</span></p>
+                    <p><span onclick="setTime(497)">I Don't Want to Hear It Anymore - 08:17</span></p>
+                    <p><span onclick="setTime(683)">Don't Forget About Me - 11:23</span></p>
+                    <p><span onclick="setTime(849)">Breakfast in Bed - 14:09</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1029)">You Don't Have To Say You Love Me - 17:11</span></p>
+                    <p><span onclick="setTime(1199)">Just One Smile - 19:59</span></p>
+                    <p><span onclick="setTime(1360)">The Windmills of Your Mind - 22:40</span></p>
+                    <p><span onclick="setTime(1590)">In the Land of Make Believe - 26:30</span></p>
+                    <p><span onclick="setTime(1742)">No Easy Way Down - 29:02</span></p>
+                    <p><span onclick="setTime(1932)">I Can't Make It Alone - 32:12</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Pet Sounds</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Beach Boys – Pet Sounds (1966)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/pet_sounds.png" alt="Pet Sounds" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/Pet Sounds (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(1)">Wouldn't It Be Nice - 00:00</span></p>
+                    <p><span onclick="setTime(151)">You Still Believe in Me - 02:30</span></p>
+                    <p><span onclick="setTime(305)">That's Not Me - 05:05</span></p>
+                    <p><span onclick="setTime(455)">Don't Talk (Put Your Head on My Shoulder) - 07:35</span></p>
+                    <p><span onclick="setTime(631)">I'm Waiting for the Day - 10:31</span></p>
+                    <p><span onclick="setTime(821)">Let's Go Away for Awhile - 13:39</span></p>
+                    <p><span onclick="setTime(959)">Sloop John B - 15:59</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1148)">God Only Knows - 19:08</span></p>
+                    <p><span onclick="setTime(1324)">I Know There's an Answer - 22:05</span></p>
+                    <p><span onclick="setTime(1523)">Here Today - 25:23</span></p>
+                    <p><span onclick="setTime(1712)">I Just Wasn't Made for These Times - 28:32</span></p>
+                    <p><span onclick="setTime(1914)">Pet Sounds - 31:54</span></p>
+                    <p><span onclick="setTime(2068)">Caroline No - 34:29</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

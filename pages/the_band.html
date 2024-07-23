@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - The Band</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Band – The Band (1969)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/the_band.png" alt="The Band" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/The Band (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Across the Great Divide - 00:00</span></p>
+                    <p><span onclick="setTime(174)">Rag Mama Rag - 02:54</span></p>
+                    <p><span onclick="setTime(356)">The Night They Drove Old Dixie Down - 05:56</span></p>
+                    <p><span onclick="setTime(567)">When You Awake - 09:27</span></p>
+                    <p><span onclick="setTime(760)">Up on Cripple Creek - 12:40</span></p>
+                    <p><span onclick="setTime(1031)">Whispering Pines - 17:11</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1275)">Jemima Surrender - 21:15</span></p>
+                    <p><span onclick="setTime(1485)">Rockin' Chair - 24:45</span></p>
+                    <p><span onclick="setTime(1707)">Look Out Cleveland - 28:27</span></p>
+                    <p><span onclick="setTime(1896)">Jawbone - 31:36</span></p>
+                    <p><span onclick="setTime(2156)">The Unfaithful Servant - 35:56</span></p>
+                    <p><span onclick="setTime(2412)">King Harvest (Has Surely Come) - 40:12</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

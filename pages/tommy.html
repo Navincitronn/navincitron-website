@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Tommy</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Who – Tommy (1969)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/tommy.png" alt="Tommy" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/Tommy (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A:</h3>
+                    <p><span onclick="setTime(0)">Overture - 00:00</span></p>
+                    <p><span onclick="setTime(319)">It's a Boy - 05:19</span></p>
+                    <p><span onclick="setTime(358)">1921 - 05:58</span></p>
+                    <p><span onclick="setTime(527)">Amazing Journey - 08:47</span></p>
+                    <p><span onclick="setTime(831)">Sparks - 13:51</span></p>
+                    <p><span onclick="setTime(957)">The Hawker - 15:57</span></p>
+                    <br>
+                    <h3>SIDE B:</h3>
+                    <p><span onclick="setTime(1099)">Christmas - 18:19</span></p>
+                    <p><span onclick="setTime(1371)">Cousin Kevin - 22:51</span></p>
+                    <p><span onclick="setTime(1618)">The Acid Queen - 26:58</span></p>
+                    <p><span onclick="setTime(1832)">Underture - 30:32</span></p>
+                    <br>
+                    <h3>SIDE C:</h3>
+                    <p><span onclick="setTime(2442)">Do You Think It's Alright? - 40:42</span></p>
+                    <p><span onclick="setTime(2467)">Fiddle About - 41:07</span></p>
+                    <p><span onclick="setTime(2558)">Pinball Wizard - 42:38</span></p>
+                    <p><span onclick="setTime(2740)">There's a Doctor - 45:40</span></p>
+                    <p><span onclick="setTime(2764)">Go to the Mirror! - 46:04</span></p>
+                    <p><span onclick="setTime(2991)">Tommy Can You Hear Me? - 49:51</span></p>
+                    <p><span onclick="setTime(3079)">Smash the Mirror - 51:19</span></p>
+                    <p><span onclick="setTime(3174)">Sensation - 52:54</span></p>
+                    <br>
+                    <h3>SIDE D:</h3>
+                    <p><span onclick="setTime(3328)">Miracle Cure - 55:28</span></p>
+                    <p><span onclick="setTime(3340)">Sally Simpson - 55:40</span></p>
+                    <p><span onclick="setTime(3590)">I'm Free - 59:50</span></p>
+                    <p><span onclick="setTime(3750)">Welcome - 01:02:30</span></p>
+                    <p><span onclick="setTime(4021)">Tommy's Holiday Camp - 01:07:01</span></p>
+                    <p><span onclick="setTime(4078)">We're Not Gonna Take It - 01:07:58</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

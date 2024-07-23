@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Gilded Palace Of Sin</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Flying Burrito Brothers – Gilded Palace Of Sin (1969)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/gilded_palace_of_sin.png" alt="Gilded Palace Of Sin" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/The Gilded Palace Of Sin (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Christine's Tune - 00:00</span></p>
+                    <p><span onclick="setTime(181)">Sin City - 03:01</span></p>
+                    <p><span onclick="setTime(430)">Do Right Woman - 07:10</span></p>
+                    <p><span onclick="setTime(665)">Dark End Of The Street - 11:05</span></p>
+                    <p><span onclick="setTime(894)">My Uncle - 14:54</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1058)">Wheels - 17:38</span></p>
+                    <p><span onclick="setTime(1239)">Juanita - 20:39</span></p>
+                    <p><span onclick="setTime(1388)">Hot Burrito #1 - 23:08</span></p>
+                    <p><span onclick="setTime(1605)">Hot Burrito #2 - 26:45</span></p>
+                    <p><span onclick="setTime(1800)">Do You Know How It Feels - 30:00</span></p>
+                    <p><span onclick="setTime(1928)">Hippie Boy - 32:08</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

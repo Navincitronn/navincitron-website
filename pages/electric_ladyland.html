@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Electric Ladyland</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Jimi Hendrix Experience – Electric Ladyland (1968)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/electric_ladyland.png" alt="Electric Ladyland" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/Electric Ladyland (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">...And the Gods Made Love - 00:00</span></p>
+                    <p><span onclick="setTime(82)">Have You Ever Been (To Electric Ladyland) - 01:22</span></p>
+                    <p><span onclick="setTime(212)">Crosstown Traffic - 03:32</span></p>
+                    <p><span onclick="setTime(353)">Voodoo Chile - 05:53</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1233)">Little Miss Strange - 20:33</span></p>
+                    <p><span onclick="setTime(1404)">Long Hot Summer Night - 23:24</span></p>
+                    <p><span onclick="setTime(1612)">Come On (Part 1) - 26:51</span></p>
+                    <p><span onclick="setTime(1860)">Gypsy Eyes - 31:00</span></p>
+                    <p><span onclick="setTime(2083)">Burning Of The Midnight Lamp - 34:42</span></p>
+                    <br>
+                    <h3>SIDE C</h3>
+                    <p><span onclick="setTime(2311)">Rainy Day, Dream Away - 38:31</span></p>
+                    <p><span onclick="setTime(2533)">1983 (A Merman I Should Turn To Be) - 42:13</span></p>
+                    <p><span onclick="setTime(3355)">Moon, Turn The Tides... Gently Gently Away - 55:55</span></p>
+                    <br>
+                    <h3>SIDE D</h3>
+                    <p><span onclick="setTime(3423)">Still Raining, Still Dreaming - 57:03</span></p>
+                    <p><span onclick="setTime(3687)">House Burning Down - 01:01:27</span></p>
+                    <p><span onclick="setTime(3954)">All Along The Watchtower - 01:05:54</span></p>
+                    <p><span onclick="setTime(4196)">Voodoo Child (Slight Return) - 01:09:56</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>

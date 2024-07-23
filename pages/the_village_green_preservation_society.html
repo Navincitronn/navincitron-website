@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - The Village Green Preservation Society</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+            <a href="#references">References</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Kinks – The Village Green Preservation Society (1968)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="/thumbnails/village_green_preservation_society.png" alt="The Village Green Preservation Society" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="/instrumentals/The Kinks Are The Village Green Preservation Society (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">The Village Green Preservation Society - 00:00</span></p>
+                    <p><span onclick="setTime(167)">Do You Remember Walter? - 02:47</span></p>
+                    <p><span onclick="setTime(313)">Picture Book - 05:13</span></p>
+                    <p><span onclick="setTime(469)">Johnny Thunder - 07:49</span></p>
+                    <p><span onclick="setTime(619)">Last Of The Steam Powered Trains - 10:19</span></p>
+                    <p><span onclick="setTime(869)">Big Sky - 14:29</span></p>
+                    <p><span onclick="setTime(1040)">Sitting By The Riverside - 17:20</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1189)">Animal Farm - 19:49</span></p>
+                    <p><span onclick="setTime(1368)">Village Green - 22:48</span></p>
+                    <p><span onclick="setTime(1497)">Starstruck - 24:57</span></p>
+                    <p><span onclick="setTime(1637)">Phenomenal Cat - 27:17</span></p>
+                    <p><span onclick="setTime(1793)">All Of My Friends Were There - 29:53</span></p>
+                    <p><span onclick="setTime(1938)">Wicked Anabella - 32:18</span></p>
+                    <p><span onclick="setTime(2100)">Monica - 35:00</span></p>
+                    <p><span onclick="setTime(2235)">People Take Pictures Of Each Other - 37:15</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
