@@ -121,3 +121,16 @@ function setTime(time) {
     audio.currentTime = time;
     audio.play();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const albumGrid = document.getElementById('album-grid');
+    const albums = Array.from(albumGrid.getElementsByClassName('album'));
+
+    albums.sort((a, b) => {
+        return parseInt(b.getAttribute('data-index')) - parseInt(a.getAttribute('data-index'));
+    });
+
+    albums.forEach(album => {
+        albumGrid.appendChild(album);
+    });
+});
