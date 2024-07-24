@@ -372,7 +372,6 @@ button:hover {
 }
 
 .title-bar {
-    display: flex;
     justify-content: space-between;
     align-items: center;
 }
@@ -387,6 +386,7 @@ button:hover {
     padding: 5px;
     margin-top: 8px;
     margin-right: 10px;
+    margin-left: 20px;
 }
 
 .dropdown {
