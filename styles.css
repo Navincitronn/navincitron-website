@@ -428,6 +428,16 @@ button:hover {
     display: block;
 }
 
+.album-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.album-link:hover {
+    text-decoration: underline;
+    color: red;
+}
+
 .thumbnail:hover {
     border: 0.5px solid;
     color: gray;
