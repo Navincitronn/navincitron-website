@@ -284,7 +284,7 @@ header {
 
 .album {
     flex: 1 1 calc(20% - 20px);
-    max-width: calc(75% - 20px);
+    max-width: calc(100% - 20px);
     box-sizing: border-box;
     margin-bottom: 20px;
     text-align: center;

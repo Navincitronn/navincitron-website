@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Bridge Over Troubled Water</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Simon & Garfunkel – Bridge Over Troubled Water (1970)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/bridge_over_troubled_water.png" alt="Bridge Over Troubled Water" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Bridge%20Over%20Troubled%20Water%20(Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Bridge Over Troubled Water - 00:00</span></p>
+                    <p><span onclick="setTime(293)">El Condor Pasa (If I Could) - 04:53</span></p>
+                    <p><span onclick="setTime(480)">Cecilia - 08:00</span></p>
+                    <p><span onclick="setTime(657)">Keep The Customer Satisfied - 10:57</span></p>
+                    <p><span onclick="setTime(811)">So Long, Frank Lloyd Wright - 13:31</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1040)">The Boxer - 17:20</span></p>
+                    <p><span onclick="setTime(1350)">Baby Driver - 22:30</span></p>
+                    <p><span onclick="setTime(1546)">The Only Living Boy in New York - 25:46</span></p>
+                    <p><span onclick="setTime(1784)">Why Don't You Write Me - 29:44</span></p>
+                    <p><span onclick="setTime(1950)">Bye Bye Love - 32:30</span></p>
+                    <p><span onclick="setTime(2124)">Song For The Asking - 35:24</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
