@@ -1,3 +1,62 @@
+@media only screen and (max-width: 768px) {
+    .header-left {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .logo {
+        margin-bottom: 10px;
+    }
+
+    .brand h1 {
+        font-size: 24px;
+    }
+
+    .topnav {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .topnav a {
+        padding: 10px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .album-grid {
+        display: block;
+    }
+
+    .album {
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 20px;
+    }
+
+    .album h3 {
+        font-size: 16px;
+    }
+
+    .thumbnail {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+@media only screen and (min-width: 769px) and (max-width: 1024px) {
+    .album {
+        flex: 1 1 calc(33.33% - 20px);
+        max-width: calc(33.33% - 20px);
+    }
+}
+
+@media only screen and (min-width: 1025px) and (max-width: 1200px) {
+    .album {
+        flex: 1 1 calc(25% - 20px);
+        max-width: calc(25% - 20px);
+    }
+}
+
 body {
     font-family: Arial, sans-serif;
     background-color: #333;
@@ -304,3 +363,4 @@ button:hover {
     height: 40px;
     margin-right: 10px;
 }
+
