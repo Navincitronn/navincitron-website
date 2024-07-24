@@ -44,10 +44,6 @@
         margin: 10px 0;
     }
 
-    .album {
-
-    }
-
     .search-filter {
         width: 100%;
         justify-content: center;
@@ -148,22 +144,19 @@
     }
 
     .instrumentals h2 {
-        font-size: 20px;
+        font-size: 10px;
         margin-left: 0;
     }
 
     .thumbnail-wrapper {
-        width: 75%;
-        max-width: 75%;
         display: flex;
         justify-content: center;
         align-items: center;
     }
 
     .albumss-thumbnail {
-        width: 75%;
-        max-width: 75%;
-        height: auto;
+        max-height: 300px;
+        max-width: 300px;
     }
 
     .audio-player {
@@ -193,6 +186,8 @@
     .thumbnail-wrapper .play-pause-icon {
         width: 25%;
     }
+
+    
 }
 
 @media only screen and (min-width: 1025px) and (max-width: 1200px) {
@@ -289,7 +284,7 @@ header {
 
 .album {
     flex: 1 1 calc(20% - 20px);
-    max-width: calc(20% - 20px);
+    max-width: calc(75% - 20px);
     box-sizing: border-box;
     margin-bottom: 20px;
     text-align: center;
@@ -306,8 +301,8 @@ header {
 
 .thumbnail {
     width: 100%;
-    height: auto;
     max-width: 300px;
+    max-height: 300px;
 }
 
 .albumss-thumbnail {
