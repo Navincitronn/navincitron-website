@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Greatest Hits</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Sly & The Family Stone – Greatest Hits (1970)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/sly_stone_greatest_hits.png" alt="Greatest Hits" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Sly Stone Greatest Hits (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">I Want to Take You Higher - 00:00</span></p>
+                    <p><span onclick="setTime(323)">Everybody Is A Star - 05:23</span></p>
+                    <p><span onclick="setTime(509)">Stand! - 08:29</span></p>
+                    <p><span onclick="setTime(698)">Life - 11:38</span></p>
+                    <p><span onclick="setTime(840)">Fun - 14:00</span></p>
+                    <p><span onclick="setTime(1021)">You Can Make It If You Try - 17:01</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1249)">Dance To The Music - 20:49</span></p>
+                    <p><span onclick="setTime(1429)">Everyday People - 23:49</span></p>
+                    <p><span onclick="setTime(1572)">Hot Fun In The Summertime - 26:12</span></p>
+                    <p><span onclick="setTime(1731)">M'Lady - 28:51</span></p>
+                    <p><span onclick="setTime(1898)">Sing A Simple Song - 31:38</span></p>
+                    <p><span onclick="setTime(2122)">Thank You (Falettinme Be Mice Elf Agin) - 35:22</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
