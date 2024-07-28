@@ -435,7 +435,6 @@ button:hover {
 
 .album-link:hover {
     text-decoration: underline;
-    color: red;
 }
 
 .album-link:visited {
