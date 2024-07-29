@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Revolver</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Beatles – Revolver (1966)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/revolverr.png" alt="Revolver" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Revolver (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(1)">Taxman - 00:00</span></p>
+                    <p><span onclick="setTime(158)">Eleanor Rigby - 02:38</span></p>
+                    <p><span onclick="setTime(285)">I'm Only Sleeping - 04:45</span></p>
+                    <p><span onclick="setTime(465)">Love You To - 07:45</span></p>
+                    <p><span onclick="setTime(645)">Here, There And Everywhere - 10:45</span></p>
+                    <p><span onclick="setTime(790)">Yellow Submarine - 13:10</span></p>
+                    <p><span onclick="setTime(949)">She Said She Said - 15:49</span></p>
+                    <p><span onclick="setTime(1113)">Good Day Sunshine - 18:33</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1244)">Rain - 20:44</span></p>
+                    <p><span onclick="setTime(1425)">And Your Bird Can Sing - 23:45</span></p>
+                    <p><span onclick="setTime(1545)">For No One - 25:45</span></p>
+                    <p><span onclick="setTime(1666)">Doctor Robert - 27:46</span></p>
+                    <p><span onclick="setTime(1801)">Paperback Writer - 30:01</span></p>
+                    <p><span onclick="setTime(1934)">I Want To Tell You - 32:14</span></p>
+                    <p><span onclick="setTime(2082)">Got To Get You Into My Life - 34:42</span></p>
+                    <p><span onclick="setTime(2231)">Tomorrow Never Knows - 37:11</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
