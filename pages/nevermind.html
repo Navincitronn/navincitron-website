@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Nevermind</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Nirvana – Nevermind (1991)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/nevermind.png" alt="Nevermind" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Nevermind (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Smells Like Teen Spirit - 00:00</span></p>
+                    <p><span onclick="setTime(300)">In Bloom - 05:00</span></p>
+                    <p><span onclick="setTime(555)">Come As You Are - 09:15</span></p>
+                    <p><span onclick="setTime(774)">Breed - 12:54</span></p>
+                    <p><span onclick="setTime(958)">Lithium - 15:58</span></p>
+                    <p><span onclick="setTime(1215)">Polly - 20:15</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1396)">Territorial Pissings - 23:16</span></p>
+                    <p><span onclick="setTime(1540)">Drain You - 25:40</span></p>
+                    <p><span onclick="setTime(1767)">Lounge Act - 29:27</span></p>
+                    <p><span onclick="setTime(1919)">Stay Away - 31:59</span></p>
+                    <p><span onclick="setTime(2130)">On A Plain - 35:30</span></p>
+                    <p><span onclick="setTime(2325)">Something In Tthe Way - 38:45</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
