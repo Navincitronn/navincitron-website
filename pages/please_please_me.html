@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Please Please Me</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Beatles – Please Please Me (1963)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/please_please_me.png" alt="Please Please Me" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Please Please Me (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">I Saw Her Standing There - 00:00</span></p>
+                    <p><span onclick="setTime(172)">Misery - 02:52</span></p>
+                    <p><span onclick="setTime(281)">Anna (Go To Him) - 04:41</span></p>
+                    <p><span onclick="setTime(459)">Chains - 07:39</span></p>
+                    <p><span onclick="setTime(603)">Boys - 10:03</span></p>
+                    <p><span onclick="setTime(748)">Ask Me Why - 12:28</span></p>
+                    <p><span onclick="setTime(895)">Please Please Me - 14:55</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1023)">Love Me Do - 17:03</span></p>
+                    <p><span onclick="setTime(1167)">P.S. I Love You - 19:27</span></p>
+                    <p><span onclick="setTime(1291)">Baby It's You - 21:31</span></p>
+                    <p><span onclick="setTime(1447)">Do You Want To Know A Secret - 24:07</span></p>
+                    <p><span onclick="setTime(1565)">A Taste Of Honey - 26:05</span></p>
+                    <p><span onclick="setTime(1689)">There's A Place - 28:09</span></p>
+                    <p><span onclick="setTime(1801)">Twist And Shout - 30:01</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
