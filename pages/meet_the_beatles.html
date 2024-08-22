@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Meet The Beatles!</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">The Beatles – Meet The Beatles! (1964)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/meet_the_beatles.png" alt="Meet The Beatles!" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Meet%20the%20Beatles!%20(Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(1)">I Want to Hold Your Hand - 00:00</span></p>
+                    <p><span onclick="setTime(148)">She Loves You - 02:28</span></p>
+                    <p><span onclick="setTime(289)">This Boy - 04:49</span></p>
+                    <p><span onclick="setTime(429)">It Won't Be Long - 07:09</span></p>
+                    <p><span onclick="setTime(561)">All I've Got to Do - 09:21</span></p>
+                    <p><span onclick="setTime(684)">All My Loving - 11:24</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(818)">Don't Bother Me - 13:38</span></p>
+                    <p><span onclick="setTime(967)">Little Child - 16:07</span></p>
+                    <p><span onclick="setTime(1073)">Till There Was You - 17:53</span></p>
+                    <p><span onclick="setTime(1207)">Hold Me Tight - 20:07</span></p>
+                    <p><span onclick="setTime(1359)">I Wanna Be Your Man - 22:39</span></p>
+                    <p><span onclick="setTime(1479)">Not a Second Time - 24:39</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
