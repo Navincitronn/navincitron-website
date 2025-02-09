@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Still Bill (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Bill Withers – Still Bill (1972)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/still_bill.png" alt="Still Bill" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Still Bill (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Lonely Town, Lonely Street - 00:00</span></p>
+                    <p><span onclick="setTime(223)">Let Me In Your Life - 03:43</span></p>
+                    <p><span onclick="setTime(384)">Who Is He (And What Is He to You)? - 06:24</span></p>
+                    <p><span onclick="setTime(578)">Use Me - 09:38</span></p>
+                    <p><span onclick="setTime(805)">Lean On Me - 13:25</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1073)">Kissing My Love - 17:53</span></p>
+                    <p><span onclick="setTime(1304)">I Don't Know - 21:44</span></p>
+                    <p><span onclick="setTime(1489)">Another Day To Run - 24:49</span></p>
+                    <p><span onclick="setTime(1769)">I Don't Want You On My Mind - 29:29</span></p>
+                    <p><span onclick="setTime(2046)">Take It All In And Check It All Out - 34:06</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
