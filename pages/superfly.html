@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Superfly (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Curtis Mayfield – Superfly (1972)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/superfly.png" alt="Superfly" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Superfly (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(1)">Little Child Runnin' Wild - 00:01</span></p>
+                    <p><span onclick="setTime(325)">Pusherman - 05:25</span></p>
+                    <p><span onclick="setTime(630)">Freddie's Dead - 10:30</span></p>
+                    <p><span onclick="setTime(959)">Junkie Chase (Instrumental) - 15:59</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1065)">Give Me Your Love (Love Song) - 17:45</span></p>
+                    <p><span onclick="setTime(1326)">Eddie You Should Know Better - 22:06</span></p>
+                    <p><span onclick="setTime(1467)">No Thing On Me (Cocaine Song) - 24:27</span></p>
+                    <p><span onclick="setTime(1765)">Think (Instrumental) - 29:25</span></p>
+                    <p><span onclick="setTime(1993)">Superfly - 33:13</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
