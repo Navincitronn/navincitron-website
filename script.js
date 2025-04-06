@@ -54,8 +54,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 valA = new Date(valA);
                 valB = new Date(valB);
             } else if (sortBy === 'duration') {
-                valA = valA.split(':').reduce((acc, time) => (60 * acc) + +time);
-                valB = valB.split(':').reduce((acc, time) => (60 * acc) + +time);
+                const durationA = valA.split(':').reduce((acc, time) => (60 * acc) + +time);
+                const durationB = valB.split(':').reduce((acc, time) => (60 * acc) + +time);
+    
+                if (durationA !== durationB) {
+                    return durationA > durationB ? order : -order;
+                }
+    
+                const dateA = new Date(a.dataset.date);
+                const dateB = new Date(b.dataset.date);
+                return dateA - dateB;
+            } else if (sortBy === 'artist') {
+                const artistA = valA.toLowerCase();
+                const artistB = valB.toLowerCase();
+    
+                if (artistA !== artistB) {
+                    return artistA > artistB ? order : -order;
+                }
+
+                const dateA = new Date(a.dataset.date);
+                const dateB = new Date(b.dataset.date);
+                return dateA - dateB;
             } else {
                 valA = valA.toLowerCase();
                 valB = valB.toLowerCase();
@@ -63,10 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
             return valA > valB ? order : -order;
         });
-    
         const parent = albums[0].parentNode;
         albums.forEach(album => parent.appendChild(album));
     }
+       
 });
 
 document.addEventListener('DOMContentLoaded', () => {
