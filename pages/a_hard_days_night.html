@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Hard Day's Night (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+<header>
+    <div class="header-left">
+        <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+        <div class="brand">
+            <h1>NAVINCITRON</h1>
+            <br>
+            <p>proper music isolation</p>
+        </div>
+    </div>
+    <nav class="topnav">
+        <a href="/index.html">Home</a>
+        <a href="/about.html">About</a>
+        <a href="/contact.html">Contact</a>
+    </nav>
+</header>
+<main>
+    <section class="instrumentals">
+        <h2 class="center">The Beatles – A Hard Day's Night (1964)</h2>
+        <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+            <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/a_hard_days_night.png" alt="A Hard Day's Night" class="albumss-thumbnail" id="thumbnail">
+            <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+            <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+        </div>
+        <div class="audio-player">
+            <audio id="audio-player" controls>
+                <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/A Hard Day's Night (Instrumentals).mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+            <div class="track-list">
+                <h3>SIDE A</h3>
+                <p><span onclick="setTime(0)">A Hard Day's Night – 00:00</span></p>
+                <p><span onclick="setTime(153)">I Should Have Known Better – 02:33</span></p>
+                <p><span onclick="setTime(317)">If I Fell – 05:17</span></p>
+                <p><span onclick="setTime(456)">I'm Happy Just To Dance With You – 07:36</span></p>
+                <p><span onclick="setTime(575)">And I Love Her – 9:35</span></p>
+                <p><span onclick="setTime(728)">Tell Me Why – 12:08</span></p>
+                <p><span onclick="setTime(860)">Can't Buy Me Love – 14:20</span></p>
+                <br>
+                <h3>SIDE B</h3>
+                <p><span onclick="setTime(1003)">Any Time At All – 16:43</span></p>
+                <p><span onclick="setTime(1134)">I'll Cry Instead – 18:54</span></p>
+                <p><span onclick="setTime(1242)">Things We Said Today – 20:42</span></p>
+                <p><span onclick="setTime(1399)">When I Get Home – 23:19</span></p>
+                <p><span onclick="setTime(1539)">You Can't Do That – 25:39</span></p>
+                <p><span onclick="setTime(1698)">I'll Be Back – 28:18</span></p>
+            </div>
+        </div>
+    </section>
+</main>
+<script src="/script.js"></script>
+</body>
+</html>
