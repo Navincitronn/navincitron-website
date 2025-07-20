@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Berlin (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Lou Reed - Berlin (1973)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/berlin.png" alt="Berlin" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Berlinn (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Berlin - 00:00</span></p>
+                    <p><span onclick="setTime(203)">Lady Day - 03:23</span></p>
+                    <p><span onclick="setTime(423)">Men Of Good Fortune - 07:03</span></p>
+                    <p><span onclick="setTime(702)">Caroline Says I - 11:42</span></p>
+                    <p><span onclick="setTime(938)">How Do You Think It Feels - 15:38</span></p>
+                    <p><span onclick="setTime(1161)">Oh, Jim - 19:21</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1485)">Caroline Says II - 24:45</span></p>
+                    <p><span onclick="setTime(1739)">The Kids - 28:59</span></p>
+                    <p><span onclick="setTime(2214)">The Bed - 36:54</span></p>
+                    <p><span onclick="setTime(2565)">Sad Song - 42:45</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
