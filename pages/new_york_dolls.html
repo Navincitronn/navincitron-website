@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New York Dolls (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">New York Dolls -  New York Dolls (1973)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/new_york_dolls.png" alt="New York Dolls" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/New York Dolls (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Personality Crisis - 00:00</span></p>
+                    <p><span onclick="setTime(221)">Looking For A Kiss - 03:41</span></p>
+                    <p><span onclick="setTime(416)">Vietnamese Baby - 06:56</span></p>
+                    <p><span onclick="setTime(634)">Lonely Planet Boy - 10:34</span></p>
+                    <p><span onclick="setTime(883)">Frankenstein - 14:43</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1252)">Trash - 20:52</span></p>
+                    <p><span onclick="setTime(1440)">Bad Girl - 24:00</span></p>
+                    <p><span onclick="setTime(1623)">Subway Train - 27:03</span></p>
+                    <p><span onclick="setTime(1883)">Pills - 31:23</span></p>
+                    <p><span onclick="setTime(2052)">Private World - 34:12</span></p>
+                    <p><span onclick="setTime(2271)">Jet Boy - 37:51</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
