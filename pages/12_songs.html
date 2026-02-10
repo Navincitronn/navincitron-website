@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>12 Songs (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Randy Newman - 12 Songs (1970)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/12_songs.png" alt="12 Songs" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/12 Songs (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Have You Seen My Baby? - 00:00</span></p>
+                    <p><span onclick="setTime(155)">Let's Burn Down The Cornfield - 02:35</span></p>
+                    <p><span onclick="setTime(340)">Mama Told Me Not To Come - 05:40</span></p>
+                    <p><span onclick="setTime(472)">Suzanne - 07:52</span></p>
+                    <p><span onclick="setTime(663)">Lover's Prayer - 11:03</span></p>
+                    <p><span onclick="setTime(782)">Lucinda - 13:02</span></p>
+                    <p><span onclick="setTime(946)">Underneath The Harlem Moon - 15:46</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1071)">Yellow Man - 17:51</span></p>
+                    <p><span onclick="setTime(1214)">Old Kentucky Home - 20:14</span></p>
+                    <p><span onclick="setTime(1374)">Rosemary - 22:54</span></p>
+                    <p><span onclick="setTime(1505)">If You Need Oil - 25:05</span></p>
+                    <p><span onclick="setTime(1684)">Uncle Bob's Midnight Blues - 28:04</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
