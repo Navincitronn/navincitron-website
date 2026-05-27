@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood On The Tracks (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Bob Dylan - Blood On The Tracks (1975)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/blood_on_the_tracks.png" alt="Blood On The Tracks" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Blood On The Tracks (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Tangled Up In Blue - 00:00</span></p>
+                    <p><span onclick="setTime(343)">Simple Twist Of Fate - 05:43</span></p>
+                    <p><span onclick="setTime(602)">You're A Big Girl Now - 10:02</span></p>
+                    <p><span onclick="setTime(879)">Idiot Wind - 14:39</span></p>
+                    <p><span onclick="setTime(1348)">You're Gonna Make Me Lonesome When You Go - 22:28</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1530)">Meet Me In The Morning - 25:30</span></p>
+                    <p><span onclick="setTime(1793)">Lily, Rosemary And The Jack Of Hearts - 29:53</span></p>
+                    <p><span onclick="setTime(2326)">If You See Her, Say Hello - 38:46</span></p>
+                    <p><span onclick="setTime(2615)">Shelter From The Storm - 43:35</span></p>
+                    <p><span onclick="setTime(2915)">Buckets Of Rain - 48:35</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
