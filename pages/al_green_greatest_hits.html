@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greatest Hits (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Al Green - Greatest Hits (2006)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/al_green_greatest_hits.png" alt="Greatest Hits" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Al Green's Greatest Hits (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Tired Of Being Alone - 00:00</span></p>
+                    <p><span onclick="setTime(162)">Call Me (Come Back Home) - 02:42</span></p>
+                    <p><span onclick="setTime(347)">I'm Still In Love With You - 05:47</span></p>
+                    <p><span onclick="setTime(541)">Here I Am (Come And Take Me) - 09:01</span></p>
+                    <p><span onclick="setTime(795)">How Can You Mend A Broken Heart - 13:15</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1186)">Let's Stay Together - 19:46</span></p>
+                    <p><span onclick="setTime(1384)">I Can't Get Next To You - 23:04</span></p>
+                    <p><span onclick="setTime(1617)">You Ought To Be With Me - 26:57</span></p>
+                    <p><span onclick="setTime(1817)">Look What You Done For Me - 30:17</span></p>
+                    <p><span onclick="setTime(2003)">Let's Get Married - 33:23</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
