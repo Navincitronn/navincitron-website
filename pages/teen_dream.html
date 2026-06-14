@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teen Dream (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Beach House - Teen Dream (2010)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/teen_dream.png" alt="Teen Dream" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Teen Dream (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Zebra - 00:00</span></p>
+                    <p><span onclick="setTime(290)">Silver Soul - 04:50</span></p>
+                    <p><span onclick="setTime(586)">Norway - 09:46</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(831)">Walk In The Park - 13:51</span></p>
+                    <p><span onclick="setTime(1153)">Used To Be - 19:13</span></p>
+                    <br>
+                    <h3>SIDE C</h3>
+                    <p><span onclick="setTime(1397)">Lover Of Mine - 23:17</span></p>
+                    <p><span onclick="setTime(1708)">Better Times - 28:24</span></p>
+                    <br>
+                    <h3>SIDE D</h3>
+                    <p><span onclick="setTime(1977)">10 Mile Stereo - 32:57</span></p>
+                    <p><span onclick="setTime(2281)">Real Love - 38:01</span></p>
+                    <p><span onclick="setTime(2602)">Take Care - 43:22</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
