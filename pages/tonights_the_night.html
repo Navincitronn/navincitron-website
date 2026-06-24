@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tonight's The Night (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Neil Young - Tonight's The Night (1975)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/tonights_the_night.png" alt="Tonight's The Night" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Tonight's The Night (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Tonight's The Night - 00:00</span></p>
+                    <p><span onclick="setTime(282)">Speakin' Out - 04:42</span></p>
+                    <p><span onclick="setTime(579)">World On A String - 09:39</span></p>
+                    <p><span onclick="setTime(724)">Borrowed Tune - 12:04</span></p>
+                    <p><span onclick="setTime(930)">Come On Baby Let's Go Downtown - 15:30</span></p>
+                    <p><span onclick="setTime(1146)">Mellow My Mind - 19:06</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(1346)">Roll Another Number (For The Road) - 22:26</span></p>
+                    <p><span onclick="setTime(1530)">Albuquerque - 25:30</span></p>
+                    <p><span onclick="setTime(1772)">New Mama - 29:32</span></p>
+                    <p><span onclick="setTime(1906)">Lookout Joe - 31:46</span></p>
+                    <p><span onclick="setTime(2140)">Tired Eyes - 35:40</span></p>
+                    <p><span onclick="setTime(2414)">Tonight's The Night (Pt. II) - 40:14</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
