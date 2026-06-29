@@ -1,7 +1,8 @@
 .env
-.spotify_token_cache
-album_cache.json
-album_cache.json.*
-__pycache__/
-*.pyc
 .venv/
+__pycache__/
+.spotify_token_cache
+.sampler_uploads/
+album_cache.json
+sampler_state.json
+*.pyc

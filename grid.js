@@ -81,6 +81,8 @@ async function initTopsterImporter(albumCards) {
     let pickerEntryIndex = null;
     let pickerLookupToken = 0;
     const topsterSourceLabel = getTopsterSourceLabel();
+    const topsterReadOnly = document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list');
+    const topsterAutoLoad = document.body && (document.body.dataset.topsterAutoload === 'true' || topsterReadOnly);
 
     setSettingsControls(currentSettings);
     applyTopsterSettings(currentSettings);
@@ -174,6 +176,12 @@ async function initTopsterImporter(albumCards) {
         coverPicker.addEventListener('click', event => {
             if (event.target === coverPicker) closeCoverPicker();
         });
+    }
+
+    if (topsterAutoLoad) {
+        window.setTimeout(() => {
+            buildTopsterFromGridFile({ force: false, source: 'autoload' });
+        }, 0);
     }
 
     function openCoverPicker(entry, entryIndex) {
@@ -531,7 +539,7 @@ async function initTopsterImporter(albumCards) {
         for (let i = 0; i < pageSize; i++) {
             const entry = pageEntries[i];
             const absoluteIndex = start + i;
-            chart.appendChild(createTopsterTile(entry, absoluteIndex + 1, () => {
+            chart.appendChild(createTopsterTile(entry, absoluteIndex + 1, topsterReadOnly ? null : () => {
                 if (entry) openCoverPicker(entry, absoluteIndex);
             }));
         }
@@ -1866,13 +1874,13 @@ function createTopsterTile(entry, displayIndex, onSelectCover) {
 
     const cover = entry.cover;
     const label = `${displayIndex}. ${formatEntryName(entry)}`;
-    tile.title = `${label} — click to choose a cover`;
-    tile.classList.add('topster-tile-selectable');
-    tile.setAttribute('role', 'button');
-    tile.setAttribute('tabindex', '0');
-    tile.setAttribute('aria-label', `${label}. Click to choose a cover.`);
 
     if (typeof onSelectCover === 'function') {
+        tile.title = `${label} — click to choose a cover`;
+        tile.classList.add('topster-tile-selectable');
+        tile.setAttribute('role', 'button');
+        tile.setAttribute('tabindex', '0');
+        tile.setAttribute('aria-label', `${label}. Click to choose a cover.`);
         tile.addEventListener('click', event => {
             event.preventDefault();
             onSelectCover();
@@ -1883,6 +1891,9 @@ function createTopsterTile(entry, displayIndex, onSelectCover) {
                 onSelectCover();
             }
         });
+    } else {
+        tile.title = label;
+        tile.setAttribute('aria-label', label);
     }
 
     if (cover && cover.imageSrc) {

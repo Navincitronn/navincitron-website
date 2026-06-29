@@ -1195,3 +1195,24 @@ button:hover {
 
 /* The grid pages now always use all cover sources; there is no visible source-settings panel. */
 
+
+
+/* Static album-list pages */
+.album-list-intro {
+    box-sizing: border-box;
+    color: #f2f2f2;
+    line-height: 1.55;
+    margin: 0 auto 18px;
+    max-width: 1150px;
+    padding: 0 24px;
+    text-align: center;
+}
+
+.album-list-page .topster-output {
+    margin-top: 18px;
+}
+
+.album-list-page .topster-status[hidden],
+.album-list-page .topster-import-panel[hidden] {
+    display: none !important;
+}

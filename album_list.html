@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Albums</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body class="album-list-page" data-topster-mode="list" data-topster-readonly="true" data-topster-autoload="true">
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="ranked_album_list.html">Rank</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="grid-builder-page">
+            <div class="title-bar">
+                <br>
+                <h2 class="center">ALBUMS</h2>
+            </div>
+            <p class="album-list-intro">Below is a topsters of all the albums that are in my listening list (give it a minute to load) that are ordered by chronological release date. I have compiled these albums from various sources like Rolling Stone Top 500 Albums, RateYourMusic Overall/Yearly Album Charts, Besteveralbums.com, NME Top 500, Pitchfork Top Albums of Every Decade/Year, 1001 Albums You Must Hear Before You Die (All Editions), Collin Larkin's Top 1000 Albums, Paste Magazine, and Billboard Top 50. I have started the list during February 2022 and still continue to rate each of these on my RateYourMusic account.</p>
+            <hr>
+
+            <div class="topster-import-panel" id="topster-import-panel" hidden>
+                <div class="topster-controls topster-file-controls">
+                    <button type="button" id="topster-build-button">Build 10x10</button>
+                    <button type="button" id="topster-refresh-button" class="secondary-button">Refresh</button>
+                    <button type="button" id="topster-stop-button" class="danger-button" disabled>Stop Lookup</button>
+                    <button type="button" id="topster-clear-button" class="secondary-button">Clear</button>
+                    <button type="button" id="topster-cache-clear-button" class="danger-button">Clear Cover Cache</button>
+                    <select id="topster-range" disabled>
+                        <option value="0">All</option>
+                    </select>
+                </div>
+
+                <input type="range" id="topster-width" min="1" max="25" step="1" value="10">
+                <span id="topster-width-value">10</span>
+                <input type="range" id="topster-height" min="1" max="10" step="1" value="10">
+                <span id="topster-height-value">10</span>
+                <select id="topster-sidebar-mode">
+                    <option value="artist-title" selected>Show Artist - Album</option>
+                    <option value="title-only">Show Album only</option>
+                    <option value="hidden">Hide sidebar</option>
+                </select>
+                <select id="topster-round-corners">
+                    <option value="0" selected>0 px</option>
+                    <option value="2">2 px</option>
+                    <option value="4">4 px</option>
+                    <option value="6">6 px</option>
+                    <option value="8">8 px</option>
+                    <option value="10">10 px</option>
+                    <option value="12">12 px</option>
+                    <option value="16">16 px</option>
+                    <option value="20">20 px</option>
+                    <option value="24">24 px</option>
+                </select>
+                <input type="range" id="topster-album-gap" min="0" max="100" step="1" value="4">
+                <span id="topster-album-gap-value">4 px</span>
+                <select id="topster-font">
+                    <option value="Arial" selected>Arial</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Helvetica Neue">Helvetica Neue</option>
+                    <option value="Sans-serif">Sans-serif</option>
+                    <option value="Monospace">Monospace</option>
+                    <option value="Open Sans">Open Sans</option>
+                    <option value="Helvetica">Helvetica</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Tahoma">Tahoma</option>
+                    <option value="Calibri">Calibri</option>
+                </select>
+                <p class="topster-status" id="topster-status" hidden></p>
+            </div>
+
+            <div class="topster-output" id="topster-output" hidden>
+                <div class="topster-pages" id="topster-pages"></div>
+            </div>
+        </section>
+    </main>
+
+    <script src="grid.js"></script>
+</body>
+</html>
