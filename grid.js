@@ -520,7 +520,7 @@ async function initTopsterImporter(albumCards) {
         });
         renderTopster(importedEntries, 0, { scroll: false });
         saveCurrentTopster();
-        status.textContent = `Looking up ${pendingEntries.length} Last.fm cover${pendingEntries.length === 1 ? '' : 's'}...`;
+        status.textContent = `Looking up ${pendingEntries.length} album cover${pendingEntries.length === 1 ? '' : 's'} from Last.fm, Internet Archive, MusicBrainz, and iTunes...`;
 
         const maybeRenderProgress = (force = false) => {
             const now = Date.now();
@@ -541,7 +541,7 @@ async function initTopsterImporter(albumCards) {
                 if (!item) return;
 
                 const { entry, index } = item;
-                status.textContent = `Looking up Last.fm cover ${index + 1} of ${importedEntries.length}: ${formatEntryName(entry)}`;
+                status.textContent = `Looking up cover ${index + 1} of ${importedEntries.length}: ${formatEntryName(entry)}`;
 
                 try {
                     const cover = await resolveAlbumCover(entry, albumCatalog, config);
@@ -574,7 +574,7 @@ async function initTopsterImporter(albumCards) {
             const missingCount = importedEntries.filter(entry => entry.status === 'missing').length;
             maybeRenderProgress(true);
             saveCurrentTopster();
-            status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Defaulted to Last.fm and found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'}; missed ${missingCount}.`;
+            status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Used Last.fm → Internet Archive → MusicBrainz → iTunes fallback and found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'}; missed ${missingCount}.`;
         }
     }
 
@@ -1199,11 +1199,12 @@ function simpleTextHash(text) {
 
 function getSourceConfig() {
     return {
-        // Automatic/default Topster covers must come from Last.fm only.
-        // Other sources are intentionally reserved for the manual cover picker.
-        useMusicBrainz: false,
-        useItunes: false,
-        useInternetArchive: false,
+        // Automatic/default Topster lookup uses the full external-source fallback chain.
+        // Last.fm is preferred first, then Internet Archive, MusicBrainz/CAA, iTunes,
+        // and optional Google CSE if keys are supplied.
+        useMusicBrainz: true,
+        useItunes: true,
+        useInternetArchive: true,
         useLocalIndex: false,
         useCache: true,
         lastfmKey: TOPSTER_LASTFM_API_KEY,
@@ -1222,23 +1223,40 @@ function isChecked(id) {
 async function resolveAlbumCover(entry, albumCatalog, config) {
     const cacheKey = buildCoverCacheKey(entry);
 
-    // Manual selections always win, including manually chosen covers from non-Last.fm sources.
-    const manualCached = getPreferredManualCachedCover(entry) || getCachedCover(cacheKey);
-    if (manualCached && manualCached.imageSrc && manualCached.selectedManually) {
-        return { ...manualCached, source: manualCached.source || 'Manual' };
+    if (config.useCache) {
+        const cached = getPreferredCachedCover(entry) || getCachedCover(cacheKey);
+        if (cached && cached.imageSrc) {
+            return { ...cached, source: cached.source || 'Cache' };
+        }
     }
 
-    // Automatic/default covers must be Last.fm only. Reuse only Last.fm automatic cache entries.
-    const lastfmCached = getPreferredLastfmCachedCover(entry);
-    if (lastfmCached && lastfmCached.imageSrc) {
-        return { ...lastfmCached, source: lastfmCached.source || 'Last.fm' };
+    if (config.useLocalIndex) {
+        const localCover = resolveLocalIndexCover(entry, albumCatalog);
+        if (localCover && localCover.imageSrc) {
+            setCachedCover(cacheKey, localCover);
+            return localCover;
+        }
     }
 
-    if (config.useLastfm) {
-        const cover = await resolveLastfmCover(entry, config.lastfmKey);
-        if (cover && cover.imageSrc) {
-            setCachedCover(cacheKey, cover);
-            return cover;
+    const orderedResolvers = [
+        { enabled: config.useLastfm, resolver: () => resolveLastfmCover(entry, config.lastfmKey) },
+        { enabled: config.useInternetArchive, resolver: () => resolveInternetArchiveCover(entry) },
+        { enabled: config.useMusicBrainz, resolver: () => resolveMusicBrainzCover(entry) },
+        { enabled: config.useItunes, resolver: () => resolveItunesCover(entry) },
+        { enabled: config.useGoogle, resolver: () => resolveGoogleCustomSearchCover(entry, config.googleKey, config.googleCx) }
+    ];
+
+    for (const item of orderedResolvers) {
+        if (!item.enabled) continue;
+
+        try {
+            const cover = await item.resolver();
+            if (cover && cover.imageSrc) {
+                setCachedCover(cacheKey, cover);
+                return cover;
+            }
+        } catch (error) {
+            // Continue through the ordered fallback chain if a source fails.
         }
     }
 
@@ -1823,7 +1841,23 @@ function getCachedCover(key) {
 }
 
 function getPreferredCachedCover(entry) {
-    return getPreferredManualCachedCover(entry) || getPreferredLastfmCachedCover(entry);
+    return getPreferredManualCachedCover(entry)
+        || getPreferredLastfmCachedCover(entry)
+        || getPreferredAnyCachedCover(entry);
+}
+
+function getPreferredAnyCachedCover(entry) {
+    const cache = getCoverCache();
+    const aliases = buildCoverCacheAliases(entry);
+
+    for (const key of aliases) {
+        const item = cache[key];
+        if (item && item.imageSrc) {
+            return { ...item, source: item.source || 'Cache' };
+        }
+    }
+
+    return null;
 }
 
 function getPreferredManualCachedCover(entry) {
