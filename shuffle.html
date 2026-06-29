@@ -31,13 +31,15 @@
 
         .shuffle-form-row input[type="number"],
         .shuffle-form-row input[type="text"],
+        .shuffle-form-row input[type="url"],
         .shuffle-form-row input[type="file"] {
             box-sizing: border-box;
             width: 100%;
             padding: 8px;
         }
 
-        .clip-mode-row {
+        .clip-mode-row,
+        .source-mode-row {
             border: 1px solid rgba(255, 255, 255, 0.25);
             border-radius: 8px;
             padding: 12px;
@@ -47,6 +49,17 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
+        }
+
+        .source-options {
+            margin-top: 12px;
+        }
+
+        .source-help {
+            color: #ddd;
+            font-size: 13px;
+            line-height: 1.45;
+            margin: 6px 0 0;
         }
 
         .checkbox-row,
@@ -69,8 +82,23 @@
         }
 
         .sampler-status,
-        .shuffle-cover-meta {
+        .shuffle-cover-meta,
+        .spotify-auth-status {
             text-align: center;
+        }
+
+        .spotify-auth-status {
+            color: #ddd;
+            font-weight: bold;
+            margin: 12px 0 0;
+        }
+
+        .spotify-auth-status.connected {
+            color: #9ee59e;
+        }
+
+        .spotify-auth-status.disconnected {
+            color: #ffcf85;
         }
 
         .shuffle-cover-wrap {
@@ -146,14 +174,33 @@
     <main>
         <section class="shuffle-panel">
             <div class="shuffle-card">
-                <div class="shuffle-form-row">
-                    <label for="albums-file">Album / playlist text file</label>
-                    <input type="file" id="albums-file" accept=".txt,text/plain" required>
+                <div class="shuffle-form-row source-mode-row">
+                    <label class="radio-row">
+                        <input type="radio" name="source-mode" id="source-mode-file" value="file" checked>
+                        Album / playlist text file
+                    </label>
+                    <div id="file-source-options" class="source-options">
+                        <label for="albums-file">Album / playlist text file</label>
+                        <input type="file" id="albums-file" accept=".txt,text/plain">
+                        <div class="shuffle-form-row">
+                            <label for="start-index">Start at uploaded text-file line index</label>
+                            <input type="number" id="start-index" min="1" value="1">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="shuffle-form-row">
-                    <label for="start-index">Start at uploaded text-file line index</label>
-                    <input type="number" id="start-index" min="1" value="1">
+                <div class="shuffle-form-row source-mode-row">
+                    <label class="radio-row">
+                        <input type="radio" name="source-mode" id="source-mode-playlist" value="playlist">
+                        Single Spotify playlist link, random no-repeat playback
+                    </label>
+                    <div id="playlist-source-options" class="source-options">
+                        <label for="playlist-link">Spotify playlist link</label>
+                        <input type="url" id="playlist-link" placeholder="https://open.spotify.com/playlist/...">
+                        <p class="source-help">
+                            Plays one clip from each playable song in the playlist in randomized order. Each song is used once; when every possible song has been played, the sampler stops.
+                        </p>
+                    </div>
                 </div>
 
                 <div class="shuffle-form-row clip-mode-row">
@@ -181,11 +228,6 @@
                     </div>
                 </div>
 
-                <div class="shuffle-form-row">
-                    <label for="device-name">Spotify device name, optional</label>
-                    <input type="text" id="device-name" placeholder="Example: DESKTOP">
-                </div>
-
                 <div class="shuffle-form-row checkbox-row">
                     <label for="random-start">Random start position</label>
                     <input type="checkbox" id="random-start" checked>
@@ -209,6 +251,7 @@
                     <button id="stop-sampler" type="button" class="danger-button">Stop Sampler + Spotify</button>
                 </div>
 
+                <p id="spotify-auth-status" class="spotify-auth-status disconnected">Spotify: checking login...</p>
                 <p id="sampler-status" class="sampler-status">Status: idle</p>
             </div>
 
