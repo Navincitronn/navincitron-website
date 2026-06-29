@@ -8,6 +8,7 @@ const TOPSTER_RANKED_SHEET_GID = '0';
 const TOPSTER_LASTFM_API_KEY = '7c87436dbff96020ebb6e3a75cb0f396';
 const MUSICBRAINZ_DELAY_MS = 1200;
 const TOPSTER_SHARED_STORE_API = '/api/topster-shared-store';
+const TOPSTER_DEFAULT_BACKEND_ORIGIN = 'https://api.navincitron.com';
 let lastMusicBrainzRequestAt = 0;
 let topsterSharedStoreLoaded = false;
 let topsterSharedStoreAvailable = false;
@@ -16,6 +17,50 @@ let topsterSharedCoverCache = {};
 let topsterSharedSettings = null;
 let topsterSharedSaveTimer = null;
 
+
+
+function stripTrailingSlash(value) {
+    return String(value || '').replace(/\/+$/, '');
+}
+
+function getTopsterBackendOrigin() {
+    const body = document.body;
+    const explicit = stripTrailingSlash(
+        (window.NAVINCITRON_TOPSTER_API_BASE_URL || '')
+        || (body && body.dataset ? body.dataset.topsterApiBase || '' : '')
+    );
+
+    if (explicit) return explicit;
+
+    const host = window.location.hostname.toLowerCase();
+    if (host === 'www.navincitron.com' || host === 'navincitron.com') {
+        return TOPSTER_DEFAULT_BACKEND_ORIGIN;
+    }
+
+    return '';
+}
+
+function buildTopsterApiUrl(path) {
+    const backendOrigin = getTopsterBackendOrigin();
+    return new URL(path || '/', backendOrigin || window.location.origin).href;
+}
+
+function isTopsterEditorPage() {
+    const body = document.body;
+    const readOnly = body && (body.dataset.topsterReadonly === 'true' || body.dataset.topsterMode === 'list');
+    if (readOnly) return false;
+
+    const fileName = window.location.pathname.split('/').pop().toLowerCase();
+    return fileName === 'grid.html'
+        || fileName === 'ranked_grid.html'
+        || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
+}
+
+function buildTopsterAdminLoginUrl() {
+    const loginUrl = new URL('/topster-admin-login', getTopsterBackendOrigin() || window.location.origin);
+    loginUrl.searchParams.set('next', window.location.href);
+    return loginUrl.href;
+}
 
 function getTopsterDataSourceConfig() {
     const sourceName = String((document.body && document.body.dataset.topsterSource) || '').trim().toLowerCase();
@@ -91,6 +136,15 @@ async function initTopsterImporter(albumCards) {
     const topsterSourceLabel = getTopsterSourceLabel();
     const topsterReadOnly = document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list');
     const topsterAutoLoad = document.body && (document.body.dataset.topsterAutoload === 'true' || topsterReadOnly);
+    const topsterEditorPage = isTopsterEditorPage();
+
+    if (topsterEditorPage && (!topsterSharedStoreAvailable || !topsterSharedStoreWritable)) {
+        status.textContent = topsterSharedStoreAvailable
+            ? 'Grid editing requires Topster admin login. Redirecting...'
+            : 'Grid editing requires the sampler backend API. Redirecting to Topster admin login...';
+        window.location.replace(buildTopsterAdminLoginUrl());
+        return;
+    }
 
     setSettingsControls(currentSettings);
     applyTopsterSettings(currentSettings);
@@ -703,7 +757,7 @@ async function loadTopsterSharedStore() {
     topsterSharedStoreLoaded = true;
 
     try {
-        const response = await fetch(TOPSTER_SHARED_STORE_API, {
+        const response = await fetch(buildTopsterApiUrl(TOPSTER_SHARED_STORE_API), {
             cache: 'no-store',
             credentials: 'include'
         });
@@ -739,7 +793,7 @@ async function saveTopsterSharedStoreNow(payload) {
     if (!topsterSharedStoreAvailable || !topsterSharedStoreWritable) return false;
 
     try {
-        const response = await fetch(TOPSTER_SHARED_STORE_API, {
+        const response = await fetch(buildTopsterApiUrl(TOPSTER_SHARED_STORE_API), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -776,7 +830,7 @@ async function clearTopsterCoverCache() {
 
     if (topsterSharedStoreAvailable && topsterSharedStoreWritable) {
         try {
-            const response = await fetch(TOPSTER_SHARED_STORE_API, {
+            const response = await fetch(buildTopsterApiUrl(TOPSTER_SHARED_STORE_API), {
                 method: 'DELETE',
                 credentials: 'include'
             });
@@ -999,9 +1053,9 @@ async function tryLoadGridTextFromApi(source = getTopsterDataSourceConfig()) {
     if (!/^https?:$/i.test(window.location.protocol)) return null;
 
     try {
-        const apiUrl = new URL(source.apiPath || '/api/grid-text', window.location.origin);
+        const apiUrl = new URL(buildTopsterApiUrl(source.apiPath || '/api/grid-text'));
         apiUrl.searchParams.set('_', String(Date.now()));
-        const response = await fetch(apiUrl.href, { cache: 'no-store' });
+        const response = await fetch(apiUrl.href, { cache: 'no-store', credentials: 'include' });
         const contentType = response.headers.get('content-type') || '';
 
         if (!response.ok || !contentType.includes('application/json')) {
