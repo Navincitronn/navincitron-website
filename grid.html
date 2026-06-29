@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Albums</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="grid-builder-page">
+            <div class="title-bar">
+                <br>
+                <h2 class="center">ALBUMS</h2>
+            </div>
+            <br>
+            <hr>
+
+            <div class="topster-import-panel" id="topster-import-panel">
+                <div class="topster-controls topster-file-controls">
+                    <button type="button" id="topster-build-button">Build 10x10</button>
+                    <button type="button" id="topster-refresh-button" class="secondary-button">Refresh</button>
+                    <button type="button" id="topster-stop-button" class="danger-button" disabled>Stop Lookup</button>
+                    <button type="button" id="topster-clear-button" class="secondary-button">Clear</button>
+                    <select id="topster-range" hidden disabled>
+                        <option value="0">All</option>
+                    </select>
+                </div>
+                <details class="topster-settings-panel" open>
+                    <summary>Topster display settings</summary>
+                    <div class="topster-settings-grid">
+                        <label for="topster-width">Width <span class="topster-slider-value" id="topster-width-value">10</span></label>
+                        <div class="topster-slider-control">
+                            <input type="range" id="topster-width" min="1" max="25" step="1" value="10">
+                        </div>
+
+                        <label for="topster-height">Height <span class="topster-slider-value" id="topster-height-value">10</span></label>
+                        <div class="topster-slider-control">
+                            <input type="range" id="topster-height" min="1" max="10" step="1" value="10">
+                        </div>
+
+                        <label for="topster-sidebar-mode">Sidebar text</label>
+                        <select id="topster-sidebar-mode">
+                            <option value="artist-title" selected>Show Artist - Album</option>
+                            <option value="title-only">Show Album only</option>
+                            <option value="hidden">Hide sidebar</option>
+                        </select>
+
+                        <label for="topster-round-corners">Round corners</label>
+                        <select id="topster-round-corners">
+                            <option value="0" selected>0 px</option>
+                            <option value="2">2 px</option>
+                            <option value="4">4 px</option>
+                            <option value="6">6 px</option>
+                            <option value="8">8 px</option>
+                            <option value="10">10 px</option>
+                            <option value="12">12 px</option>
+                            <option value="16">16 px</option>
+                            <option value="20">20 px</option>
+                            <option value="24">24 px</option>
+                        </select>
+
+                        <label for="topster-album-gap">Album cover gap <span class="topster-slider-value" id="topster-album-gap-value">4 px</span></label>
+                        <div class="topster-slider-control">
+                            <input type="range" id="topster-album-gap" min="0" max="100" step="1" value="4">
+                        </div>
+
+                        <label for="topster-font">Font</label>
+                        <select id="topster-font">
+                            <option value="Arial" selected>Arial</option>
+                            <option value="Verdana">Verdana</option>
+                            <option value="Helvetica Neue">Helvetica Neue</option>
+                            <option value="Sans-serif">Sans-serif</option>
+                            <option value="Monospace">Monospace</option>
+                            <option value="Open Sans">Open Sans</option>
+                            <option value="Helvetica">Helvetica</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Tahoma">Tahoma</option>
+                            <option value="Calibri">Calibri</option>
+                        </select>
+                    </div>
+                </details>
+
+                <p class="topster-status" id="topster-status"></p>
+            </div>
+
+            <div class="topster-output" id="topster-output" hidden>
+                <div class="topster-pages" id="topster-pages"></div>
+            </div>
+
+            <div class="topster-cache-actions" id="topster-cache-actions">
+                <button type="button" id="topster-cache-clear-button" class="danger-button">Clear Cover Cache</button>
+            </div>
+        </section>
+
+            <div class="topster-cover-picker" id="topster-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="topster-cover-picker-title">
+                <div class="topster-cover-picker-card">
+                    <div class="topster-cover-picker-header">
+                        <h3 id="topster-cover-picker-title">Select album cover</h3>
+                        <button type="button" id="topster-cover-picker-close" class="secondary-button">Close</button>
+                    </div>
+
+                    <div class="topster-cover-picker-controls">
+                        <label for="topster-cover-picker-link">Image Link</label>
+                        <input type="url" id="topster-cover-picker-link" placeholder="Paste an image URL, then select Use Image Link">
+                        <button type="button" id="topster-cover-picker-link-button" class="secondary-button">Use Image Link</button>
+                        <button type="button" id="topster-cover-picker-search">Refresh Results</button>
+                    </div>
+
+                    <p class="topster-cover-picker-status" id="topster-cover-picker-status"></p>
+                    <div class="topster-cover-picker-results" id="topster-cover-picker-results"></div>
+                </div>
+            </div>
+    </main>
+
+    <script src="grid.js"></script>
+</body>
+</html>

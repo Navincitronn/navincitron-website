@@ -1,0 +1,3 @@
+# This file is included because some notes refer to album.txt.
+# The sampler page uses albums.txt by default.
+# Paste your active Spotify album/playlist list into albums.txt.
