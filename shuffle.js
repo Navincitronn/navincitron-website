@@ -9,6 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const randomStartInput = document.getElementById("random-start");
     const assumedDurationInput = document.getElementById("assumed-duration-seconds");
     const localSeekDelayInput = document.getElementById("local-seek-delay-seconds");
+    const crossfadeEnabledInput = document.getElementById("crossfade-enabled");
+    const crossfadeSecondsInput = document.getElementById("crossfade-seconds");
+    const automixEnabledInput = document.getElementById("automix-enabled");
     const startButton = document.getElementById("start-sampler");
     const stopButton = document.getElementById("stop-sampler");
     const samplerStatus = document.getElementById("sampler-status");
@@ -46,6 +49,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function updateTransitionControls() {
+        if (!crossfadeSecondsInput || !crossfadeEnabledInput) return;
+
+        crossfadeSecondsInput.disabled = !crossfadeEnabledInput.checked;
+    }
+
     function setStatus(text) {
         if (samplerStatus) {
             samplerStatus.textContent = `Status: ${text}`;
@@ -65,12 +74,16 @@ document.addEventListener("DOMContentLoaded", () => {
             if (spotifyLoginButton) {
                 spotifyLoginButton.textContent = "Spotify Connected";
                 spotifyLoginButton.title = "Click to reconnect or switch Spotify account.";
+                spotifyLoginButton.classList.add("spotify-login-connected");
+                spotifyLoginButton.classList.remove("spotify-login-disconnected");
             }
         } else {
             spotifyAuthStatus.textContent = detailText || "Spotify: not connected. Press Login with Spotify before starting.";
             if (spotifyLoginButton) {
                 spotifyLoginButton.textContent = "Login with Spotify";
                 spotifyLoginButton.title = "Connect Spotify before starting the sampler.";
+                spotifyLoginButton.classList.add("spotify-login-disconnected");
+                spotifyLoginButton.classList.remove("spotify-login-connected");
             }
         }
     }
@@ -187,6 +200,9 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("randomStart", randomStartInput.checked ? "true" : "false");
         formData.append("assumedDurationSeconds", assumedDurationInput.value || "180");
         formData.append("localSeekDelaySeconds", localSeekDelayInput.value || "0");
+        formData.append("crossfadeEnabled", crossfadeEnabledInput && crossfadeEnabledInput.checked ? "true" : "false");
+        formData.append("crossfadeSeconds", crossfadeSecondsInput ? (crossfadeSecondsInput.value || "5") : "5");
+        formData.append("automixEnabled", automixEnabledInput && automixEnabledInput.checked ? "true" : "false");
 
         if (sourceMode === "file") {
             formData.append("albumsFile", albumsFileInput.files[0]);
@@ -259,6 +275,10 @@ document.addEventListener("DOMContentLoaded", () => {
         input.addEventListener("change", updateSourceModeVisibility);
     });
 
+    if (crossfadeEnabledInput) {
+        crossfadeEnabledInput.addEventListener("change", updateTransitionControls);
+    }
+
     if (startButton) {
         startButton.addEventListener("click", startSampler);
     }
@@ -268,6 +288,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     updateSourceModeVisibility();
+    updateTransitionControls();
     refreshAuthStatus();
     pollStatus();
     setInterval(pollStatus, 1000);
