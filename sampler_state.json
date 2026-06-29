@@ -1,13 +1,13 @@
 {
-  "timestamp": 1782703092.2976837,
+  "timestamp": 1782705040.2595077,
   "coverArt": {
-    "url": "https://i.scdn.co/image/ab67616d0000b27329843bbfd6ddbb6e9de10226",
+    "url": "https://i.scdn.co/image/ab67616d0000b273f12a8a7e0b2cbe16d2bef4dc",
     "width": 300,
     "height": 300,
     "source": "sampler_state",
-    "track": "Snafu - Rudy Van Gelder Remaster",
-    "artist": "Yusef Lateef",
-    "album": "Eastern Sounds",
-    "positionMs": 297986
+    "track": "Queen of the Highway",
+    "artist": "The Doors",
+    "album": "Morrison Hotel",
+    "positionMs": 136513
   }
 }

@@ -15,6 +15,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const coverImage = document.getElementById("current-cover-image");
     const coverFrame = document.getElementById("current-cover-frame");
     const currentTrackTitle = document.getElementById("current-track-title");
+    const API_BASE_URL = "https://api.navincitron.com";
+    const spotifyLoginButton = document.getElementById("spotify-login");
+
+    if (spotifyLoginButton) {
+        spotifyLoginButton.addEventListener("click", () => {
+            window.location.href = `${API_BASE_URL}/login`;
+        });
+    }
 
     function selectedClipMode() {
         const checked = document.querySelector('input[name="clip-mode"]:checked');
@@ -61,7 +69,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function pollStatus() {
         try {
-            const response = await fetch("/api/status");
+            const response = await fetch(`${API_BASE_URL}/api/status`, {
+                credentials: "include"
+            })
             const data = await response.json();
 
             if (!response.ok || !data.ok) {
@@ -101,10 +111,11 @@ document.addEventListener("DOMContentLoaded", () => {
         setStatus("starting");
 
         try {
-            const response = await fetch("/api/start", {
+            const response = await fetch(`${API_BASE_URL}/api/start`, {
                 method: "POST",
                 body: formData,
-            });
+                credentials: "include",
+            })
 
             const data = await response.json();
 
@@ -127,9 +138,10 @@ document.addEventListener("DOMContentLoaded", () => {
         setStatus("stopping");
 
         try {
-            const response = await fetch("/api/stop", {
+            const response = await fetch(`${API_BASE_URL}/api/stop`, {
                 method: "POST",
-            });
+                credentials: "include",
+            })
 
             const data = await response.json();
 
