@@ -1199,13 +1199,39 @@ button:hover {
 
 /* Static album-list pages */
 .album-list-intro {
+    align-items: center;
     box-sizing: border-box;
     color: #f2f2f2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     line-height: 1.55;
     margin: 0 auto 18px;
     max-width: 1150px;
+    min-height: 120px;
     padding: 0 24px;
     text-align: center;
+}
+
+.album-list-intro p {
+    margin: 0 0 12px;
+}
+
+.album-list-intro p:last-child {
+    margin-bottom: 0;
+}
+
+.album-list-intro ul {
+    display: inline-block;
+    list-style-position: outside;
+    list-style-type: square;
+    margin: 0 auto 14px;
+    padding-left: 1.4em;
+    text-align: left;
+}
+
+.album-list-intro li {
+    margin: 3px 0;
 }
 
 .album-list-page .topster-output {
