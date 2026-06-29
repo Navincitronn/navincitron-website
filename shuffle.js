@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const albumsFileInput = document.getElementById("albums-file");
     const startIndexInput = document.getElementById("start-index");
     const playlistLinkInput = document.getElementById("playlist-link");
+    const singleLinkRandomOrderInput = document.getElementById("single-link-random-order");
     const clipSecondsInput = document.getElementById("clip-seconds");
     const clipMinSecondsInput = document.getElementById("clip-min-seconds");
     const clipMaxSecondsInput = document.getElementById("clip-max-seconds");
@@ -168,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (sourceMode === "playlist" && (!playlistLinkInput || !playlistLinkInput.value.trim())) {
-            setStatus("enter a Spotify playlist link first");
+            setStatus("enter a Spotify album or playlist link first");
             return;
         }
 
@@ -178,10 +179,11 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("sourceMode", sourceMode);
         formData.append("startIndex", startIndexInput ? (startIndexInput.value || "1") : "1");
         formData.append("playlistLink", playlistLinkInput ? playlistLinkInput.value.trim() : "");
+        formData.append("singleLinkRandomOrder", singleLinkRandomOrderInput && singleLinkRandomOrderInput.checked ? "true" : "false");
         formData.append("clipMode", clipMode);
         formData.append("clipSeconds", clipSecondsInput.value || "15");
-        formData.append("clipMinSeconds", clipMinSecondsInput.value || "15");
-        formData.append("clipMaxSeconds", clipMaxSecondsInput.value || "30");
+        formData.append("clipMinSeconds", clipMinSecondsInput.value || "18");
+        formData.append("clipMaxSeconds", clipMaxSecondsInput.value || "25");
         formData.append("randomStart", randomStartInput.checked ? "true" : "false");
         formData.append("assumedDurationSeconds", assumedDurationInput.value || "180");
         formData.append("localSeekDelaySeconds", localSeekDelayInput.value || "0");

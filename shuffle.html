@@ -192,13 +192,17 @@
                 <div class="shuffle-form-row source-mode-row">
                     <label class="radio-row">
                         <input type="radio" name="source-mode" id="source-mode-playlist" value="playlist">
-                        Single Spotify playlist link, random no-repeat playback
+                        Single Spotify album / playlist link, no-repeat playback
                     </label>
                     <div id="playlist-source-options" class="source-options">
-                        <label for="playlist-link">Spotify playlist link</label>
-                        <input type="url" id="playlist-link" placeholder="https://open.spotify.com/playlist/...">
+                        <label for="playlist-link">Spotify album / playlist link</label>
+                        <input type="url" id="playlist-link" placeholder="https://open.spotify.com/album/... or https://open.spotify.com/playlist/...">
+                        <label class="checkbox-row" for="single-link-random-order">
+                            <span>Randomize song order</span>
+                            <input type="checkbox" id="single-link-random-order" checked>
+                        </label>
                         <p class="source-help">
-                            Plays one clip from each playable song in the playlist in randomized order. Each song is used once; when every possible song has been played, the sampler stops.
+                            Plays one clip from each playable song in the selected album or playlist. Each song is used once; when every possible song has been played, the sampler stops.
                         </p>
                     </div>
                 </div>
@@ -219,11 +223,11 @@
                     <div class="clip-bounds">
                         <div>
                             <label for="clip-min-seconds">Minimum seconds</label>
-                            <input type="number" id="clip-min-seconds" min="1" value="15">
+                            <input type="number" id="clip-min-seconds" min="1" value="18">
                         </div>
                         <div>
                             <label for="clip-max-seconds">Maximum seconds</label>
-                            <input type="number" id="clip-max-seconds" min="1" value="30">
+                            <input type="number" id="clip-max-seconds" min="1" value="25">
                         </div>
                     </div>
                 </div>
