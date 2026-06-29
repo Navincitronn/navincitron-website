@@ -7,14 +7,9 @@ const TOPSTER_RANKED_SHEET_ID = '1JiZwXGPANDlhkobNPo0Xdw_5MrNpG1fWTbEbL-I1dcA';
 const TOPSTER_RANKED_SHEET_GID = '0';
 const TOPSTER_LASTFM_API_KEY = '7c87436dbff96020ebb6e3a75cb0f396';
 const MUSICBRAINZ_DELAY_MS = 1200;
-const TOPSTER_LOOKUP_CONCURRENCY = 12;
-const TOPSTER_RENDER_THROTTLE_MS = 250;
-const COVER_SOURCE_TIMEOUT_MS = 4500;
-const MUSICBRAINZ_TIMEOUT_MS = 9000;
 const TOPSTER_SHARED_STORE_API = '/api/topster-shared-store';
 const TOPSTER_DEFAULT_BACKEND_ORIGIN = 'https://api.navincitron.com';
 let lastMusicBrainzRequestAt = 0;
-let musicBrainzQueue = Promise.resolve();
 let topsterSharedStoreLoaded = false;
 let topsterSharedStoreAvailable = false;
 let topsterSharedStoreWritable = false;
@@ -496,92 +491,49 @@ async function initTopsterImporter(albumCards) {
 
         const token = ++activeLookupToken;
         const config = getSourceConfig();
-        const pendingIndexes = importedEntries
-            .map((entry, index) => ({ entry, index }))
-            .filter(({ entry }) => entry && !entry.cover && entry.status !== 'missing')
-            .map(({ index }) => index);
-
         let resolvedCount = importedEntries.filter(entry => entry.cover).length;
-        let missingCount = importedEntries.filter(entry => entry.status === 'missing').length;
-        let completedCount = 0;
-        let nextPendingOffset = 0;
-        let lastRenderAt = 0;
-
-        if (!pendingIndexes.length) {
-            stopButton.disabled = true;
-            buildButton.disabled = false;
-            refreshButton.disabled = false;
-            renderTopster(importedEntries, 0, { scroll: false });
-            saveCurrentTopster();
-            status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.`;
-            return;
-        }
 
         stopButton.disabled = false;
         buildButton.disabled = true;
         refreshButton.disabled = true;
 
-        pendingIndexes.forEach(index => {
-            if (importedEntries[index]) importedEntries[index].status = 'loading';
-        });
-        renderTopster(importedEntries, 0, { scroll: false });
-        saveCurrentTopster();
+        for (let i = 0; i < importedEntries.length; i++) {
+            if (token !== activeLookupToken) return;
+            const entry = importedEntries[i];
+            if (!entry || entry.cover || entry.status === 'missing') continue;
 
-        function maybeRenderProgress(force = false) {
-            const now = Date.now();
-            if (!force && now - lastRenderAt < TOPSTER_RENDER_THROTTLE_MS) return;
-            lastRenderAt = now;
+            entry.status = 'loading';
+            renderTopster(importedEntries, 0, { scroll: false });
+            saveCurrentTopster();
+            status.textContent = `Looking up cover ${i + 1} of ${importedEntries.length}: ${formatEntryName(entry)}`;
+
+            try {
+                const cover = await resolveAlbumCover(entry, albumCatalog, config);
+                if (token !== activeLookupToken) return;
+
+                if (cover && cover.imageSrc) {
+                    entry.cover = cover;
+                    entry.status = 'found';
+                    setCachedCover(buildCoverCacheKey(entry), cover);
+                    resolvedCount++;
+                } else {
+                    entry.status = 'missing';
+                }
+            } catch (error) {
+                if (token !== activeLookupToken) return;
+                entry.status = 'missing';
+            }
+
             renderTopster(importedEntries, 0, { scroll: false });
             saveCurrentTopster();
         }
-
-        async function worker() {
-            while (token === activeLookupToken) {
-                const pendingOffset = nextPendingOffset++;
-                if (pendingOffset >= pendingIndexes.length) return;
-
-                const entryIndex = pendingIndexes[pendingOffset];
-                const entry = importedEntries[entryIndex];
-                if (!entry || entry.cover || entry.status === 'missing') {
-                    completedCount++;
-                    continue;
-                }
-
-                status.textContent = `Looking up covers ${completedCount + 1}-${Math.min(completedCount + TOPSTER_LOOKUP_CONCURRENCY, pendingIndexes.length)} of ${pendingIndexes.length} missing album cover${pendingIndexes.length === 1 ? '' : 's'}...`;
-
-                try {
-                    const cover = await resolveAlbumCover(entry, albumCatalog, config);
-                    if (token !== activeLookupToken) return;
-
-                    if (cover && cover.imageSrc) {
-                        entry.cover = cover;
-                        entry.status = 'found';
-                        setCachedCover(buildCoverCacheKey(entry), cover);
-                        resolvedCount++;
-                    } else {
-                        entry.status = 'missing';
-                        missingCount++;
-                    }
-                } catch (error) {
-                    if (token !== activeLookupToken) return;
-                    entry.status = 'missing';
-                    missingCount++;
-                }
-
-                completedCount++;
-                maybeRenderProgress(false);
-            }
-        }
-
-        const workerCount = Math.min(TOPSTER_LOOKUP_CONCURRENCY, pendingIndexes.length);
-        await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
         if (token === activeLookupToken) {
             stopButton.disabled = true;
             buildButton.disabled = false;
             refreshButton.disabled = false;
+            const missingCount = importedEntries.filter(entry => entry.status === 'missing').length;
             saveCurrentTopster();
-            maybeRenderProgress(true);
             status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.`;
         }
     }
@@ -1227,6 +1179,28 @@ function isChecked(id) {
 
 async function resolveAlbumCover(entry, albumCatalog, config) {
     const cacheKey = buildCoverCacheKey(entry);
+    const resolvers = [];
+
+    if (config.useLastfm) {
+        resolvers.push(() => resolveLastfmCover(entry, config.lastfmKey));
+    }
+    if (config.useInternetArchive) {
+        resolvers.push(() => resolveInternetArchiveCover(entry));
+    }
+    if (config.useMusicBrainz) {
+        resolvers.push(() => resolveMusicBrainzCover(entry));
+    }
+    if (config.useItunes) {
+        resolvers.push(() => resolveItunesCover(entry));
+    }
+
+    for (const resolver of resolvers) {
+        const cover = await resolver();
+        if (cover && cover.imageSrc) {
+            setCachedCover(cacheKey, cover);
+            return cover;
+        }
+    }
 
     if (config.useCache) {
         const cached = getPreferredCachedCover(entry) || getCachedCover(cacheKey);
@@ -1235,57 +1209,7 @@ async function resolveAlbumCover(entry, albumCatalog, config) {
         }
     }
 
-    if (config.useLocalIndex) {
-        const localCover = resolveLocalIndexCover(entry, albumCatalog);
-        if (localCover && localCover.imageSrc) {
-            setCachedCover(cacheKey, localCover);
-            return localCover;
-        }
-    }
-
-    const primaryResolvers = [];
-    if (config.useItunes) {
-        primaryResolvers.push(() => resolveItunesCover(entry));
-    }
-    if (config.useLastfm) {
-        primaryResolvers.push(() => resolveLastfmCover(entry, config.lastfmKey));
-    }
-    if (config.useInternetArchive) {
-        primaryResolvers.push(() => resolveInternetArchiveCover(entry));
-    }
-
-    const primaryCover = await firstSuccessfulCover(primaryResolvers);
-    if (primaryCover && primaryCover.imageSrc) {
-        setCachedCover(cacheKey, primaryCover);
-        return primaryCover;
-    }
-
-    if (config.useMusicBrainz) {
-        const musicBrainzCover = await resolveMusicBrainzCover(entry).catch(() => null);
-        if (musicBrainzCover && musicBrainzCover.imageSrc) {
-            setCachedCover(cacheKey, musicBrainzCover);
-            return musicBrainzCover;
-        }
-    }
-
     return null;
-}
-
-async function firstSuccessfulCover(resolvers) {
-    if (!Array.isArray(resolvers) || !resolvers.length) return null;
-
-    const wrappedResolvers = resolvers.map(resolver => Promise.resolve()
-        .then(resolver)
-        .then(cover => {
-            if (cover && cover.imageSrc) return cover;
-            throw new Error('No cover from this source.');
-        }));
-
-    try {
-        return await Promise.any(wrappedResolvers);
-    } catch (error) {
-        return null;
-    }
 }
 
 function resolveLocalIndexCover(entry, catalog) {
@@ -1341,7 +1265,7 @@ function buildMusicBrainzQuery(entry) {
 async function fetchCoverArtArchiveForReleaseGroup(mbid) {
     const dataUrl = `https://coverartarchive.org/release-group/${encodeURIComponent(mbid)}`;
     try {
-        const data = await fetchJson(dataUrl, MUSICBRAINZ_TIMEOUT_MS);
+        const data = await fetchJson(dataUrl, 12000);
         const images = Array.isArray(data.images) ? data.images : [];
         const front = images.find(image => image.front) || images[0];
         if (!front) return null;
@@ -1357,7 +1281,7 @@ async function fetchCoverArtArchiveForReleaseGroup(mbid) {
 async function resolveItunesCover(entry) {
     const searchTerm = `${entry.artist ? `${entry.artist} ` : ''}${entry.title}${entry.year ? ` ${entry.year}` : ''}`;
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=album&limit=15`;
-    const data = await fetchJson(url, COVER_SOURCE_TIMEOUT_MS);
+    const data = await fetchJson(url, 12000);
     const results = Array.isArray(data.results) ? data.results : [];
     const candidates = results
         .map(result => ({ result, score: scoreAlbumCandidate(entry, result.collectionName, result.releaseDate, 0, result.artistName) }))
@@ -1385,7 +1309,7 @@ async function resolveLastfmCover(entry, apiKey) {
             infoUrl.searchParams.set('album', entry.title);
             infoUrl.searchParams.set('api_key', apiKey);
             infoUrl.searchParams.set('format', 'json');
-            const infoData = await fetchJson(infoUrl.href, COVER_SOURCE_TIMEOUT_MS);
+            const infoData = await fetchJson(infoUrl.href, 12000);
             const album = infoData && infoData.album ? infoData.album : null;
             const images = album && Array.isArray(album.image) ? album.image : [];
             const imageSrc = getLastfmImage(images);
@@ -1405,7 +1329,7 @@ async function resolveLastfmCover(entry, apiKey) {
 
     const searchAlbum = `${entry.artist ? `${entry.artist} ` : ''}${entry.title}`;
     const url = `https://ws.audioscrobbler.com/2.0/?method=album.search&album=${encodeURIComponent(searchAlbum)}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=10`;
-    const data = await fetchJson(url, COVER_SOURCE_TIMEOUT_MS);
+    const data = await fetchJson(url, 12000);
     const matches = data && data.results && data.results.albummatches && Array.isArray(data.results.albummatches.album)
         ? data.results.albummatches.album
         : [];
@@ -1442,7 +1366,7 @@ async function resolveInternetArchiveCover(entry) {
     url.searchParams.set('page', '1');
     url.searchParams.set('output', 'json');
 
-    const data = await fetchJson(url.href, COVER_SOURCE_TIMEOUT_MS);
+    const data = await fetchJson(url.href, 12000);
     const docs = data && data.response && Array.isArray(data.response.docs) ? data.response.docs : [];
     const candidates = docs
         .map(doc => ({ doc, score: scoreAlbumCandidate(entry, doc.title, doc.date, 0, Array.isArray(doc.creator) ? doc.creator.join(', ') : doc.creator) }))
@@ -1471,7 +1395,7 @@ async function resolveGoogleCustomSearchCover(entry, apiKey, cx) {
     url.searchParams.set('safe', 'off');
     url.searchParams.set('q', query);
 
-    const data = await fetchJson(url.href, COVER_SOURCE_TIMEOUT_MS);
+    const data = await fetchJson(url.href, 12000);
     const items = Array.isArray(data.items) ? data.items : [];
     const best = items[0];
     if (!best || !best.link) return null;
@@ -1486,18 +1410,12 @@ async function resolveGoogleCustomSearchCover(entry, apiKey, cx) {
 }
 
 async function fetchMusicBrainzJson(url) {
-    const runRequest = async () => {
-        const elapsed = Date.now() - lastMusicBrainzRequestAt;
-        if (elapsed < MUSICBRAINZ_DELAY_MS) {
-            await delay(MUSICBRAINZ_DELAY_MS - elapsed);
-        }
-        lastMusicBrainzRequestAt = Date.now();
-        return fetchJson(url, MUSICBRAINZ_TIMEOUT_MS);
-    };
-
-    const queuedRequest = musicBrainzQueue.then(runRequest, runRequest);
-    musicBrainzQueue = queuedRequest.catch(() => null);
-    return queuedRequest;
+    const elapsed = Date.now() - lastMusicBrainzRequestAt;
+    if (elapsed < MUSICBRAINZ_DELAY_MS) {
+        await delay(MUSICBRAINZ_DELAY_MS - elapsed);
+    }
+    lastMusicBrainzRequestAt = Date.now();
+    return fetchJson(url, 15000);
 }
 
 async function fetchJson(url, timeoutMs) {
@@ -1944,7 +1862,7 @@ async function resolveLastfmCoverCandidates(entry, apiKey) {
             infoUrl.searchParams.set('album', entry.title);
             infoUrl.searchParams.set('api_key', apiKey);
             infoUrl.searchParams.set('format', 'json');
-            const infoData = await fetchJson(infoUrl.href, COVER_SOURCE_TIMEOUT_MS);
+            const infoData = await fetchJson(infoUrl.href, 12000);
             const album = infoData && infoData.album ? infoData.album : null;
             const images = album && Array.isArray(album.image) ? album.image : [];
             const imageSrc = getLastfmImage(images);
@@ -1965,7 +1883,7 @@ async function resolveLastfmCoverCandidates(entry, apiKey) {
 
     const searchAlbum = `${entry.artist ? `${entry.artist} ` : ''}${entry.title}`;
     const url = `https://ws.audioscrobbler.com/2.0/?method=album.search&album=${encodeURIComponent(searchAlbum)}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=20`;
-    const data = await fetchJson(url, COVER_SOURCE_TIMEOUT_MS);
+    const data = await fetchJson(url, 12000);
     const matches = data && data.results && data.results.albummatches && Array.isArray(data.results.albummatches.album)
         ? data.results.albummatches.album
         : [];
@@ -2004,7 +1922,7 @@ async function resolveInternetArchiveCoverCandidates(entry) {
     url.searchParams.set('page', '1');
     url.searchParams.set('output', 'json');
 
-    const data = await fetchJson(url.href, COVER_SOURCE_TIMEOUT_MS);
+    const data = await fetchJson(url.href, 12000);
     const docs = data && data.response && Array.isArray(data.response.docs) ? data.response.docs : [];
     return docs
         .map(doc => {
@@ -2057,7 +1975,7 @@ async function resolveMusicBrainzCoverCandidates(entry) {
 async function resolveItunesCoverCandidates(entry) {
     const searchTerm = `${entry.artist ? `${entry.artist} ` : ''}${entry.title}${entry.year ? ` ${entry.year}` : ''}`;
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=album&limit=20`;
-    const data = await fetchJson(url, COVER_SOURCE_TIMEOUT_MS);
+    const data = await fetchJson(url, 12000);
     const results = Array.isArray(data.results) ? data.results : [];
     return results
         .map(result => makeCoverCandidate({
