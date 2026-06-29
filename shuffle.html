@@ -101,29 +101,6 @@
             color: #ffcf85;
         }
 
-        .spotify-login-connected {
-            background-color: #1f8f3a;
-        }
-
-        .spotify-login-connected:hover {
-            background-color: #16682b;
-        }
-
-        .spotify-login-disconnected {
-            background-color: #b93838;
-        }
-
-        .spotify-login-disconnected:hover {
-            background-color: #8f2929;
-        }
-
-        .transition-help {
-            color: #ddd;
-            font-size: 13px;
-            line-height: 1.45;
-            margin: 6px 0 0;
-        }
-
         .shuffle-cover-wrap {
             text-align: center;
         }
@@ -258,28 +235,6 @@
                 <div class="shuffle-form-row checkbox-row">
                     <label for="random-start">Random start position</label>
                     <input type="checkbox" id="random-start" checked>
-                </div>
-
-                <div class="shuffle-form-row clip-mode-row">
-                    <label class="checkbox-row" for="crossfade-enabled">
-                        <span>Enable crossfade-style transition lead-in</span>
-                        <input type="checkbox" id="crossfade-enabled">
-                    </label>
-                    <label for="crossfade-seconds">Crossfade seconds, 1-10</label>
-                    <input type="number" id="crossfade-seconds" min="1" max="10" value="5">
-                    <p class="transition-help">
-                        This starts the next selected clip before the current clip timer fully expires. Spotify Connect does not expose a Web API setting for true client-side crossfade.
-                    </p>
-                </div>
-
-                <div class="shuffle-form-row clip-mode-row">
-                    <label class="checkbox-row" for="automix-enabled">
-                        <span>Automix - Allow seamless transitions between songs on select playlists</span>
-                        <input type="checkbox" id="automix-enabled">
-                    </label>
-                    <p class="transition-help">
-                        Automix is a Spotify app playback setting. Leave it enabled in your Spotify client for eligible Spotify playlists; this page records the preference and logs a reminder.
-                    </p>
                 </div>
 
                 <details class="shuffle-advanced">
