@@ -1242,3 +1242,58 @@ button:hover {
 .album-list-page .topster-import-panel[hidden] {
     display: none !important;
 }
+
+/* Topster cover index / release-year overlay */
+.topster-tile.has-cover-overlay::after {
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: inherit;
+    bottom: 6%;
+    content: '';
+    left: 6%;
+    pointer-events: none;
+    position: absolute;
+    right: 6%;
+    top: 6%;
+    z-index: 1;
+}
+
+.topster-cover-overlay {
+    align-items: center;
+    bottom: 7%;
+    box-sizing: border-box;
+    color: rgba(255, 255, 255, 0.08);
+    display: flex;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 900;
+    justify-content: center;
+    left: 7%;
+    letter-spacing: -0.08em;
+    line-height: 0.82;
+    overflow: hidden;
+    pointer-events: none;
+    position: absolute;
+    right: 7%;
+    text-align: center;
+    text-shadow:
+        0 0 1px rgba(0, 0, 0, 0.55),
+        0 0 8px rgba(0, 0, 0, 0.35);
+    top: 7%;
+    white-space: nowrap;
+    z-index: 2;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.08);
+    -webkit-text-stroke: max(2px, calc(var(--topster-cover-size, 200px) / 62)) rgba(255, 255, 255, 0.94);
+}
+
+.topster-cover-overlay-length-1,
+.topster-cover-overlay-length-2 {
+    font-size: clamp(24px, calc(var(--topster-cover-size, 200px) / 1.25), 520px);
+}
+
+.topster-cover-overlay-length-3 {
+    font-size: clamp(24px, calc(var(--topster-cover-size, 200px) / 1.65), 420px);
+}
+
+.topster-cover-overlay-length-4 {
+    font-size: clamp(22px, calc(var(--topster-cover-size, 200px) / 2.55), 300px);
+}
+

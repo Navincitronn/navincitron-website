@@ -111,6 +111,7 @@ async function initTopsterImporter(albumCards) {
     const albumGapSelect = document.getElementById('topster-album-gap');
     const albumGapValue = document.getElementById('topster-album-gap-value');
     const fontSelect = document.getElementById('topster-font');
+    const coverOverlaySelect = document.getElementById('topster-cover-overlay');
     const coverPicker = document.getElementById('topster-cover-picker');
     const coverPickerTitle = document.getElementById('topster-cover-picker-title');
     const coverPickerSearch = document.getElementById('topster-cover-picker-search');
@@ -201,8 +202,8 @@ async function initTopsterImporter(albumCards) {
         element.addEventListener('change', handleSettingsChange);
     });
 
-    [sidebarModeSelect, roundCornersSelect, fontSelect].forEach(element => {
-        element.addEventListener('change', handleSettingsChange);
+    [sidebarModeSelect, roundCornersSelect, fontSelect, coverOverlaySelect].forEach(element => {
+        if (element) element.addEventListener('change', handleSettingsChange);
     });
 
     function handleSettingsChange() {
@@ -332,7 +333,7 @@ async function initTopsterImporter(albumCards) {
         });
     }
 
-    function selectManualCover(candidate) {
+    async function selectManualCover(candidate) {
         if (pickerEntryIndex === null || !importedEntries[pickerEntryIndex] || !candidate || !candidate.imageSrc) return;
         const entry = importedEntries[pickerEntryIndex];
         const selectedCover = {
@@ -348,9 +349,22 @@ async function initTopsterImporter(albumCards) {
         entry.status = 'found';
         setCachedCover(buildCoverCacheKey(entry), selectedCover);
 
+        let sharedSaveOk = null;
+        if (topsterSharedStoreAvailable && topsterSharedStoreWritable) {
+            sharedSaveOk = await flushTopsterSharedCoverCacheSave();
+        }
+
         renderTopster(importedEntries, 0, { scroll: false });
         saveCurrentTopster();
-        status.textContent = `Updated cover for ${formatEntryName(entry)}.`;
+
+        if (sharedSaveOk === true) {
+            status.textContent = `Updated and saved shared cover for ${formatEntryName(entry)}.`;
+        } else if (sharedSaveOk === false) {
+            status.textContent = `Updated cover for ${formatEntryName(entry)}, but the shared backend save failed. Check /api/topster-shared-store.`;
+        } else {
+            status.textContent = `Updated cover for ${formatEntryName(entry)}.`;
+        }
+
         closeCoverPicker();
     }
 
@@ -603,7 +617,7 @@ async function initTopsterImporter(albumCards) {
             const absoluteIndex = start + i;
             chart.appendChild(createTopsterTile(entry, absoluteIndex + 1, topsterReadOnly ? null : () => {
                 if (entry) openCoverPicker(entry, absoluteIndex);
-            }));
+            }, currentSettings.coverOverlay));
         }
 
         chartWrap.appendChild(chart);
@@ -713,7 +727,8 @@ async function initTopsterImporter(albumCards) {
             sidebarMode: sidebarModeSelect.value,
             roundCorners: Number(roundCornersSelect.value),
             albumGap: Number(albumGapSelect.value),
-            font: fontSelect.value
+            font: fontSelect.value,
+            coverOverlay: coverOverlaySelect ? coverOverlaySelect.value : (currentSettings.coverOverlay || 'none')
         };
     }
 
@@ -724,6 +739,7 @@ async function initTopsterImporter(albumCards) {
         roundCornersSelect.value = String(settings.roundCorners);
         albumGapSelect.value = String(settings.albumGap);
         fontSelect.value = settings.font;
+        if (coverOverlaySelect) coverOverlaySelect.value = settings.coverOverlay || 'none';
         updateSettingsValueLabels(settings);
     }
 
@@ -747,6 +763,7 @@ async function initTopsterImporter(albumCards) {
         output.style.setProperty('--topster-rows', String(currentSettings.height));
         output.style.fontFamily = fontFamily;
         output.classList.toggle('topster-sidebar-hidden', currentSettings.sidebarMode === 'hidden');
+        output.classList.toggle('topster-cover-overlay-enabled', currentSettings.coverOverlay !== 'none');
         buildButton.textContent = `Build ${currentSettings.width}x${currentSettings.height}`;
     }
 
@@ -825,6 +842,14 @@ function scheduleTopsterSharedCoverCacheSave() {
     }, 450);
 }
 
+async function flushTopsterSharedCoverCacheSave() {
+    if (!topsterSharedStoreAvailable || !topsterSharedStoreWritable) return false;
+
+    window.clearTimeout(topsterSharedSaveTimer);
+    topsterSharedSaveTimer = null;
+    return saveTopsterSharedStoreNow({ coverCache: topsterSharedCoverCache });
+}
+
 async function clearTopsterCoverCache() {
     topsterSharedCoverCache = {};
 
@@ -884,6 +909,7 @@ function saveTopsterSettings(settings) {
 function normalizeTopsterSettings(settings) {
     const allowedFonts = new Set(['Arial', 'Verdana', 'Helvetica Neue', 'Sans-serif', 'Monospace', 'Open Sans', 'Helvetica', 'Georgia', 'Tahoma', 'Calibri']);
     const allowedSidebarModes = new Set(['artist-title', 'title-only', 'hidden']);
+    const allowedCoverOverlays = new Set(['none', 'index', 'year']);
     const raw = settings && typeof settings === 'object' ? settings : {};
 
     return {
@@ -892,7 +918,8 @@ function normalizeTopsterSettings(settings) {
         sidebarMode: allowedSidebarModes.has(raw.sidebarMode) ? raw.sidebarMode : 'artist-title',
         roundCorners: clampInteger(raw.roundCorners, 0, 24, 0),
         albumGap: clampInteger(raw.albumGap, 0, 100, 4),
-        font: allowedFonts.has(raw.font) ? raw.font : 'Arial'
+        font: allowedFonts.has(raw.font) ? raw.font : 'Arial',
+        coverOverlay: allowedCoverOverlays.has(raw.coverOverlay) ? raw.coverOverlay : 'none'
     };
 }
 
@@ -2054,7 +2081,7 @@ function isUsefulLastfmImage(imageSrc) {
     return Boolean(imageSrc) && !String(imageSrc).includes('2a96cbd8b46e442fc41c2b86b821562f');
 }
 
-function createTopsterTile(entry, displayIndex, onSelectCover) {
+function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none') {
     const tile = document.createElement('div');
     tile.className = 'topster-tile';
 
@@ -2068,6 +2095,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover) {
 
     const cover = entry.cover;
     const label = `${displayIndex}. ${formatEntryName(entry)}`;
+    const overlayText = getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode);
 
     if (typeof onSelectCover === 'function') {
         tile.title = `${label} — click to choose a cover`;
@@ -2100,6 +2128,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover) {
             placeholder.className = 'topster-tile-placeholder';
             placeholder.textContent = formatEntryName(entry) || entry.title;
             tile.innerHTML = '';
+            tile.classList.remove('has-cover-overlay');
             tile.appendChild(placeholder);
         };
         tile.appendChild(img);
@@ -2117,8 +2146,23 @@ function createTopsterTile(entry, displayIndex, onSelectCover) {
         tile.appendChild(placeholder);
     }
 
+    if (overlayText && cover && cover.imageSrc) {
+        const overlay = document.createElement('span');
+        overlay.className = `topster-cover-overlay topster-cover-overlay-length-${Math.min(String(overlayText).length, 4)}`;
+        overlay.textContent = overlayText;
+        tile.classList.add('has-cover-overlay');
+        tile.appendChild(overlay);
+    }
+
     return tile;
 }
+
+function getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode) {
+    if (coverOverlayMode === 'index') return String(displayIndex);
+    if (coverOverlayMode === 'year' && entry && entry.year) return String(entry.year);
+    return '';
+}
+
 
 document.addEventListener('DOMContentLoaded', () => {
     initTopsterImporter([]);
