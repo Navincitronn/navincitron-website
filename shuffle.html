@@ -218,6 +218,58 @@
             padding: 10px;
         }
 
+
+        .songguesser-summary {
+            margin-top: 18px;
+        }
+
+        .songguesser-summary h3 {
+            margin: 0 0 12px;
+            text-align: center;
+        }
+
+        .songguesser-summary-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .songguesser-summary-item {
+            align-items: center;
+            background-color: #333;
+            border-radius: 8px;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 52px 1fr;
+            padding: 10px;
+        }
+
+        .songguesser-summary-thumb {
+            background: linear-gradient(135deg, #1a1a1a, #333);
+            border-radius: 5px;
+            height: 52px;
+            object-fit: cover;
+            width: 52px;
+        }
+
+        .songguesser-summary-index {
+            color: #ffcf85;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .songguesser-summary-title {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .songguesser-summary-meta {
+            color: #ddd;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+
         .sampler-log {
             background-color: #111;
             border-radius: 8px;
@@ -403,13 +455,17 @@
                     <input type="text" id="songguesser-guess" autocomplete="off" placeholder="Example: artist album song">
                 </div>
                 <div class="songguesser-buttons">
-                    <button id="songguesser-submit" type="button">Submit Guess</button>
                     <button id="songguesser-skip" type="button" class="danger-button">Skip</button>
                 </div>
                 <div class="songguesser-result-grid">
                     <div class="songguesser-answer-line"><strong>Artist</strong><span id="songguesser-artist">???</span></div>
                     <div class="songguesser-answer-line"><strong>Album</strong><span id="songguesser-album">???</span></div>
                     <div class="songguesser-answer-line"><strong>Song</strong><span id="songguesser-song">???</span></div>
+                </div>
+
+                <div id="songguesser-summary" class="songguesser-summary" hidden>
+                    <h3>Songguesser Results</h3>
+                    <div id="songguesser-summary-list" class="songguesser-summary-list"></div>
                 </div>
             </div>
 
@@ -420,6 +476,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js"></script>
+    <script src="shuffle.js?v=20260630-songguesser-summary"></script>
 </body>
 </html>

@@ -40,6 +40,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const songguesserArtist = document.getElementById("songguesser-artist");
     const songguesserAlbum = document.getElementById("songguesser-album");
     const songguesserSong = document.getElementById("songguesser-song");
+    const songguesserSummary = document.getElementById("songguesser-summary");
+    const songguesserSummaryList = document.getElementById("songguesser-summary-list");
 
     const API_BASE_URL = "https://api.navincitron.com";
     const SONGGUESSER_CLIP_SECONDS = 30;
@@ -400,6 +402,52 @@ document.addEventListener("DOMContentLoaded", () => {
         setAnswerText(songguesserSong, (revealed || songguesserCorrect.song) ? answer.song : "???", songguesserCorrect.song ? "songguesser-correct" : (revealed ? "songguesser-revealed" : ""));
     }
 
+
+    function escapeSongguesserText(value) {
+        return String(value || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    function renderSongguesserSummary(summary) {
+        if (!songguesserSummary || !songguesserSummaryList) return;
+
+        const rows = Array.isArray(summary) ? summary : [];
+
+        if (!rows.length) {
+            songguesserSummary.hidden = true;
+            songguesserSummaryList.innerHTML = "";
+            return;
+        }
+
+        songguesserSummary.hidden = false;
+        songguesserSummaryList.innerHTML = rows.map((item) => {
+            const index = escapeSongguesserText(item.index || "");
+            const artist = escapeSongguesserText(item.artist || "Unknown artist");
+            const song = escapeSongguesserText(item.song || "Unknown song");
+            const album = escapeSongguesserText(item.album || "Unknown album");
+            const coverUrl = item.coverUrl ? escapeSongguesserText(item.coverUrl) : "";
+
+            const cover = coverUrl
+                ? `<img class="songguesser-summary-thumb" src="${coverUrl}" alt="">`
+                : `<div class="songguesser-summary-thumb" aria-hidden="true"></div>`;
+
+            return `
+                <div class="songguesser-summary-item">
+                    ${cover}
+                    <div>
+                        <div class="songguesser-summary-index">#${index}</div>
+                        <div class="songguesser-summary-title">${artist} - ${song}</div>
+                        <div class="songguesser-summary-meta">Album: ${album}</div>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+
     function showSongguesserHints(current) {
         if (!songguesserHintsOutput) return;
 
@@ -460,7 +508,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setStatus(`${reason}. Next song in ${delaySeconds} seconds.`);
         if (songguesserGuessInput) songguesserGuessInput.disabled = true;
-        if (songguesserSubmitButton) songguesserSubmitButton.disabled = true;
         if (songguesserSkipButton) songguesserSkipButton.disabled = true;
 
         songguesserNextTimeout = setTimeout(loadNextSongguesserSong, delaySeconds * 1000);
@@ -472,12 +519,12 @@ document.addEventListener("DOMContentLoaded", () => {
         songguesserAcceptingGuesses = true;
 
         if (songguesserPanel) songguesserPanel.hidden = false;
+        if (songguesserSummary) songguesserSummary.hidden = true;
         if (songguesserGuessInput) {
             songguesserGuessInput.value = "";
             songguesserGuessInput.disabled = false;
             songguesserGuessInput.focus();
         }
-        if (songguesserSubmitButton) songguesserSubmitButton.disabled = false;
         if (songguesserSkipButton) songguesserSkipButton.disabled = false;
         if (songguesserProgress) songguesserProgress.textContent = `Song ${current.progress} / ${current.total}`;
 
@@ -520,6 +567,7 @@ document.addEventListener("DOMContentLoaded", () => {
         startButton.disabled = true;
         setStatus("starting Songguesser");
         clearSongguesserTimers();
+        renderSongguesserSummary([]);
 
         try {
             const response = await fetch(`${API_BASE_URL}/api/songguesser/start`, {
@@ -537,6 +585,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (data.complete) {
                 setStatus(data.message || "Songguesser complete");
+                renderSongguesserSummary(data.summary || []);
                 return;
             }
 
@@ -567,6 +616,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 setStatus(data.message || "Songguesser complete");
                 if (songguesserTimer) songguesserTimer.textContent = "0";
                 if (songguesserProgress) songguesserProgress.textContent = "Songguesser complete";
+                renderSongguesserSummary(data.summary || []);
                 return;
             }
 
@@ -749,9 +799,6 @@ document.addEventListener("DOMContentLoaded", () => {
         stopButton.addEventListener("click", stopSampler);
     }
 
-    if (songguesserSubmitButton) {
-        songguesserSubmitButton.addEventListener("click", submitSongguesserGuess);
-    }
 
     if (songguesserGuessInput) {
         songguesserGuessInput.addEventListener("keydown", (event) => {
