@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Albums</title>
-    <link rel="stylesheet" href="styles.css?v=20260630-topster-button-fix-v2">
+    <link rel="stylesheet" href="styles.css?v=20260630-topster-button-fix-v3">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
 <body>
@@ -139,7 +139,34 @@
                 </div>
             </div>
     </main>
+    <script>
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260630-topster-button-fix-v3';
 
-    <script src="grid.js?v=20260630-topster-button-fix-v2"></script>
+        function markTopsterPublishDirty() {
+            window.__navincitronTopsterPublishDirty = true;
+        }
+
+        (function () {
+            function forceBuildButtonLabel() {
+                var button = document.getElementById('topster-build-button');
+                if (button && button.textContent !== 'Build') {
+                    button.textContent = 'Build';
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                forceBuildButtonLabel();
+                var button = document.getElementById('topster-build-button');
+                if (button && typeof MutationObserver !== 'undefined') {
+                    new MutationObserver(forceBuildButtonLabel).observe(button, {
+                        childList: true,
+                        characterData: true,
+                        subtree: true
+                    });
+                }
+            });
+        })();
+    </script>
+    <script src="topster_grid.js?v=20260630-topster-button-fix-v3"></script>
 </body>
 </html>
