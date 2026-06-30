@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260630-topster-button-fix-v1';
+const TOPSTER_FRONTEND_VERSION = '20260630-topster-button-fix-v2';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_BASE_CANVAS_SIZE = 2000;
@@ -18,6 +18,14 @@ let topsterSharedCoverCache = {};
 let topsterSharedSettings = null;
 let topsterSharedSaveTimer = null;
 let topsterHasUnsavedPublishedChanges = false;
+
+
+function markTopsterPublishDirty() {
+    if (isTopsterEditorPage()) {
+        topsterHasUnsavedPublishedChanges = true;
+    }
+}
+
 
 
 
@@ -262,10 +270,6 @@ async function initTopsterImporter(albumCards) {
         status.textContent = topsterEditorPage
             ? `Updated local Topster display settings to ${currentSettings.width}x${currentSettings.height}. Press Save Settings to publish.`
             : `Updated Topster display settings to ${currentSettings.width}x${currentSettings.height}.`;
-    }
-
-    function markTopsterPublishDirty() {
-        if (topsterEditorPage) topsterHasUnsavedPublishedChanges = true;
     }
 
     async function publishTopsterSettingsAndCovers() {
@@ -834,7 +838,7 @@ async function initTopsterImporter(albumCards) {
         output.style.fontFamily = fontFamily;
         output.classList.toggle('topster-sidebar-hidden', currentSettings.sidebarMode === 'hidden');
         output.classList.toggle('topster-cover-overlay-enabled', currentSettings.coverOverlay !== 'none');
-        buildButton.textContent = `Build ${currentSettings.width}x${currentSettings.height}`;
+        buildButton.textContent = 'Build';
     }
 
 }
