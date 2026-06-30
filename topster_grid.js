@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260630-topster-button-fix-v3';
+const TOPSTER_FRONTEND_VERSION = '20260630-topster-shuffle-merge-v4';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_BASE_CANVAS_SIZE = 2000;
