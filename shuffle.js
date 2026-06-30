@@ -239,24 +239,127 @@ document.addEventListener("DOMContentLoaded", () => {
             .trim();
     }
 
-    function cleanSongTitle(value) {
+    function cleanTaggedTitle(value) {
         let text = String(value || "");
-        const noise = "remaster|remastered|remix|remixed|mix|live|mono|stereo|version|edit|radio edit|deluxe|bonus|demo|take|session|anniversary|reissue|expanded|explicit|instrumental|acoustic";
+        const noise = [
+            "remaster",
+            "remastered",
+            "remastering",
+            "remix",
+            "remixed",
+            "mix",
+            "live",
+            "mono",
+            "stereo",
+            "version",
+            "edit",
+            "radio edit",
+            "single edit",
+            "deluxe",
+            "deluxe edition",
+            "bonus",
+            "bonus track",
+            "demo",
+            "take",
+            "session",
+            "anniversary",
+            "reissue",
+            "expanded",
+            "expanded edition",
+            "explicit",
+            "instrumental",
+            "acoustic",
+            "alternate",
+            "alternative",
+            "previously unreleased",
+            "digitally remastered",
+            "remastered version",
+            "original mix",
+            "new mix"
+        ].join("|");
+
         text = text.replace(new RegExp(`\\s*[\\(\\[][^^\\)\\]]*(${noise})[^\\)\\]]*[\\)\\]]`, "gi"), " ");
         text = text.replace(new RegExp(`\\s+-\\s+.*(${noise}).*$`, "gi"), " ");
         text = text.replace(/\s+-\s+\d{4}.*$/g, " ");
+        text = text.replace(/\s+/g, " ").trim();
+
         return text;
     }
 
+    function cleanSongTitle(value) {
+        return cleanTaggedTitle(value);
+    }
+
+    function cleanAlbumTitle(value) {
+        return cleanTaggedTitle(value);
+    }
+
     function significantTokens(value) {
-        const stopwords = new Set(["the", "a", "an", "and", "of", "to", "in", "on", "for"]);
+        const stopwords = new Set([
+            "the", "a", "an", "and", "of", "to", "in", "on", "for",
+            "with", "feat", "featuring", "by"
+        ]);
+
         return normalizeText(value)
             .split(" ")
             .filter((token) => token && token.length > 1 && !stopwords.has(token));
     }
 
+    function artistAliasTokenGroups(value) {
+        const normalized = normalizeText(value)
+            .replace(/\bplus\b/g, " and ")
+            .replace(/\bexperience\b/g, " ")
+            .replace(/\bband\b/g, " ")
+            .replace(/\borchestra\b/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const pieces = normalized
+            .split(/\b(?:and|with|feat|featuring)\b/g)
+            .map((piece) => significantTokens(piece))
+            .filter((tokens) => tokens.length > 0);
+
+        const allTokens = significantTokens(normalized);
+        if (allTokens.length) {
+            pieces.push(allTokens);
+        }
+
+        return pieces;
+    }
+
+    function artistMatches(expectedRaw, guessRaw) {
+        const guessTokens = new Set(significantTokens(guessRaw));
+        if (!guessTokens.size) return false;
+
+        const groups = artistAliasTokenGroups(expectedRaw);
+
+        for (const group of groups) {
+            if (group.every((token) => guessTokens.has(token))) {
+                return true;
+            }
+        }
+
+        const expectedTokens = significantTokens(expectedRaw);
+
+        // Allow distinctive partial artist guesses:
+        // "Florence" for "Florence + The Machine";
+        // "Wailers" for "Bob Marley & The Wailers";
+        // "Beatles" for "The Beatles";
+        // "Hendrix" or "Jimi Hendrix" for "The Jimi Hendrix Experience".
+        return expectedTokens.some((token) => token.length >= 4 && guessTokens.has(token));
+    }
+
     function answerMatches(expectedRaw, guessRaw, kind) {
-        const expected = kind === "song" ? cleanSongTitle(expectedRaw) : expectedRaw;
+        if (kind === "artist") {
+            return artistMatches(expectedRaw, guessRaw);
+        }
+
+        const expected = kind === "song"
+            ? cleanSongTitle(expectedRaw)
+            : kind === "album"
+                ? cleanAlbumTitle(expectedRaw)
+                : expectedRaw;
+
         const guess = guessRaw || "";
         const expectedNorm = normalizeText(expected);
         const guessNorm = normalizeText(guess);
@@ -491,6 +594,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!songguesserCorrect.song && answerMatches(answer.song, guess, "song")) {
             songguesserCorrect.song = true;
             newlyCorrect += 1;
+        }
+
+        if (songguesserGuessInput) {
+            songguesserGuessInput.value = "";
+            songguesserGuessInput.focus();
         }
 
         if (newlyCorrect > 0) {
