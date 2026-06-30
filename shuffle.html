@@ -15,7 +15,8 @@
 
         .shuffle-card,
         .shuffle-cover-wrap,
-        .shuffle-log-wrap {
+        .shuffle-log-wrap,
+        .songguesser-panel {
             background-color: #444;
             border-radius: 10px;
             margin-top: 20px;
@@ -39,13 +40,16 @@
         }
 
         .clip-mode-row,
-        .source-mode-row {
+        .source-mode-row,
+        .songguesser-section {
             border: 1px solid rgba(255, 255, 255, 0.25);
             border-radius: 8px;
             padding: 12px;
         }
 
-        .clip-bounds {
+        .clip-bounds,
+        .songguesser-hints,
+        .songguesser-result-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
@@ -55,7 +59,8 @@
             margin-top: 12px;
         }
 
-        .source-help {
+        .source-help,
+        .songguesser-help {
             color: #ddd;
             font-size: 13px;
             line-height: 1.45;
@@ -67,7 +72,8 @@
             align-items: flex-start;
         }
 
-        .shuffle-buttons {
+        .shuffle-buttons,
+        .songguesser-buttons {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
@@ -81,9 +87,27 @@
             background-color: #8f2929;
         }
 
+        .spotify-login-connected {
+            background-color: #1f8f3a;
+        }
+
+        .spotify-login-connected:hover {
+            background-color: #16682b;
+        }
+
+        .spotify-login-disconnected {
+            background-color: #b93838;
+        }
+
+        .spotify-login-disconnected:hover {
+            background-color: #8f2929;
+        }
+
         .sampler-status,
         .shuffle-cover-meta,
-        .spotify-auth-status {
+        .spotify-auth-status,
+        .songguesser-timer,
+        .songguesser-progress {
             text-align: center;
         }
 
@@ -118,6 +142,7 @@
             justify-content: center;
             margin: 0 auto;
             overflow: hidden;
+            position: relative;
             width: 300px;
         }
 
@@ -131,6 +156,59 @@
             display: none;
         }
 
+        .songguesser-question-mark {
+            color: #f2f2f2;
+            display: none;
+            font-size: 140px;
+            font-weight: bold;
+            line-height: 1;
+            position: absolute;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .songguesser-placeholder .songguesser-question-mark {
+            display: block;
+        }
+
+        .songguesser-placeholder .shuffle-cover-image {
+            display: none;
+        }
+
+        .songguesser-timer {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 8px 0 14px;
+        }
+
+        .songguesser-answer-line {
+            background-color: #333;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .songguesser-answer-line strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .songguesser-correct {
+            color: #9ee59e;
+            font-weight: bold;
+        }
+
+        .songguesser-revealed {
+            color: #ffcf85;
+            font-weight: bold;
+        }
+
+        .songguesser-hints-output {
+            background-color: #333;
+            border-radius: 6px;
+            line-height: 1.5;
+            margin: 10px 0;
+            padding: 10px;
+        }
+
         .sampler-log {
             background-color: #111;
             border-radius: 8px;
@@ -142,7 +220,9 @@
         }
 
         @media only screen and (max-width: 600px) {
-            .clip-bounds {
+            .clip-bounds,
+            .songguesser-hints,
+            .songguesser-result-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -176,6 +256,16 @@
     <main>
         <section class="shuffle-panel">
             <div class="shuffle-card">
+                <div class="shuffle-form-row songguesser-section">
+                    <label class="checkbox-row" for="songguesser-enabled">
+                        <span>Play Songguesser</span>
+                        <input type="checkbox" id="songguesser-enabled">
+                    </label>
+                    <p class="songguesser-help">
+                        Songguesser plays five random 30-second clips. Guess artist, album, and song in one input; order and case do not matter.
+                    </p>
+                </div>
+
                 <div class="shuffle-form-row source-mode-row">
                     <label class="radio-row">
                         <input type="radio" name="source-mode" id="source-mode-file" value="file" checked>
@@ -184,7 +274,7 @@
                     <div id="file-source-options" class="source-options">
                         <label for="albums-file">Album / playlist text file</label>
                         <input type="file" id="albums-file" accept=".txt,text/plain">
-                        <div class="shuffle-form-row">
+                        <div id="start-index-row" class="shuffle-form-row">
                             <label for="start-index">Start at uploaded text-file line index</label>
                             <input type="number" id="start-index" min="1" value="1">
                         </div>
@@ -199,7 +289,7 @@
                     <div id="playlist-source-options" class="source-options">
                         <label for="playlist-link">Spotify album / playlist link</label>
                         <input type="url" id="playlist-link" placeholder="https://open.spotify.com/album/... or https://open.spotify.com/playlist/...">
-                        <label class="checkbox-row" for="single-link-random-order">
+                        <label id="single-link-random-order-row" class="checkbox-row" for="single-link-random-order">
                             <span>Randomize song order</span>
                             <input type="checkbox" id="single-link-random-order" checked>
                         </label>
@@ -209,47 +299,73 @@
                     </div>
                 </div>
 
-                <div class="shuffle-form-row clip-mode-row">
-                    <label class="radio-row">
-                        <input type="radio" name="clip-mode" id="clip-mode-defined" value="defined" checked>
-                        Defined clip length
-                    </label>
-                    <input type="number" id="clip-seconds" min="1" value="15">
-                </div>
+                <div id="normal-sampler-options">
+                    <div class="shuffle-form-row clip-mode-row">
+                        <label class="radio-row">
+                            <input type="radio" name="clip-mode" id="clip-mode-defined" value="defined" checked>
+                            Defined clip length
+                        </label>
+                        <input type="number" id="clip-seconds" min="1" value="15">
+                    </div>
 
-                <div class="shuffle-form-row clip-mode-row">
-                    <label class="radio-row">
-                        <input type="radio" name="clip-mode" id="clip-mode-random" value="random">
-                        Random clip length within bounds
-                    </label>
-                    <div class="clip-bounds">
-                        <div>
-                            <label for="clip-min-seconds">Minimum seconds</label>
-                            <input type="number" id="clip-min-seconds" min="1" value="18">
+                    <div class="shuffle-form-row clip-mode-row">
+                        <label class="radio-row">
+                            <input type="radio" name="clip-mode" id="clip-mode-random" value="random">
+                            Random clip length within bounds
+                        </label>
+                        <div class="clip-bounds">
+                            <div>
+                                <label for="clip-min-seconds">Minimum seconds</label>
+                                <input type="number" id="clip-min-seconds" min="1" value="18">
+                            </div>
+                            <div>
+                                <label for="clip-max-seconds">Maximum seconds</label>
+                                <input type="number" id="clip-max-seconds" min="1" value="25">
+                            </div>
                         </div>
-                        <div>
-                            <label for="clip-max-seconds">Maximum seconds</label>
-                            <input type="number" id="clip-max-seconds" min="1" value="25">
+                    </div>
+
+                    <div class="shuffle-form-row checkbox-row">
+                        <label for="random-start">Random start position</label>
+                        <input type="checkbox" id="random-start" checked>
+                    </div>
+
+                    <details class="shuffle-advanced">
+                        <summary>Advanced local-file options</summary>
+                        <div class="shuffle-form-row">
+                            <label for="assumed-duration-seconds">Assumed duration for local files, seconds</label>
+                            <input type="number" id="assumed-duration-seconds" min="1" value="180">
+                        </div>
+                        <div class="shuffle-form-row">
+                            <label for="local-seek-delay-seconds">Local-file seek delay, seconds</label>
+                            <input type="number" id="local-seek-delay-seconds" min="0" step="0.1" value="0">
+                        </div>
+                    </details>
+                </div>
+
+                <div id="songguesser-options" hidden>
+                    <div class="shuffle-form-row songguesser-section">
+                        <strong>Songguesser hints</strong>
+                        <div class="songguesser-hints">
+                            <label class="checkbox-row" for="hint-release-year">
+                                <span>Release year</span>
+                                <input type="checkbox" id="hint-release-year">
+                            </label>
+                            <label class="checkbox-row" for="hint-release-decade">
+                                <span>Release decade</span>
+                                <input type="checkbox" id="hint-release-decade">
+                            </label>
+                            <label class="checkbox-row" for="hint-artist">
+                                <span>Artist name</span>
+                                <input type="checkbox" id="hint-artist">
+                            </label>
+                            <label class="checkbox-row" for="hint-album">
+                                <span>Album name</span>
+                                <input type="checkbox" id="hint-album">
+                            </label>
                         </div>
                     </div>
                 </div>
-
-                <div class="shuffle-form-row checkbox-row">
-                    <label for="random-start">Random start position</label>
-                    <input type="checkbox" id="random-start" checked>
-                </div>
-
-                <details class="shuffle-advanced">
-                    <summary>Advanced local-file options</summary>
-                    <div class="shuffle-form-row">
-                        <label for="assumed-duration-seconds">Assumed duration for local files, seconds</label>
-                        <input type="number" id="assumed-duration-seconds" min="1" value="180">
-                    </div>
-                    <div class="shuffle-form-row">
-                        <label for="local-seek-delay-seconds">Local-file seek delay, seconds</label>
-                        <input type="number" id="local-seek-delay-seconds" min="0" step="0.1" value="0">
-                    </div>
-                </details>
 
                 <div class="shuffle-buttons">
                     <button id="spotify-login" type="button">Login with Spotify</button>
@@ -264,11 +380,31 @@
             <div class="shuffle-cover-wrap">
                 <h3 id="current-track-title">No track detected</h3>
                 <div id="current-cover-frame" class="shuffle-cover-frame cover-frame-empty">
+                    <span id="songguesser-question-mark" class="songguesser-question-mark">?</span>
                     <img id="current-cover-image" class="shuffle-cover-image empty-cover" alt="No album cover available">
                 </div>
             </div>
 
-            <div class="shuffle-log-wrap">
+            <div id="songguesser-panel" class="songguesser-panel" hidden>
+                <p id="songguesser-progress" class="songguesser-progress">Song 0 / 5</p>
+                <p id="songguesser-timer" class="songguesser-timer">30</p>
+                <div id="songguesser-hints-output" class="songguesser-hints-output">Hints will appear here.</div>
+                <div class="shuffle-form-row">
+                    <label for="songguesser-guess">Enter artist, album, and song name</label>
+                    <input type="text" id="songguesser-guess" autocomplete="off" placeholder="Example: artist album song">
+                </div>
+                <div class="songguesser-buttons">
+                    <button id="songguesser-submit" type="button">Submit Guess</button>
+                    <button id="songguesser-skip" type="button" class="danger-button">Skip</button>
+                </div>
+                <div class="songguesser-result-grid">
+                    <div class="songguesser-answer-line"><strong>Artist</strong><span id="songguesser-artist">???</span></div>
+                    <div class="songguesser-answer-line"><strong>Album</strong><span id="songguesser-album">???</span></div>
+                    <div class="songguesser-answer-line"><strong>Song</strong><span id="songguesser-song">???</span></div>
+                </div>
+            </div>
+
+            <div id="shuffle-log-wrap" class="shuffle-log-wrap">
                 <pre id="sampler-log" class="sampler-log">No output yet.</pre>
             </div>
         </section>

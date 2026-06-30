@@ -1,18 +1,28 @@
 document.addEventListener("DOMContentLoaded", () => {
     const albumsFileInput = document.getElementById("albums-file");
     const startIndexInput = document.getElementById("start-index");
+    const startIndexRow = document.getElementById("start-index-row");
     const playlistLinkInput = document.getElementById("playlist-link");
     const singleLinkRandomOrderInput = document.getElementById("single-link-random-order");
+    const singleLinkRandomOrderRow = document.getElementById("single-link-random-order-row");
     const clipSecondsInput = document.getElementById("clip-seconds");
     const clipMinSecondsInput = document.getElementById("clip-min-seconds");
     const clipMaxSecondsInput = document.getElementById("clip-max-seconds");
     const randomStartInput = document.getElementById("random-start");
     const assumedDurationInput = document.getElementById("assumed-duration-seconds");
     const localSeekDelayInput = document.getElementById("local-seek-delay-seconds");
+    const songguesserEnabledInput = document.getElementById("songguesser-enabled");
+    const normalSamplerOptions = document.getElementById("normal-sampler-options");
+    const songguesserOptions = document.getElementById("songguesser-options");
+    const hintReleaseYearInput = document.getElementById("hint-release-year");
+    const hintReleaseDecadeInput = document.getElementById("hint-release-decade");
+    const hintArtistInput = document.getElementById("hint-artist");
+    const hintAlbumInput = document.getElementById("hint-album");
     const startButton = document.getElementById("start-sampler");
     const stopButton = document.getElementById("stop-sampler");
     const samplerStatus = document.getElementById("sampler-status");
     const samplerLog = document.getElementById("sampler-log");
+    const samplerLogWrap = document.getElementById("shuffle-log-wrap");
     const coverImage = document.getElementById("current-cover-image");
     const coverFrame = document.getElementById("current-cover-frame");
     const currentTrackTitle = document.getElementById("current-track-title");
@@ -20,9 +30,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const spotifyAuthStatus = document.getElementById("spotify-auth-status");
     const fileSourceOptions = document.getElementById("file-source-options");
     const playlistSourceOptions = document.getElementById("playlist-source-options");
+    const songguesserPanel = document.getElementById("songguesser-panel");
+    const songguesserProgress = document.getElementById("songguesser-progress");
+    const songguesserTimer = document.getElementById("songguesser-timer");
+    const songguesserHintsOutput = document.getElementById("songguesser-hints-output");
+    const songguesserGuessInput = document.getElementById("songguesser-guess");
+    const songguesserSubmitButton = document.getElementById("songguesser-submit");
+    const songguesserSkipButton = document.getElementById("songguesser-skip");
+    const songguesserArtist = document.getElementById("songguesser-artist");
+    const songguesserAlbum = document.getElementById("songguesser-album");
+    const songguesserSong = document.getElementById("songguesser-song");
 
     const API_BASE_URL = "https://api.navincitron.com";
+    const SONGGUESSER_CLIP_SECONDS = 30;
     let spotifyAuthenticated = false;
+    let songguesserCurrent = null;
+    let songguesserCorrect = { artist: false, album: false, song: false };
+    let songguesserAcceptingGuesses = false;
+    let songguesserTimerInterval = null;
+    let songguesserNextTimeout = null;
 
     function selectedClipMode() {
         const checked = document.querySelector('input[name="clip-mode"]:checked');
@@ -34,8 +60,13 @@ document.addEventListener("DOMContentLoaded", () => {
         return checked ? checked.value : "file";
     }
 
+    function songguesserEnabled() {
+        return Boolean(songguesserEnabledInput && songguesserEnabledInput.checked);
+    }
+
     function updateSourceModeVisibility() {
         const mode = selectedSourceMode();
+        const guessing = songguesserEnabled();
 
         if (fileSourceOptions) {
             fileSourceOptions.hidden = mode !== "file";
@@ -43,6 +74,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (playlistSourceOptions) {
             playlistSourceOptions.hidden = mode !== "playlist";
+        }
+
+        if (normalSamplerOptions) {
+            normalSamplerOptions.hidden = guessing;
+        }
+
+        if (songguesserOptions) {
+            songguesserOptions.hidden = !guessing;
+        }
+
+        if (startIndexRow) {
+            startIndexRow.hidden = guessing;
+        }
+
+        if (singleLinkRandomOrderRow) {
+            singleLinkRandomOrderRow.hidden = guessing;
+        }
+
+        if (samplerLogWrap) {
+            samplerLogWrap.hidden = guessing;
+        }
+
+        if (songguesserPanel && !guessing) {
+            songguesserPanel.hidden = true;
+        }
+
+        if (startButton) {
+            startButton.textContent = guessing ? "Start Songguesser" : "Start Sampler";
         }
     }
 
@@ -65,12 +124,16 @@ document.addEventListener("DOMContentLoaded", () => {
             if (spotifyLoginButton) {
                 spotifyLoginButton.textContent = "Spotify Connected";
                 spotifyLoginButton.title = "Click to reconnect or switch Spotify account.";
+                spotifyLoginButton.classList.add("spotify-login-connected");
+                spotifyLoginButton.classList.remove("spotify-login-disconnected");
             }
         } else {
             spotifyAuthStatus.textContent = detailText || "Spotify: not connected. Press Login with Spotify before starting.";
             if (spotifyLoginButton) {
                 spotifyLoginButton.textContent = "Login with Spotify";
                 spotifyLoginButton.title = "Connect Spotify before starting the sampler.";
+                spotifyLoginButton.classList.add("spotify-login-disconnected");
+                spotifyLoginButton.classList.remove("spotify-login-connected");
             }
         }
     }
@@ -113,6 +176,14 @@ document.addEventListener("DOMContentLoaded", () => {
         samplerLog.scrollTop = samplerLog.scrollHeight;
     }
 
+    function setCoverPlaceholder() {
+        if (!coverImage || !coverFrame || !currentTrackTitle) return;
+        coverImage.removeAttribute("src");
+        coverImage.classList.add("empty-cover");
+        coverFrame.classList.add("cover-frame-empty", "songguesser-placeholder");
+        currentTrackTitle.textContent = "Songguesser";
+    }
+
     function updateCover(coverArt) {
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
 
@@ -120,13 +191,14 @@ document.addEventListener("DOMContentLoaded", () => {
             coverImage.removeAttribute("src");
             coverImage.classList.add("empty-cover");
             coverFrame.classList.add("cover-frame-empty");
+            coverFrame.classList.remove("songguesser-placeholder");
             currentTrackTitle.textContent = "No track detected";
             return;
         }
 
         coverImage.src = coverArt.url;
         coverImage.classList.remove("empty-cover");
-        coverFrame.classList.remove("cover-frame-empty");
+        coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
 
         const artist = coverArt.artist || "Unknown Artist";
         const track = coverArt.track || coverArt.album || "Unknown Song";
@@ -134,6 +206,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function pollStatus() {
+        if (songguesserEnabled()) return;
+
         try {
             const response = await fetch(`${API_BASE_URL}/api/status`, {
                 credentials: "include",
@@ -153,7 +227,293 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function normalizeText(value) {
+        return String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/&/g, " and ")
+            .replace(/[’']/g, "")
+            .replace(/[^a-z0-9]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function cleanSongTitle(value) {
+        let text = String(value || "");
+        const noise = "remaster|remastered|remix|remixed|mix|live|mono|stereo|version|edit|radio edit|deluxe|bonus|demo|take|session|anniversary|reissue|expanded|explicit|instrumental|acoustic";
+        text = text.replace(new RegExp(`\\s*[\\(\\[][^^\\)\\]]*(${noise})[^\\)\\]]*[\\)\\]]`, "gi"), " ");
+        text = text.replace(new RegExp(`\\s+-\\s+.*(${noise}).*$`, "gi"), " ");
+        text = text.replace(/\s+-\s+\d{4}.*$/g, " ");
+        return text;
+    }
+
+    function significantTokens(value) {
+        const stopwords = new Set(["the", "a", "an", "and", "of", "to", "in", "on", "for"]);
+        return normalizeText(value)
+            .split(" ")
+            .filter((token) => token && token.length > 1 && !stopwords.has(token));
+    }
+
+    function answerMatches(expectedRaw, guessRaw, kind) {
+        const expected = kind === "song" ? cleanSongTitle(expectedRaw) : expectedRaw;
+        const guess = guessRaw || "";
+        const expectedNorm = normalizeText(expected);
+        const guessNorm = normalizeText(guess);
+
+        if (!expectedNorm || !guessNorm) return false;
+        if (guessNorm.includes(expectedNorm)) return true;
+
+        const expectedTokens = significantTokens(expected);
+        const guessTokens = new Set(significantTokens(guess));
+
+        if (expectedTokens.length === 0) return false;
+        return expectedTokens.every((token) => guessTokens.has(token));
+    }
+
+    function playFeedbackSound(filename) {
+        try {
+            const audio = new Audio(filename);
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+        } catch (error) {
+            // Sound feedback is non-critical.
+        }
+    }
+
+    function setAnswerText(element, value, statusClass) {
+        if (!element) return;
+        element.textContent = value || "???";
+        element.classList.remove("songguesser-correct", "songguesser-revealed");
+        if (statusClass) {
+            element.classList.add(statusClass);
+        }
+    }
+
+    function updateSongguesserAnswerDisplay(revealed = false) {
+        const answer = songguesserCurrent ? songguesserCurrent.answer : {};
+        setAnswerText(songguesserArtist, (revealed || songguesserCorrect.artist) ? answer.artist : "???", songguesserCorrect.artist ? "songguesser-correct" : (revealed ? "songguesser-revealed" : ""));
+        setAnswerText(songguesserAlbum, (revealed || songguesserCorrect.album) ? answer.album : "???", songguesserCorrect.album ? "songguesser-correct" : (revealed ? "songguesser-revealed" : ""));
+        setAnswerText(songguesserSong, (revealed || songguesserCorrect.song) ? answer.song : "???", songguesserCorrect.song ? "songguesser-correct" : (revealed ? "songguesser-revealed" : ""));
+    }
+
+    function showSongguesserHints(current) {
+        if (!songguesserHintsOutput) return;
+
+        const hints = current.hints || {};
+        const lines = [];
+        if (hints.releaseYear) lines.push(`Release year: ${hints.releaseYear}`);
+        if (hints.releaseDecade) lines.push(`Release decade: ${hints.releaseDecade}`);
+        if (hints.artist) lines.push(`Artist: ${hints.artist}`);
+        if (hints.album) lines.push(`Album: ${hints.album}`);
+
+        songguesserHintsOutput.textContent = lines.length ? lines.join("\n") : "No hints enabled.";
+    }
+
+    function clearSongguesserTimers() {
+        if (songguesserTimerInterval) {
+            clearInterval(songguesserTimerInterval);
+            songguesserTimerInterval = null;
+        }
+        if (songguesserNextTimeout) {
+            clearTimeout(songguesserNextTimeout);
+            songguesserNextTimeout = null;
+        }
+    }
+
+    function startSongguesserTimer(endsAtSeconds) {
+        clearSongguesserTimers();
+
+        const update = () => {
+            const remaining = Math.max(0, Math.ceil((endsAtSeconds * 1000 - Date.now()) / 1000));
+            if (songguesserTimer) {
+                songguesserTimer.textContent = String(remaining);
+            }
+
+            if (remaining <= 0) {
+                clearSongguesserTimers();
+                revealSongguesserAnswer("Time's up", 10);
+            }
+        };
+
+        update();
+        songguesserTimerInterval = setInterval(update, 250);
+    }
+
+    function revealSongguesserAnswer(reason, delaySeconds) {
+        if (!songguesserCurrent) return;
+
+        clearSongguesserTimers();
+        songguesserAcceptingGuesses = false;
+        updateSongguesserAnswerDisplay(true);
+
+        const answer = songguesserCurrent.answer || {};
+        updateCover({
+            url: answer.coverUrl,
+            artist: answer.artist,
+            track: answer.song,
+            album: answer.album,
+        });
+
+        setStatus(`${reason}. Next song in ${delaySeconds} seconds.`);
+        if (songguesserGuessInput) songguesserGuessInput.disabled = true;
+        if (songguesserSubmitButton) songguesserSubmitButton.disabled = true;
+        if (songguesserSkipButton) songguesserSkipButton.disabled = true;
+
+        songguesserNextTimeout = setTimeout(loadNextSongguesserSong, delaySeconds * 1000);
+    }
+
+    function handleSongguesserCurrent(current) {
+        songguesserCurrent = current;
+        songguesserCorrect = { artist: false, album: false, song: false };
+        songguesserAcceptingGuesses = true;
+
+        if (songguesserPanel) songguesserPanel.hidden = false;
+        if (songguesserGuessInput) {
+            songguesserGuessInput.value = "";
+            songguesserGuessInput.disabled = false;
+            songguesserGuessInput.focus();
+        }
+        if (songguesserSubmitButton) songguesserSubmitButton.disabled = false;
+        if (songguesserSkipButton) songguesserSkipButton.disabled = false;
+        if (songguesserProgress) songguesserProgress.textContent = `Song ${current.progress} / ${current.total}`;
+
+        setCoverPlaceholder();
+        showSongguesserHints(current);
+        updateSongguesserAnswerDisplay(false);
+        setStatus("Songguesser running");
+        startSongguesserTimer(current.endsAt);
+    }
+
+    async function startSongguesser() {
+        const authenticated = await refreshAuthStatus();
+        if (!authenticated) {
+            setStatus("press Login with Spotify first");
+            return;
+        }
+
+        const sourceMode = selectedSourceMode();
+        if (sourceMode === "file" && (!albumsFileInput || albumsFileInput.files.length === 0)) {
+            setStatus("upload a .txt file first");
+            return;
+        }
+        if (sourceMode === "playlist" && (!playlistLinkInput || !playlistLinkInput.value.trim())) {
+            setStatus("enter a Spotify album or playlist link first");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("sourceMode", sourceMode);
+        formData.append("playlistLink", playlistLinkInput ? playlistLinkInput.value.trim() : "");
+        formData.append("hintReleaseYear", hintReleaseYearInput && hintReleaseYearInput.checked ? "true" : "false");
+        formData.append("hintReleaseDecade", hintReleaseDecadeInput && hintReleaseDecadeInput.checked ? "true" : "false");
+        formData.append("hintArtist", hintArtistInput && hintArtistInput.checked ? "true" : "false");
+        formData.append("hintAlbum", hintAlbumInput && hintAlbumInput.checked ? "true" : "false");
+
+        if (sourceMode === "file") {
+            formData.append("albumsFile", albumsFileInput.files[0]);
+        }
+
+        startButton.disabled = true;
+        setStatus("starting Songguesser");
+        clearSongguesserTimers();
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/songguesser/start`, {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            const data = await response.json();
+
+            if (!response.ok || !data.ok) {
+                if (response.status === 401) setAuthStatus(false);
+                setStatus(data.error || "could not start Songguesser");
+                return;
+            }
+
+            if (data.complete) {
+                setStatus(data.message || "Songguesser complete");
+                return;
+            }
+
+            handleSongguesserCurrent(data);
+        } catch (error) {
+            setStatus(`could not start Songguesser: ${error}`);
+        } finally {
+            startButton.disabled = false;
+        }
+    }
+
+    async function loadNextSongguesserSong() {
+        clearSongguesserTimers();
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/songguesser/next`, {
+                method: "POST",
+                credentials: "include",
+            });
+            const data = await response.json();
+
+            if (!response.ok || !data.ok) {
+                setStatus(data.error || "could not start next Songguesser song");
+                return;
+            }
+
+            if (data.complete) {
+                songguesserAcceptingGuesses = false;
+                setStatus(data.message || "Songguesser complete");
+                if (songguesserTimer) songguesserTimer.textContent = "0";
+                if (songguesserProgress) songguesserProgress.textContent = "Songguesser complete";
+                return;
+            }
+
+            handleSongguesserCurrent(data);
+        } catch (error) {
+            setStatus(`could not load next Songguesser song: ${error}`);
+        }
+    }
+
+    function submitSongguesserGuess() {
+        if (!songguesserAcceptingGuesses || !songguesserCurrent) return;
+
+        const guess = songguesserGuessInput ? songguesserGuessInput.value : "";
+        const answer = songguesserCurrent.answer || {};
+        let newlyCorrect = 0;
+
+        if (!songguesserCorrect.artist && answerMatches(answer.artist, guess, "artist")) {
+            songguesserCorrect.artist = true;
+            newlyCorrect += 1;
+        }
+        if (!songguesserCorrect.album && answerMatches(answer.album, guess, "album")) {
+            songguesserCorrect.album = true;
+            newlyCorrect += 1;
+        }
+        if (!songguesserCorrect.song && answerMatches(answer.song, guess, "song")) {
+            songguesserCorrect.song = true;
+            newlyCorrect += 1;
+        }
+
+        if (newlyCorrect > 0) {
+            for (let i = 0; i < newlyCorrect; i += 1) {
+                playFeedbackSound("correct.mp3");
+            }
+        } else {
+            playFeedbackSound("wrong.mp3");
+        }
+
+        updateSongguesserAnswerDisplay(false);
+
+        if (songguesserCorrect.artist && songguesserCorrect.album && songguesserCorrect.song) {
+            revealSongguesserAnswer("Correct", 5);
+        }
+    }
+
     async function startSampler() {
+        if (songguesserEnabled()) {
+            await startSongguesser();
+            return;
+        }
+
         const authenticated = await refreshAuthStatus();
 
         if (!authenticated) {
@@ -226,9 +586,11 @@ document.addEventListener("DOMContentLoaded", () => {
     async function stopSampler() {
         stopButton.disabled = true;
         setStatus("stopping");
+        clearSongguesserTimers();
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/stop`, {
+            const endpoint = songguesserEnabled() ? "/api/songguesser/stop" : "/api/stop";
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: "POST",
                 credentials: "include",
             });
@@ -240,6 +602,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
+            songguesserAcceptingGuesses = false;
             setStatus("idle");
             await pollStatus();
         } catch (error) {
@@ -259,12 +622,42 @@ document.addEventListener("DOMContentLoaded", () => {
         input.addEventListener("change", updateSourceModeVisibility);
     });
 
+    if (songguesserEnabledInput) {
+        songguesserEnabledInput.addEventListener("change", () => {
+            updateSourceModeVisibility();
+            if (songguesserEnabled()) {
+                setCoverPlaceholder();
+            } else {
+                updateCover(null);
+            }
+        });
+    }
+
     if (startButton) {
         startButton.addEventListener("click", startSampler);
     }
 
     if (stopButton) {
         stopButton.addEventListener("click", stopSampler);
+    }
+
+    if (songguesserSubmitButton) {
+        songguesserSubmitButton.addEventListener("click", submitSongguesserGuess);
+    }
+
+    if (songguesserGuessInput) {
+        songguesserGuessInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                submitSongguesserGuess();
+            }
+        });
+    }
+
+    if (songguesserSkipButton) {
+        songguesserSkipButton.addEventListener("click", () => {
+            revealSongguesserAnswer("Skipped", 10);
+        });
     }
 
     updateSourceModeVisibility();
