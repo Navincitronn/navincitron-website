@@ -75,6 +75,11 @@ function isTopsterEditorPage() {
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
+function isTopsterReadOnlyPage() {
+    const body = document.body;
+    return Boolean(body && (body.dataset.topsterReadonly === 'true' || body.dataset.topsterMode === 'list'));
+}
+
 function buildTopsterAdminLoginUrl() {
     const loginUrl = new URL('/topster-admin-login', getTopsterBackendOrigin() || window.location.origin);
     loginUrl.searchParams.set('next', window.location.href);
@@ -159,12 +164,14 @@ async function initTopsterImporter(albumCards) {
     const topsterAutoLoad = document.body && (document.body.dataset.topsterAutoload === 'true' || topsterReadOnly);
     const topsterEditorPage = isTopsterEditorPage();
 
-    if (topsterEditorPage && (!topsterSharedStoreAvailable || !topsterSharedStoreWritable)) {
-        status.textContent = topsterSharedStoreAvailable
-            ? 'Grid editing requires Topster admin login. Redirecting...'
-            : 'Grid editing requires the sampler backend API. Redirecting to Topster admin login...';
+    if (topsterEditorPage && topsterSharedStoreAvailable && !topsterSharedStoreWritable) {
+        status.textContent = 'Grid editing requires Topster admin login. Redirecting...';
         window.location.replace(buildTopsterAdminLoginUrl());
         return;
+    }
+
+    if (topsterEditorPage && !topsterSharedStoreAvailable) {
+        status.textContent = 'Sampler backend shared store is unavailable. Editor controls will still work locally, but Save Settings cannot publish until /api/topster-shared-store is reachable.';
     }
 
     setSettingsControls(currentSettings);
@@ -410,14 +417,17 @@ async function initTopsterImporter(albumCards) {
 
         entry.cover = selectedCover;
         entry.status = 'found';
+        entry.manuallySelectedCover = true;
         setCachedCover(buildCoverCacheKey(entry), selectedCover);
         markTopsterPublishDirty();
 
         renderTopster(importedEntries, 0, { scroll: false });
         saveCurrentTopster();
+        syncAllTopsterSidebarHeights();
+        window.requestAnimationFrame(syncAllTopsterSidebarHeights);
 
         status.textContent = topsterEditorPage
-            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the public list page.`
+            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : 'album_list.html'}.`
             : `Updated cover for ${formatEntryName(entry)}.`;
 
         closeCoverPicker();
@@ -579,7 +589,9 @@ async function initTopsterImporter(albumCards) {
                 const cover = await resolveAlbumCover(entry, albumCatalog, config);
                 if (token !== activeLookupToken) return;
 
-                if (cover && cover.imageSrc) {
+                if (entry.cover && entry.cover.selectedManually) {
+                    entry.status = 'found';
+                } else if (cover && cover.imageSrc) {
                     entry.cover = cover;
                     entry.status = 'found';
                     setCachedCover(buildCoverCacheKey(entry), cover);
@@ -953,6 +965,12 @@ function loadTopsterSettings() {
         return topsterSharedSettings;
     }
 
+    // Public list pages should use only the backend-published settings for their source.
+    // If the backend is unavailable, fall back to defaults instead of a visitor's old local settings.
+    if (isTopsterReadOnlyPage()) {
+        return {};
+    }
+
     try {
         return JSON.parse(localStorage.getItem(getTopsterSettingsStorageKey()) || 'null')
             || JSON.parse(localStorage.getItem(TOPSTER_SETTINGS_KEY) || 'null')
@@ -976,6 +994,10 @@ function saveTopsterSettings(settings) {
 
     if (shouldUseTopsterSharedStore()) {
         topsterSharedSettings = normalizedSettings;
+        return;
+    }
+
+    if (isTopsterReadOnlyPage()) {
         return;
     }
 
@@ -1845,6 +1867,12 @@ function getCoverCache() {
             : {};
     }
 
+    // Public list pages must not use whatever cover cache happens to exist in a visitor's browser.
+    // They should show the backend-published grid/ranked cache, or resolve covers for this session only.
+    if (isTopsterReadOnlyPage()) {
+        return {};
+    }
+
     try {
         return JSON.parse(localStorage.getItem(getTopsterCoverCacheStorageKey()) || '{}')
             || JSON.parse(localStorage.getItem(TOPSTER_CACHE_KEY) || '{}')
@@ -1916,6 +1944,11 @@ function setCachedCover(key, cover) {
 
     if (shouldUseTopsterSharedStore()) {
         topsterSharedCoverCache = cache;
+        return;
+    }
+
+    // Public read-only album_list pages must not create per-visitor persistent cover choices.
+    if (isTopsterReadOnlyPage()) {
         return;
     }
 
