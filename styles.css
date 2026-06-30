@@ -1245,55 +1245,58 @@ button:hover {
 
 /* Topster cover index / release-year overlay */
 .topster-tile.has-cover-overlay::after {
-    background: rgba(0, 0, 0, 0.22);
+    background: rgba(0, 0, 0, 0.32);
     border-radius: inherit;
-    bottom: 6%;
+    bottom: 0;
     content: '';
-    left: 6%;
+    left: 0;
     pointer-events: none;
     position: absolute;
-    right: 6%;
-    top: 6%;
+    right: 0;
+    top: 0;
     z-index: 1;
 }
 
 .topster-cover-overlay {
     align-items: center;
-    bottom: 7%;
     box-sizing: border-box;
-    color: rgba(255, 255, 255, 0.08);
+    color: transparent;
     display: flex;
-    font-family: Georgia, "Times New Roman", serif;
+    font-family: "Ganges Slab Black", "Ganges Slab", Rockwell, Georgia, "Times New Roman", serif;
     font-weight: 900;
     justify-content: center;
     left: 7%;
-    letter-spacing: -0.08em;
-    line-height: 0.82;
+    letter-spacing: -0.055em;
+    line-height: 0.9;
+    max-width: 86%;
     overflow: hidden;
+    padding: 0 1%;
     pointer-events: none;
     position: absolute;
     right: 7%;
     text-align: center;
     text-shadow:
-        0 0 1px rgba(0, 0, 0, 0.55),
-        0 0 8px rgba(0, 0, 0, 0.35);
-    top: 7%;
+        0 1px 2px rgba(0, 0, 0, 0.55),
+        0 0 5px rgba(0, 0, 0, 0.42);
+    top: 50%;
+    transform: translateY(-50%);
     white-space: nowrap;
     z-index: 2;
-    -webkit-text-fill-color: rgba(255, 255, 255, 0.08);
-    -webkit-text-stroke: max(2px, calc(var(--topster-cover-size, 200px) / 62)) rgba(255, 255, 255, 0.94);
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.02);
+    -webkit-text-stroke: max(1.35px, calc(var(--topster-cover-size, 200px) / 92)) rgba(255, 255, 255, 0.96);
+    paint-order: stroke fill;
 }
 
 .topster-cover-overlay-length-1,
 .topster-cover-overlay-length-2 {
-    font-size: clamp(24px, calc(var(--topster-cover-size, 200px) / 1.25), 520px);
+    font-size: clamp(18px, calc(var(--topster-cover-size, 200px) * 0.62), 390px);
 }
 
 .topster-cover-overlay-length-3 {
-    font-size: clamp(24px, calc(var(--topster-cover-size, 200px) / 1.65), 420px);
+    font-size: clamp(18px, calc(var(--topster-cover-size, 200px) * 0.45), 330px);
 }
 
 .topster-cover-overlay-length-4 {
-    font-size: clamp(22px, calc(var(--topster-cover-size, 200px) / 2.55), 300px);
+    font-size: clamp(17px, calc(var(--topster-cover-size, 200px) * 0.335), 260px);
 }
 
