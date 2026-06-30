@@ -1,4 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
+const TOPSTER_FRONTEND_VERSION = '20260630-topster-button-fix-v1';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_BASE_CANVAS_SIZE = 2000;
@@ -149,6 +150,9 @@ async function initTopsterImporter(albumCards) {
     if (!buildButton || !refreshButton || !stopButton || !clearButton || !cacheClearButton || !rangeSelect || !status || !output || !pagesContainer || !widthSelect || !heightSelect || !widthValue || !heightValue || !sidebarModeSelect || !roundCornersSelect || !albumGapSelect || !albumGapValue || !fontSelect) {
         return;
     }
+
+    buildButton.textContent = 'Build';
+    document.documentElement.dataset.topsterGridJsVersion = TOPSTER_FRONTEND_VERSION;
 
     let albumCatalog = buildAlbumCatalog(albumCards || [], window.location.href);
     let importedEntries = [];
@@ -839,11 +843,17 @@ async function initTopsterImporter(albumCards) {
 async function loadTopsterSharedStore() {
     topsterSharedStoreLoaded = true;
 
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? window.setTimeout(() => controller.abort(), 3500) : null;
+
     try {
         const response = await fetch(buildTopsterSharedStoreUrl(), {
             cache: 'no-store',
-            credentials: 'include'
+            credentials: 'include',
+            signal: controller ? controller.signal : undefined
         });
+
+        if (timeoutId) window.clearTimeout(timeoutId);
 
         if (!response.ok) {
             topsterSharedStoreAvailable = false;
@@ -863,6 +873,7 @@ async function loadTopsterSharedStore() {
         topsterSharedCoverCache = payload.coverCache && typeof payload.coverCache === 'object' ? payload.coverCache : {};
         topsterSharedSettings = payload.settings && typeof payload.settings === 'object' ? payload.settings : null;
     } catch (error) {
+        if (timeoutId) window.clearTimeout(timeoutId);
         topsterSharedStoreAvailable = false;
         topsterSharedStoreWritable = false;
     }
@@ -2298,5 +2309,12 @@ function getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode) {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-    initTopsterImporter([]);
+    initTopsterImporter([]).catch(error => {
+        console.error('Topster initialization failed:', error);
+        const status = document.getElementById('topster-status');
+        if (status) {
+            status.textContent = `Topster initialization failed. Reload the page after clearing browser cache. Detail: ${error && error.message ? error.message : error}`;
+            status.hidden = false;
+        }
+    });
 });
