@@ -1265,38 +1265,42 @@ button:hover {
     font-family: "Ganges Slab Black", "Ganges Slab", Rockwell, Georgia, "Times New Roman", serif;
     font-weight: 900;
     justify-content: center;
-    left: 7%;
-    letter-spacing: -0.055em;
+    left: 12%;
+    letter-spacing: -0.065em;
     line-height: 0.9;
-    max-width: 86%;
+    max-width: 76%;
     overflow: hidden;
     padding: 0 1%;
     pointer-events: none;
     position: absolute;
-    right: 7%;
+    right: 12%;
     text-align: center;
-    text-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.55),
-        0 0 5px rgba(0, 0, 0, 0.42);
+    text-shadow: none;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateY(-50%) scaleX(0.94);
+    transform-origin: center center;
     white-space: nowrap;
     z-index: 2;
-    -webkit-text-fill-color: rgba(255, 255, 255, 0.02);
-    -webkit-text-stroke: max(1.35px, calc(var(--topster-cover-size, 200px) / 92)) rgba(255, 255, 255, 0.96);
+    -webkit-text-fill-color: transparent;
+    -webkit-text-stroke: max(1px, calc(var(--topster-cover-size, 200px) / 135)) rgba(255, 255, 255, 0.98);
     paint-order: stroke fill;
 }
 
-.topster-cover-overlay-length-1,
+.topster-cover-overlay-length-1 {
+    font-size: clamp(16px, calc(var(--topster-cover-size, 200px) * 0.56), 340px);
+}
+
 .topster-cover-overlay-length-2 {
-    font-size: clamp(18px, calc(var(--topster-cover-size, 200px) * 0.62), 390px);
+    font-size: clamp(16px, calc(var(--topster-cover-size, 200px) * 0.43), 300px);
 }
 
 .topster-cover-overlay-length-3 {
-    font-size: clamp(18px, calc(var(--topster-cover-size, 200px) * 0.45), 330px);
+    font-size: clamp(15px, calc(var(--topster-cover-size, 200px) * 0.31), 240px);
 }
 
-.topster-cover-overlay-length-4 {
-    font-size: clamp(17px, calc(var(--topster-cover-size, 200px) * 0.335), 260px);
+.topster-cover-overlay-length-4,
+.topster-cover-overlay-length-5 {
+    font-size: clamp(14px, calc(var(--topster-cover-size, 200px) * 0.225), 185px);
 }
+
 
