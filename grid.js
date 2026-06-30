@@ -16,6 +16,7 @@ let topsterSharedStoreWritable = false;
 let topsterSharedCoverCache = {};
 let topsterSharedSettings = null;
 let topsterSharedSaveTimer = null;
+let topsterHasUnsavedPublishedChanges = false;
 
 
 
@@ -43,6 +44,24 @@ function getTopsterBackendOrigin() {
 function buildTopsterApiUrl(path) {
     const backendOrigin = getTopsterBackendOrigin();
     return new URL(path || '/', backendOrigin || window.location.origin).href;
+}
+
+function getTopsterStoreSourceKey() {
+    return getTopsterDataSourceConfig().kind === 'ranked-sheet' ? 'ranked' : 'grid';
+}
+
+function buildTopsterSharedStoreUrl() {
+    const url = new URL(TOPSTER_SHARED_STORE_API, getTopsterBackendOrigin() || window.location.origin);
+    url.searchParams.set('source', getTopsterStoreSourceKey());
+    return url.href;
+}
+
+function getTopsterSettingsStorageKey() {
+    return `${TOPSTER_SETTINGS_KEY}::${getTopsterStoreSourceKey()}::working`;
+}
+
+function getTopsterCoverCacheStorageKey() {
+    return `${TOPSTER_CACHE_KEY}::${getTopsterStoreSourceKey()}::working`;
 }
 
 function isTopsterEditorPage() {
@@ -97,6 +116,7 @@ async function initTopsterImporter(albumCards) {
     const refreshButton = document.getElementById('topster-refresh-button');
     const stopButton = document.getElementById('topster-stop-button');
     const clearButton = document.getElementById('topster-clear-button');
+    const saveSettingsButton = document.getElementById('topster-save-settings-button');
     const cacheClearButton = document.getElementById('topster-cache-clear-button');
     const rangeSelect = document.getElementById('topster-range');
     const status = document.getElementById('topster-status');
@@ -191,6 +211,10 @@ async function initTopsterImporter(albumCards) {
         status.textContent = 'Cover cache cleared. The current Topsters grid was kept.';
     });
 
+    if (saveSettingsButton) {
+        saveSettingsButton.addEventListener('click', publishTopsterSettingsAndCovers);
+    }
+
     rangeSelect.addEventListener('change', () => {
         renderTopster(importedEntries, 0, { scroll: false });
         saveCurrentTopster();
@@ -211,17 +235,56 @@ async function initTopsterImporter(albumCards) {
         saveTopsterSettings(currentSettings);
         applyTopsterSettings(currentSettings);
         updateSettingsValueLabels(currentSettings);
+        markTopsterPublishDirty();
 
         if (!importedEntries.length) {
             setSingleRangeOption();
-            status.textContent = '';
+            status.textContent = topsterEditorPage
+                ? 'Updated local Topster display settings. Press Save Settings to publish them.'
+                : '';
             return;
         }
 
         const selectedStart = populateRangeSelect(importedEntries.length, 0);
         renderTopster(importedEntries, selectedStart, { scroll: false });
         saveCurrentTopster();
-        status.textContent = `Updated Topster display settings to ${currentSettings.width}x${currentSettings.height}.`;
+        status.textContent = topsterEditorPage
+            ? `Updated local Topster display settings to ${currentSettings.width}x${currentSettings.height}. Press Save Settings to publish.`
+            : `Updated Topster display settings to ${currentSettings.width}x${currentSettings.height}.`;
+    }
+
+    function markTopsterPublishDirty() {
+        if (topsterEditorPage) topsterHasUnsavedPublishedChanges = true;
+    }
+
+    async function publishTopsterSettingsAndCovers() {
+        if (!topsterEditorPage) return;
+
+        currentSettings = normalizeTopsterSettings(readSettingsControls());
+        saveTopsterSettings(currentSettings);
+        saveCurrentTopster();
+
+        if (!topsterSharedStoreAvailable || !topsterSharedStoreWritable) {
+            status.textContent = 'Cannot save shared Topster settings: backend shared store is unavailable or you are not logged in as admin.';
+            return;
+        }
+
+        if (saveSettingsButton) saveSettingsButton.disabled = true;
+        status.textContent = `Saving ${getTopsterStoreSourceKey() === 'ranked' ? 'Ranked Albums' : 'Albums'} settings and cover selections to the shared backend...`;
+
+        const ok = await saveTopsterSharedStoreNow({
+            settings: currentSettings,
+            coverCache: getCoverCache()
+        });
+
+        if (saveSettingsButton) saveSettingsButton.disabled = false;
+
+        if (ok) {
+            topsterHasUnsavedPublishedChanges = false;
+            status.textContent = `Saved shared ${getTopsterStoreSourceKey() === 'ranked' ? 'Ranked Albums' : 'Albums'} settings and cover selections. Public list pages will use these values.`;
+        } else {
+            status.textContent = 'Shared save failed. Check that the backend is deployed, the admin session is active, and /api/topster-shared-store is reachable.';
+        }
     }
 
     window.addEventListener('resize', () => syncAllTopsterSidebarHeights());
@@ -348,22 +411,14 @@ async function initTopsterImporter(albumCards) {
         entry.cover = selectedCover;
         entry.status = 'found';
         setCachedCover(buildCoverCacheKey(entry), selectedCover);
-
-        let sharedSaveOk = null;
-        if (topsterSharedStoreAvailable && topsterSharedStoreWritable) {
-            sharedSaveOk = await flushTopsterSharedCoverCacheSave();
-        }
+        markTopsterPublishDirty();
 
         renderTopster(importedEntries, 0, { scroll: false });
         saveCurrentTopster();
 
-        if (sharedSaveOk === true) {
-            status.textContent = `Updated and saved shared cover for ${formatEntryName(entry)}.`;
-        } else if (sharedSaveOk === false) {
-            status.textContent = `Updated cover for ${formatEntryName(entry)}, but the shared backend save failed. Check /api/topster-shared-store.`;
-        } else {
-            status.textContent = `Updated cover for ${formatEntryName(entry)}.`;
-        }
+        status.textContent = topsterEditorPage
+            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the public list page.`
+            : `Updated cover for ${formatEntryName(entry)}.`;
 
         closeCoverPicker();
     }
@@ -443,7 +498,6 @@ async function initTopsterImporter(albumCards) {
             currentSettings = normalizeTopsterSettings(saved.settings);
             setSettingsControls(currentSettings);
             applyTopsterSettings(currentSettings);
-            saveTopsterSettings(currentSettings);
         }
 
         importedEntries = saved.entries.map((entry, index) => {
@@ -466,7 +520,7 @@ async function initTopsterImporter(albumCards) {
     }
 
     function saveCurrentTopster() {
-        if (!importedEntries.length || shouldUseTopsterSharedStore()) return;
+        if (!importedEntries.length) return;
 
         const payload = {
             savedAt: new Date().toISOString(),
@@ -774,7 +828,7 @@ async function loadTopsterSharedStore() {
     topsterSharedStoreLoaded = true;
 
     try {
-        const response = await fetch(buildTopsterApiUrl(TOPSTER_SHARED_STORE_API), {
+        const response = await fetch(buildTopsterSharedStoreUrl(), {
             cache: 'no-store',
             credentials: 'include'
         });
@@ -810,7 +864,7 @@ async function saveTopsterSharedStoreNow(payload) {
     if (!topsterSharedStoreAvailable || !topsterSharedStoreWritable) return false;
 
     try {
-        const response = await fetch(buildTopsterApiUrl(TOPSTER_SHARED_STORE_API), {
+        const response = await fetch(buildTopsterSharedStoreUrl(), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -853,18 +907,27 @@ async function flushTopsterSharedCoverCacheSave() {
 async function clearTopsterCoverCache() {
     topsterSharedCoverCache = {};
 
+    try {
+        localStorage.removeItem(getTopsterCoverCacheStorageKey());
+    } catch (error) {
+        // Clearing cache is optional; rendering can continue.
+    }
+
     if (topsterSharedStoreAvailable && topsterSharedStoreWritable) {
         try {
-            const response = await fetch(buildTopsterApiUrl(TOPSTER_SHARED_STORE_API), {
+            const response = await fetch(buildTopsterSharedStoreUrl(), {
                 method: 'DELETE',
                 credentials: 'include'
             });
             if (response.ok) {
                 const result = await response.json();
-                if (result && result.ok === true) return;
+                if (result && result.ok === true) {
+                    topsterHasUnsavedPublishedChanges = false;
+                    return;
+                }
             }
         } catch (error) {
-            // Fall through to local cleanup.
+            // Local cleanup already happened.
         }
     }
 
@@ -877,12 +940,23 @@ async function clearTopsterCoverCache() {
 
 
 function loadTopsterSettings() {
+    if (isTopsterEditorPage()) {
+        try {
+            const localSettings = JSON.parse(localStorage.getItem(getTopsterSettingsStorageKey()) || 'null');
+            if (localSettings) return localSettings;
+        } catch (error) {
+            // Fall back to the published backend settings below.
+        }
+    }
+
     if (shouldUseTopsterSharedStore() && topsterSharedSettings) {
         return topsterSharedSettings;
     }
 
     try {
-        return JSON.parse(localStorage.getItem(TOPSTER_SETTINGS_KEY) || 'null') || {};
+        return JSON.parse(localStorage.getItem(getTopsterSettingsStorageKey()) || 'null')
+            || JSON.parse(localStorage.getItem(TOPSTER_SETTINGS_KEY) || 'null')
+            || {};
     } catch (error) {
         return {};
     }
@@ -891,16 +965,22 @@ function loadTopsterSettings() {
 function saveTopsterSettings(settings) {
     const normalizedSettings = normalizeTopsterSettings(settings);
 
-    if (shouldUseTopsterSharedStore()) {
-        topsterSharedSettings = normalizedSettings;
-        if (topsterSharedStoreWritable) {
-            saveTopsterSharedStoreNow({ settings: normalizedSettings });
+    if (isTopsterEditorPage()) {
+        try {
+            localStorage.setItem(getTopsterSettingsStorageKey(), JSON.stringify(normalizedSettings));
+        } catch (error) {
+            // Settings persistence is helpful but not required for rendering.
         }
         return;
     }
 
+    if (shouldUseTopsterSharedStore()) {
+        topsterSharedSettings = normalizedSettings;
+        return;
+    }
+
     try {
-        localStorage.setItem(TOPSTER_SETTINGS_KEY, JSON.stringify(normalizedSettings));
+        localStorage.setItem(getTopsterSettingsStorageKey(), JSON.stringify(normalizedSettings));
     } catch (error) {
         // Settings persistence is helpful but not required for rendering.
     }
@@ -985,7 +1065,7 @@ function formatSidebarEntry(entry, mode) {
 }
 
 function loadSavedTopsterState() {
-    if (shouldUseTopsterSharedStore()) {
+    if (shouldUseTopsterSharedStore() && !isTopsterEditorPage()) {
         return null;
     }
 
@@ -1006,7 +1086,7 @@ function loadSavedTopsterState() {
 }
 
 function clearSavedTopsterState() {
-    if (shouldUseTopsterSharedStore()) {
+    if (shouldUseTopsterSharedStore() && !isTopsterEditorPage()) {
         return;
     }
 
@@ -1750,6 +1830,15 @@ function buildCoverCacheAliases(entry) {
 }
 
 function getCoverCache() {
+    if (isTopsterEditorPage()) {
+        try {
+            const localCache = JSON.parse(localStorage.getItem(getTopsterCoverCacheStorageKey()) || 'null');
+            if (localCache && typeof localCache === 'object') return localCache;
+        } catch (error) {
+            // Fall back to the published backend cache below.
+        }
+    }
+
     if (shouldUseTopsterSharedStore()) {
         return topsterSharedCoverCache && typeof topsterSharedCoverCache === 'object'
             ? { ...topsterSharedCoverCache }
@@ -1757,7 +1846,9 @@ function getCoverCache() {
     }
 
     try {
-        return JSON.parse(localStorage.getItem(TOPSTER_CACHE_KEY) || '{}');
+        return JSON.parse(localStorage.getItem(getTopsterCoverCacheStorageKey()) || '{}')
+            || JSON.parse(localStorage.getItem(TOPSTER_CACHE_KEY) || '{}')
+            || {};
     } catch (error) {
         return {};
     }
@@ -1813,14 +1904,23 @@ function setCachedCover(key, cover) {
         cache[alias] = cachedCover;
     });
 
+    if (isTopsterEditorPage()) {
+        try {
+            localStorage.setItem(getTopsterCoverCacheStorageKey(), JSON.stringify(cache));
+        } catch (error) {
+            // Browser storage can fill up; failing to cache should not prevent the grid from rendering.
+        }
+        markTopsterPublishDirty();
+        return;
+    }
+
     if (shouldUseTopsterSharedStore()) {
         topsterSharedCoverCache = cache;
-        scheduleTopsterSharedCoverCacheSave();
         return;
     }
 
     try {
-        localStorage.setItem(TOPSTER_CACHE_KEY, JSON.stringify(cache));
+        localStorage.setItem(getTopsterCoverCacheStorageKey(), JSON.stringify(cache));
     } catch (error) {
         // Browser storage can fill up; failing to cache should not prevent the grid from rendering.
     }
