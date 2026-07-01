@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Spotify Shuffle</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260630-songguesser-grid-hints">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
     <style>
         .shuffle-panel {
@@ -270,6 +270,33 @@
         }
 
 
+
+        .shuffle-buttons {
+            margin-bottom: 24px;
+        }
+
+        .songguesser-answer-hint {
+            color: #ffcf85;
+            font-weight: bold;
+        }
+
+        .songguesser-summary-index[data-correct-count="0"] {
+            color: #CD5C5C;
+        }
+
+        .songguesser-summary-index[data-correct-count="1"] {
+            color: #E66C2C;
+        }
+
+        .songguesser-summary-index[data-correct-count="2"] {
+            color: #E1AD01;
+        }
+
+        .songguesser-summary-index[data-correct-count="3"] {
+            color: #3EA055;
+        }
+
+
         .sampler-log {
             background-color: #111;
             border-radius: 8px;
@@ -449,7 +476,6 @@
             <div id="songguesser-panel" class="songguesser-panel" hidden>
                 <p id="songguesser-progress" class="songguesser-progress">Song 0 / 5</p>
                 <p id="songguesser-timer" class="songguesser-timer">30</p>
-                <div id="songguesser-hints-output" class="songguesser-hints-output">Hints will appear here.</div>
                 <div class="shuffle-form-row">
                     <label for="songguesser-guess">Enter artist, album, and song name</label>
                     <input type="text" id="songguesser-guess" autocomplete="off" placeholder="Example: artist album song">
@@ -461,6 +487,8 @@
                     <div class="songguesser-answer-line"><strong>Artist</strong><span id="songguesser-artist">???</span></div>
                     <div class="songguesser-answer-line"><strong>Album</strong><span id="songguesser-album">???</span></div>
                     <div class="songguesser-answer-line"><strong>Song</strong><span id="songguesser-song">???</span></div>
+                    <div id="songguesser-release-year-line" class="songguesser-answer-line" hidden><strong>Release Year</strong><span id="songguesser-release-year">???</span></div>
+                    <div id="songguesser-release-decade-line" class="songguesser-answer-line" hidden><strong>Release Decade</strong><span id="songguesser-release-decade">???</span></div>
                 </div>
 
                 <div id="songguesser-summary" class="songguesser-summary" hidden>
@@ -476,6 +504,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20260630-songguesser-summary"></script>
+    <script src="shuffle.js?v=20260630-songguesser-grid-hints"></script>
 </body>
 </html>

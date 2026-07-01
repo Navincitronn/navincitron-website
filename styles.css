@@ -1304,3 +1304,29 @@ button:hover {
 }
 
 
+/* Songguesser refinements */
+.shuffle-buttons {
+    margin-bottom: 24px;
+}
+
+.songguesser-answer-hint {
+    color: #ffcf85;
+    font-weight: bold;
+}
+
+.songguesser-summary-index[data-correct-count="0"] {
+    color: #CD5C5C;
+}
+
+.songguesser-summary-index[data-correct-count="1"] {
+    color: #E66C2C;
+}
+
+.songguesser-summary-index[data-correct-count="2"] {
+    color: #E1AD01;
+}
+
+.songguesser-summary-index[data-correct-count="3"] {
+    color: #3EA055;
+}
+

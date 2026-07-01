@@ -40,6 +40,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const songguesserArtist = document.getElementById("songguesser-artist");
     const songguesserAlbum = document.getElementById("songguesser-album");
     const songguesserSong = document.getElementById("songguesser-song");
+    const songguesserReleaseYearLine = document.getElementById("songguesser-release-year-line");
+    const songguesserReleaseDecadeLine = document.getElementById("songguesser-release-decade-line");
+    const songguesserReleaseYear = document.getElementById("songguesser-release-year");
+    const songguesserReleaseDecade = document.getElementById("songguesser-release-decade");
     const songguesserSummary = document.getElementById("songguesser-summary");
     const songguesserSummaryList = document.getElementById("songguesser-summary-list");
 
@@ -49,6 +53,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let songguesserCurrent = null;
     let songguesserCorrect = { artist: false, album: false, song: false };
     let songguesserAcceptingGuesses = false;
+    let songguesserWrongGuesses = 0;
+    let songguesserRoundResults = [];
     let songguesserTimerInterval = null;
     let songguesserNextTimeout = null;
 
@@ -234,6 +240,10 @@ document.addEventListener("DOMContentLoaded", () => {
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
             .toLowerCase()
+            .replace(/\b(you|we|they|i|ive|youve|weve|theyve)['’]?ve\b/g, "$1 have")
+            .replace(/\b(you|we|they|i)['’]?ll\b/g, "$1 will")
+            .replace(/\b(you|we|they|i)['’]?re\b/g, "$1 are")
+            .replace(/\b(can)['’]?t\b/g, "$1 not")
             .replace(/&/g, " and ")
             .replace(/[’']/g, "")
             .replace(/[^a-z0-9]+/g, " ")
@@ -296,10 +306,38 @@ document.addEventListener("DOMContentLoaded", () => {
         return cleanTaggedTitle(value);
     }
 
+    function singularizeToken(token) {
+        if (token.endsWith("ies") && token.length > 4) {
+            return `${token.slice(0, -3)}y`;
+        }
+        if (token.endsWith("es") && token.length > 4) {
+            return token.slice(0, -2);
+        }
+        if (token.endsWith("s") && token.length > 3) {
+            return token.slice(0, -1);
+        }
+        return token;
+    }
+
+    function tokenMatches(expectedToken, guessToken) {
+        if (expectedToken === guessToken) return true;
+        return singularizeToken(expectedToken) === singularizeToken(guessToken);
+    }
+
+    function tokenSetHasApproximate(tokenSet, expectedToken) {
+        for (const guessToken of tokenSet) {
+            if (tokenMatches(expectedToken, guessToken)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function significantTokens(value) {
         const stopwords = new Set([
             "the", "a", "an", "and", "of", "to", "in", "on", "for",
-            "with", "feat", "featuring", "by"
+            "with", "feat", "featuring", "by", "you", "your", "i", "we",
+            "they", "he", "she", "it", "have", "has", "are", "will"
         ]);
 
         return normalizeText(value)
@@ -336,19 +374,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const groups = artistAliasTokenGroups(expectedRaw);
 
         for (const group of groups) {
-            if (group.every((token) => guessTokens.has(token))) {
+            if (group.every((token) => tokenSetHasApproximate(guessTokens, token))) {
                 return true;
             }
         }
 
         const expectedTokens = significantTokens(expectedRaw);
 
-        // Allow distinctive partial artist guesses:
-        // "Florence" for "Florence + The Machine";
-        // "Wailers" for "Bob Marley & The Wailers";
-        // "Beatles" for "The Beatles";
-        // "Hendrix" or "Jimi Hendrix" for "The Jimi Hendrix Experience".
-        return expectedTokens.some((token) => token.length >= 4 && guessTokens.has(token));
+        return expectedTokens.some((token) => token.length >= 4 && tokenSetHasApproximate(guessTokens, token));
     }
 
     function answerMatches(expectedRaw, guessRaw, kind) {
@@ -367,13 +400,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const guessNorm = normalizeText(guess);
 
         if (!expectedNorm || !guessNorm) return false;
-        if (guessNorm.includes(expectedNorm)) return true;
+        if (guessNorm.includes(expectedNorm) || expectedNorm.includes(guessNorm)) return true;
 
         const expectedTokens = significantTokens(expected);
         const guessTokens = new Set(significantTokens(guess));
 
         if (expectedTokens.length === 0) return false;
-        return expectedTokens.every((token) => guessTokens.has(token));
+        return expectedTokens.every((token) => tokenSetHasApproximate(guessTokens, token));
     }
 
     function playFeedbackSound(filename) {
@@ -389,7 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function setAnswerText(element, value, statusClass) {
         if (!element) return;
         element.textContent = value || "???";
-        element.classList.remove("songguesser-correct", "songguesser-revealed");
+        element.classList.remove("songguesser-correct", "songguesser-revealed", "songguesser-answer-hint");
         if (statusClass) {
             element.classList.add(statusClass);
         }
@@ -397,9 +430,54 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateSongguesserAnswerDisplay(revealed = false) {
         const answer = songguesserCurrent ? songguesserCurrent.answer : {};
-        setAnswerText(songguesserArtist, (revealed || songguesserCorrect.artist) ? answer.artist : "???", songguesserCorrect.artist ? "songguesser-correct" : (revealed ? "songguesser-revealed" : ""));
-        setAnswerText(songguesserAlbum, (revealed || songguesserCorrect.album) ? answer.album : "???", songguesserCorrect.album ? "songguesser-correct" : (revealed ? "songguesser-revealed" : ""));
-        setAnswerText(songguesserSong, (revealed || songguesserCorrect.song) ? answer.song : "???", songguesserCorrect.song ? "songguesser-correct" : (revealed ? "songguesser-revealed" : ""));
+        const hints = songguesserCurrent ? (songguesserCurrent.hints || {}) : {};
+
+        const showArtistHint = Boolean(hints.artist && !songguesserCorrect.artist && !revealed);
+        const showAlbumHint = Boolean(hints.album && !songguesserCorrect.album && !revealed);
+
+        setAnswerText(
+            songguesserArtist,
+            (revealed || songguesserCorrect.artist || showArtistHint) ? answer.artist : "???",
+            songguesserCorrect.artist
+                ? "songguesser-correct"
+                : showArtistHint
+                    ? "songguesser-answer-hint"
+                    : (revealed ? "songguesser-revealed" : "")
+        );
+
+        setAnswerText(
+            songguesserAlbum,
+            (revealed || songguesserCorrect.album || showAlbumHint) ? answer.album : "???",
+            songguesserCorrect.album
+                ? "songguesser-correct"
+                : showAlbumHint
+                    ? "songguesser-answer-hint"
+                    : (revealed ? "songguesser-revealed" : "")
+        );
+
+        setAnswerText(
+            songguesserSong,
+            (revealed || songguesserCorrect.song) ? answer.song : "???",
+            songguesserCorrect.song ? "songguesser-correct" : (revealed ? "songguesser-revealed" : "")
+        );
+
+        if (songguesserReleaseYearLine) {
+            songguesserReleaseYearLine.hidden = !hints.releaseYear;
+        }
+        if (songguesserReleaseDecadeLine) {
+            songguesserReleaseDecadeLine.hidden = !hints.releaseDecade;
+        }
+
+        setAnswerText(
+            songguesserReleaseYear,
+            hints.releaseYear ? hints.releaseYear : "???",
+            hints.releaseYear ? "songguesser-answer-hint" : ""
+        );
+        setAnswerText(
+            songguesserReleaseDecade,
+            hints.releaseDecade ? hints.releaseDecade : "???",
+            hints.releaseDecade ? "songguesser-answer-hint" : ""
+        );
     }
 
 
@@ -409,6 +487,14 @@ document.addEventListener("DOMContentLoaded", () => {
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
+    }
+
+    function summaryColorCount(item) {
+        const raw = Number(item.correctCount);
+        if (Number.isFinite(raw)) {
+            return Math.max(0, Math.min(3, Math.round(raw)));
+        }
+        return 0;
     }
 
     function renderSongguesserSummary(summary) {
@@ -429,6 +515,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const song = escapeSongguesserText(item.song || "Unknown song");
             const album = escapeSongguesserText(item.album || "Unknown album");
             const coverUrl = item.coverUrl ? escapeSongguesserText(item.coverUrl) : "";
+            const correctCount = summaryColorCount(item);
 
             const cover = coverUrl
                 ? `<img class="songguesser-summary-thumb" src="${coverUrl}" alt="">`
@@ -438,7 +525,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="songguesser-summary-item">
                     ${cover}
                     <div>
-                        <div class="songguesser-summary-index">#${index}</div>
+                        <div class="songguesser-summary-index" data-correct-count="${correctCount}">#${index}</div>
                         <div class="songguesser-summary-title">${artist} - ${song}</div>
                         <div class="songguesser-summary-meta">Album: ${album}</div>
                     </div>
@@ -449,16 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     function showSongguesserHints(current) {
-        if (!songguesserHintsOutput) return;
-
-        const hints = current.hints || {};
-        const lines = [];
-        if (hints.releaseYear) lines.push(`Release year: ${hints.releaseYear}`);
-        if (hints.releaseDecade) lines.push(`Release decade: ${hints.releaseDecade}`);
-        if (hints.artist) lines.push(`Artist: ${hints.artist}`);
-        if (hints.album) lines.push(`Album: ${hints.album}`);
-
-        songguesserHintsOutput.textContent = lines.length ? lines.join("\n") : "No hints enabled.";
+        updateSongguesserAnswerDisplay(false);
     }
 
     function clearSongguesserTimers() {
@@ -483,12 +561,78 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (remaining <= 0) {
                 clearSongguesserTimers();
-                revealSongguesserAnswer("Time's up", 10);
+                revealSongguesserAnswer("Time's up", 7);
             }
         };
 
         update();
         songguesserTimerInterval = setInterval(update, 250);
+    }
+
+    function startSongguesserNextCountdown(delaySeconds) {
+        clearSongguesserTimers();
+
+        const targetTime = Date.now() + delaySeconds * 1000;
+
+        const update = () => {
+            const remaining = Math.max(0, Math.ceil((targetTime - Date.now()) / 1000));
+            if (songguesserTimer) {
+                songguesserTimer.textContent = String(remaining);
+            }
+
+            if (remaining <= 0) {
+                clearSongguesserTimers();
+                loadNextSongguesserSong();
+            }
+        };
+
+        update();
+        songguesserTimerInterval = setInterval(update, 250);
+    }
+
+    function songguesserCorrectCount() {
+        return Number(Boolean(songguesserCorrect.artist))
+            + Number(Boolean(songguesserCorrect.album))
+            + Number(Boolean(songguesserCorrect.song));
+    }
+
+    function recordSongguesserRoundResult() {
+        if (!songguesserCurrent) return;
+
+        const answer = songguesserCurrent.answer || {};
+        const progress = Number(songguesserCurrent.progress || 0);
+        const correctCount = songguesserCorrectCount();
+
+        const existingIndex = songguesserRoundResults.findIndex((item) => Number(item.index) === progress);
+        const result = {
+            index: progress,
+            artist: answer.artist || "Unknown artist",
+            song: answer.song || "Unknown song",
+            album: answer.album || "Unknown album",
+            coverUrl: answer.coverUrl || "",
+            correctCount,
+        };
+
+        if (existingIndex >= 0) {
+            songguesserRoundResults[existingIndex] = result;
+        } else {
+            songguesserRoundResults.push(result);
+        }
+    }
+
+    function mergeSongguesserSummary(serverSummary) {
+        const byIndex = new Map();
+
+        for (const item of Array.isArray(serverSummary) ? serverSummary : []) {
+            byIndex.set(Number(item.index), { ...item });
+        }
+
+        for (const item of songguesserRoundResults) {
+            const index = Number(item.index);
+            byIndex.set(index, { ...(byIndex.get(index) || {}), ...item });
+        }
+
+        return Array.from(byIndex.values()).sort((a, b) => Number(a.index) - Number(b.index));
     }
 
     function revealSongguesserAnswer(reason, delaySeconds) {
@@ -497,6 +641,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearSongguesserTimers();
         songguesserAcceptingGuesses = false;
         updateSongguesserAnswerDisplay(true);
+        recordSongguesserRoundResult();
 
         const answer = songguesserCurrent.answer || {};
         updateCover({
@@ -510,12 +655,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (songguesserGuessInput) songguesserGuessInput.disabled = true;
         if (songguesserSkipButton) songguesserSkipButton.disabled = true;
 
-        songguesserNextTimeout = setTimeout(loadNextSongguesserSong, delaySeconds * 1000);
+        startSongguesserNextCountdown(delaySeconds);
     }
 
     function handleSongguesserCurrent(current) {
         songguesserCurrent = current;
         songguesserCorrect = { artist: false, album: false, song: false };
+        songguesserWrongGuesses = 0;
         songguesserAcceptingGuesses = true;
 
         if (songguesserPanel) songguesserPanel.hidden = false;
@@ -585,7 +731,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (data.complete) {
                 setStatus(data.message || "Songguesser complete");
-                renderSongguesserSummary(data.summary || []);
+                renderSongguesserSummary(mergeSongguesserSummary(data.summary || []));
                 return;
             }
 
@@ -616,7 +762,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 setStatus(data.message || "Songguesser complete");
                 if (songguesserTimer) songguesserTimer.textContent = "0";
                 if (songguesserProgress) songguesserProgress.textContent = "Songguesser complete";
-                renderSongguesserSummary(data.summary || []);
+                renderSongguesserSummary(mergeSongguesserSummary(data.summary || []));
                 return;
             }
 
@@ -652,10 +798,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (newlyCorrect > 0) {
+            songguesserWrongGuesses = 0;
             for (let i = 0; i < newlyCorrect; i += 1) {
                 playFeedbackSound("correct.mp3");
             }
         } else {
+            songguesserWrongGuesses += 1;
             playFeedbackSound("wrong.mp3");
         }
 
@@ -663,6 +811,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (songguesserCorrect.artist && songguesserCorrect.album && songguesserCorrect.song) {
             revealSongguesserAnswer("Correct", 5);
+            return;
+        }
+
+        if (songguesserWrongGuesses >= 3) {
+            revealSongguesserAnswer("Three wrong guesses", 7);
         }
     }
 
@@ -811,7 +964,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (songguesserSkipButton) {
         songguesserSkipButton.addEventListener("click", () => {
-            revealSongguesserAnswer("Skipped", 10);
+            revealSongguesserAnswer("Skipped", 7);
         });
     }
 
