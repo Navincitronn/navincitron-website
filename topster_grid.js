@@ -1,7 +1,9 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260630-topster-shuffle-merge-v4';
+const TOPSTER_FRONTEND_VERSION = '20260701-topster-two-stage-build-v5';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
+const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
+const TOPSTER_PRELOOKUP_CONCURRENCY = 8;
 const TOPSTER_BASE_CANVAS_SIZE = 2000;
 const TOPSTER_GRID_FILE = 'grid.txt';
 const TOPSTER_RANKED_SHEET_ID = '1JiZwXGPANDlhkobNPo0Xdw_5MrNpG1fWTbEbL-I1dcA';
@@ -88,6 +90,47 @@ function getTopsterSettingsStorageKey() {
 
 function getTopsterCoverCacheStorageKey() {
     return `${TOPSTER_CACHE_KEY}::${getTopsterStoreSourceKey()}::working`;
+}
+
+function getTopsterPrelookupStorageKey() {
+    return `${TOPSTER_PRELOOKUP_KEY}::${getTopsterStoreSourceKey()}::working`;
+}
+
+function loadTopsterPrelookupState() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(getTopsterPrelookupStorageKey()) || 'null');
+        return stored && typeof stored === 'object' ? stored : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function saveTopsterPrelookupState(signature, details = {}) {
+    if (!signature) return;
+    try {
+        localStorage.setItem(getTopsterPrelookupStorageKey(), JSON.stringify({
+            signature,
+            completedAt: new Date().toISOString(),
+            lineCount: Number(details.lineCount) || 0,
+            foundCount: Number(details.foundCount) || 0,
+            missedCount: Number(details.missedCount) || 0
+        }));
+    } catch (error) {
+        // Prelookup state is only a local editor hint; failing to save it should not stop rendering.
+    }
+}
+
+function clearTopsterPrelookupState() {
+    try {
+        localStorage.removeItem(getTopsterPrelookupStorageKey());
+    } catch (error) {
+        // Optional local cleanup.
+    }
+}
+
+function topsterPrelookupIsComplete(signature) {
+    const state = loadTopsterPrelookupState();
+    return Boolean(state && signature && state.signature === signature);
 }
 
 function isTopsterEditorPage() {
@@ -478,7 +521,11 @@ async function initTopsterImporter(albumCards) {
                 return;
             }
 
-            await buildTopsterFromText(loaded.text, loaded.signature, source);
+            const prelookupOnly = topsterEditorPage
+                && source === 'build'
+                && !topsterPrelookupIsComplete(loaded.signature);
+
+            await buildTopsterFromText(loaded.text, loaded.signature, source, { prelookupOnly });
         } catch (error) {
             if (token !== activeLookupToken) return;
             status.textContent = error && error.message ? error.message : `Could not read ${topsterSourceLabel}.`;
@@ -487,7 +534,7 @@ async function initTopsterImporter(albumCards) {
         }
     }
 
-    async function buildTopsterFromText(text, signature, source) {
+    async function buildTopsterFromText(text, signature, source, options = {}) {
         const parsed = parseAlbumText(text);
 
         if (parsed.length === 0) {
@@ -500,8 +547,10 @@ async function initTopsterImporter(albumCards) {
 
         const token = activeLookupToken;
         currentGridSignature = signature || simpleTextHash(text);
+        const prelookupOnly = Boolean(options.prelookupOnly);
+
         importedEntries = parsed.map((entry, index) => {
-            const cachedCover = getPreferredCachedCover(entry);
+            const cachedCover = prelookupOnly ? null : getPreferredCachedCover(entry);
             return {
                 ...entry,
                 originalIndex: index + 1,
@@ -517,8 +566,14 @@ async function initTopsterImporter(albumCards) {
         await maybeLoadLocalIndex();
         if (token !== activeLookupToken) return;
 
+        if (prelookupOnly) {
+            status.textContent = `First Build after a ${topsterSourceLabel} update: preloading cover cache for ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} without displaying cover images...`;
+            await preloadCoverCacheWithoutDisplaying(token, currentGridSignature);
+            return;
+        }
+
         const actionText = source === 'refresh' ? 'Refreshed' : 'Built';
-        status.textContent = `${actionText} ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} from ${topsterSourceLabel}. Looking up visible covers...`;
+        status.textContent = `${actionText} ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} from ${topsterSourceLabel}. Loading cached covers and looking up any missing covers...`;
         resolveVisibleRange(selectedStart);
     }
 
@@ -587,6 +642,87 @@ async function initTopsterImporter(albumCards) {
             albumCatalog = buildAlbumCatalog([], window.location.href);
             localIndexLoaded = true;
         }
+    }
+
+    async function preloadCoverCacheWithoutDisplaying(token, signature) {
+        if (!importedEntries.length) return;
+
+        const config = getSourceConfig();
+        const total = importedEntries.length;
+        let nextIndex = 0;
+        let processedCount = 0;
+        let foundCount = 0;
+        let missedCount = 0;
+
+        stopButton.disabled = false;
+        buildButton.disabled = true;
+        refreshButton.disabled = true;
+
+        const updatePrelookupStatus = () => {
+            status.textContent = `Preloading cover cache ${processedCount} of ${total}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Images will load after pressing Build again.`;
+        };
+
+        const workerCount = Math.min(TOPSTER_PRELOOKUP_CONCURRENCY, total);
+
+        async function runWorker() {
+            while (token === activeLookupToken) {
+                const index = nextIndex++;
+                if (index >= total) return;
+
+                const entry = importedEntries[index];
+                if (!entry) {
+                    processedCount++;
+                    continue;
+                }
+
+                try {
+                    const cached = getPreferredCachedCover(entry) || getCachedCover(buildCoverCacheKey(entry));
+                    if (cached && cached.imageSrc) {
+                        foundCount++;
+                        entry.status = 'pending';
+                    } else {
+                        const cover = await resolveAlbumCover(entry, albumCatalog, config);
+                        if (token !== activeLookupToken) return;
+
+                        if (cover && cover.imageSrc) {
+                            foundCount++;
+                            entry.status = 'pending';
+                        } else {
+                            missedCount++;
+                            entry.status = 'missing';
+                        }
+                    }
+                } catch (error) {
+                    if (token !== activeLookupToken) return;
+                    missedCount++;
+                    entry.status = 'missing';
+                }
+
+                processedCount++;
+                if (processedCount === total || processedCount % 5 === 0) {
+                    updatePrelookupStatus();
+                    saveCurrentTopster();
+                    await delay(0);
+                }
+            }
+        }
+
+        updatePrelookupStatus();
+        await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+        if (token !== activeLookupToken) return;
+
+        saveTopsterPrelookupState(signature, {
+            lineCount: total,
+            foundCount,
+            missedCount
+        });
+
+        saveCurrentTopster();
+        stopButton.disabled = true;
+        buildButton.disabled = false;
+        refreshButton.disabled = false;
+        status.textContent = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters.`;
     }
 
     async function resolveVisibleRange(startIndex = 0) {
@@ -950,6 +1086,7 @@ async function flushTopsterSharedCoverCacheSave() {
 
 async function clearTopsterCoverCache() {
     topsterSharedCoverCache = {};
+    clearTopsterPrelookupState();
 
     try {
         localStorage.removeItem(getTopsterCoverCacheStorageKey());
