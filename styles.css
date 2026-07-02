@@ -1258,6 +1258,7 @@ button:hover {
 }
 
 .topster-cover-overlay {
+    --topster-overlay-size: var(--topster-actual-cover-size, var(--topster-cover-size, 200px));
     align-items: center;
     box-sizing: border-box;
     color: transparent;
@@ -1265,44 +1266,106 @@ button:hover {
     font-family: "Ganges Slab Black", "Ganges Slab", Rockwell, Georgia, "Times New Roman", serif;
     font-weight: 900;
     justify-content: center;
-    left: 7%;
+    left: 5%;
     letter-spacing: -0.085em;
-    line-height: 0.9;
-    max-width: 86%;
+    line-height: 0.88;
+    max-width: 90%;
     overflow: visible;
     padding: 0;
     pointer-events: none;
     position: absolute;
-    right: 7%;
+    right: 5%;
     text-align: center;
     text-shadow: none;
     top: 50%;
-    transform: translateY(-50%) scaleX(0.88);
+    transform: translateY(-50%) scaleX(0.86);
     transform-origin: center center;
     white-space: nowrap;
     z-index: 2;
     -webkit-text-fill-color: transparent;
-    -webkit-text-stroke: max(1px, calc(var(--topster-cover-size, 200px) / 150)) rgba(255, 255, 255, 0.98);
+    -webkit-text-stroke: max(1px, calc(var(--topster-overlay-size) / 150)) rgba(255, 255, 255, 0.98);
     paint-order: stroke fill;
 }
 
 .topster-cover-overlay-length-1 {
-    font-size: clamp(16px, calc(var(--topster-cover-size, 200px) * 0.53), 320px);
+    font-size: clamp(10px, calc(var(--topster-overlay-size) * 0.54), 999px);
 }
 
 .topster-cover-overlay-length-2 {
-    font-size: clamp(16px, calc(var(--topster-cover-size, 200px) * 0.38), 275px);
+    font-size: clamp(10px, calc(var(--topster-overlay-size) * 0.39), 999px);
 }
 
 .topster-cover-overlay-length-3 {
-    font-size: clamp(14px, calc(var(--topster-cover-size, 200px) * 0.24), 195px);
+    font-size: clamp(9px, calc(var(--topster-overlay-size) * 0.265), 999px);
+    transform: translateY(-50%) scaleX(0.82);
 }
 
 .topster-cover-overlay-length-4,
 .topster-cover-overlay-length-5 {
-    font-size: clamp(13px, calc(var(--topster-cover-size, 200px) * 0.17), 150px);
+    font-size: clamp(8px, calc(var(--topster-overlay-size) * 0.185), 999px);
+    transform: translateY(-50%) scaleX(0.76);
 }
 
+/* Responsive Topster layout */
+.grid-builder-page,
+.topster-output,
+.topster-import-panel,
+.topster-chart-wrap,
+.topster-chart-grid,
+.topster-layout {
+    box-sizing: border-box;
+}
+
+.topster-output {
+    max-width: calc(100vw - 40px);
+    overflow: hidden;
+}
+
+.topster-page,
+.topster-layout,
+.topster-chart-wrap,
+.topster-chart-grid {
+    min-width: 0;
+}
+
+.topster-chart-grid {
+    max-width: 100%;
+}
+
+@media only screen and (max-width: 1180px), (hover: none) and (pointer: coarse) {
+    .topster-output {
+        margin-left: 8px;
+        margin-right: 8px;
+        max-width: calc(100vw - 16px);
+    }
+
+    .topster-import-panel {
+        margin-left: 8px;
+        margin-right: 8px;
+    }
+
+    .topster-layout,
+    .topster-output .topster-layout,
+    .topster-output.topster-sidebar-hidden .topster-layout,
+    .topster-output.topster-mobile-sidebar-hidden .topster-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .topster-list,
+    .topster-output .topster-list,
+    .topster-output.topster-mobile-sidebar-hidden .topster-list {
+        display: none !important;
+    }
+
+    .topster-chart-wrap {
+        width: 100%;
+    }
+
+    .topster-chart-grid {
+        width: 100%;
+    }
+}
 
 /* Songguesser refinements */
 .shuffle-buttons {

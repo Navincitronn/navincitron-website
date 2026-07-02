@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260701-topster-two-stage-build-v5';
+const TOPSTER_FRONTEND_VERSION = '20260701-topster-responsive-fit-v6';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -308,6 +308,75 @@ async function initTopsterImporter(albumCards) {
     [sidebarModeSelect, roundCornersSelect, fontSelect, coverOverlaySelect].forEach(element => {
         if (element) element.addEventListener('change', handleSettingsChange);
     });
+
+
+
+    function shouldForceTopsterSidebarHidden() {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+        return window.matchMedia('(max-width: 1180px), (hover: none) and (pointer: coarse)').matches;
+    }
+
+    function getEffectiveTopsterSettings(settings = currentSettings) {
+        const effectiveSettings = normalizeTopsterSettings(settings);
+        if (shouldForceTopsterSidebarHidden()) {
+            effectiveSettings.sidebarMode = 'hidden';
+        }
+        return effectiveSettings;
+    }
+
+    function updateTopsterResponsiveMetrics() {
+        if (!output || output.hidden) return;
+
+        const chartGrids = pagesContainer.querySelectorAll('.topster-chart-grid');
+        chartGrids.forEach(chart => {
+            const tile = chart.querySelector('.topster-tile');
+            const tileRect = tile ? tile.getBoundingClientRect() : null;
+            const gridRect = chart.getBoundingClientRect();
+            let coverSize = tileRect && tileRect.width ? tileRect.width : 0;
+
+            if (!coverSize && gridRect.width) {
+                const computed = getComputedStyle(chart);
+                const columns = Number.parseFloat(computed.getPropertyValue('--topster-columns')) || currentSettings.width || 10;
+                const gap = Number.parseFloat(computed.columnGap || computed.gap || '0') || 0;
+                const paddingLeft = Number.parseFloat(computed.paddingLeft || '0') || 0;
+                const paddingRight = Number.parseFloat(computed.paddingRight || '0') || 0;
+                coverSize = (gridRect.width - paddingLeft - paddingRight - (gap * Math.max(0, columns - 1))) / Math.max(1, columns);
+            }
+
+            if (coverSize && Number.isFinite(coverSize)) {
+                const rounded = Math.max(1, Math.round(coverSize));
+                chart.style.setProperty('--topster-actual-cover-size', `${rounded}px`);
+                output.style.setProperty('--topster-actual-cover-size', `${rounded}px`);
+            }
+        });
+    }
+
+    let topsterResizeFrame = 0;
+    let topsterLastForcedSidebarHidden = shouldForceTopsterSidebarHidden();
+    function scheduleTopsterResponsiveRefresh() {
+        if (topsterResizeFrame) window.cancelAnimationFrame(topsterResizeFrame);
+        topsterResizeFrame = window.requestAnimationFrame(() => {
+            topsterResizeFrame = 0;
+            const nextForcedSidebarHidden = shouldForceTopsterSidebarHidden();
+            const sidebarModeChanged = nextForcedSidebarHidden !== topsterLastForcedSidebarHidden;
+            topsterLastForcedSidebarHidden = nextForcedSidebarHidden;
+
+            if (sidebarModeChanged && importedEntries.length) {
+                renderTopster(importedEntries, 0, { scroll: false });
+                return;
+            }
+
+            applyTopsterSettings(currentSettings);
+            updateTopsterResponsiveMetrics();
+            syncAllTopsterSidebarHeights();
+        });
+    }
+
+
+    window.addEventListener('resize', scheduleTopsterResponsiveRefresh, { passive: true });
+    window.addEventListener('orientationchange', () => {
+        window.setTimeout(scheduleTopsterResponsiveRefresh, 120);
+    }, { passive: true });
 
     function handleSettingsChange() {
         currentSettings = normalizeTopsterSettings(readSettingsControls());
@@ -797,7 +866,8 @@ async function initTopsterImporter(albumCards) {
     }
 
     function renderTopster(entries, startIndex, options = {}) {
-        const pageSize = getTopsterPageSize(currentSettings);
+        const effectiveSettings = getEffectiveTopsterSettings(currentSettings);
+        const pageSize = getTopsterPageSize(effectiveSettings);
         const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
 
         applyTopsterSettings(currentSettings);
@@ -807,20 +877,24 @@ async function initTopsterImporter(albumCards) {
             const start = pageIndex * pageSize;
             const end = Math.min(start + pageSize, entries.length);
             const pageEntries = entries.slice(start, end);
-            const page = createTopsterPage(pageEntries, start, end, pageIndex, pageSize);
+            const page = createTopsterPage(pageEntries, start, end, pageIndex, pageSize, effectiveSettings);
             pagesContainer.appendChild(page);
         }
 
         output.hidden = false;
+        updateTopsterResponsiveMetrics();
         syncAllTopsterSidebarHeights();
-        window.requestAnimationFrame(syncAllTopsterSidebarHeights);
+        window.requestAnimationFrame(() => {
+            updateTopsterResponsiveMetrics();
+            syncAllTopsterSidebarHeights();
+        });
 
         if (options.scroll) {
             output.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
 
-    function createTopsterPage(pageEntries, start, end, pageIndex, pageSize) {
+    function createTopsterPage(pageEntries, start, end, pageIndex, pageSize, settings = getEffectiveTopsterSettings(currentSettings)) {
         const page = document.createElement('section');
         page.className = 'topster-page';
 
@@ -832,67 +906,70 @@ async function initTopsterImporter(albumCards) {
 
         const chart = document.createElement('div');
         chart.className = 'topster-chart-grid';
-        chart.setAttribute('aria-label', `${currentSettings.width} by ${currentSettings.height} album cover grid`);
-        chart.style.setProperty('--topster-columns', String(currentSettings.width));
-        chart.style.setProperty('--topster-rows', String(currentSettings.height));
-        chart.style.setProperty('--topster-cover-size', `${getTopsterCoverSize(currentSettings)}px`);
-        chart.style.setProperty('--topster-radius', `${currentSettings.roundCorners}px`);
-        chart.style.setProperty('--topster-album-gap', `${currentSettings.albumGap}px`);
+        chart.setAttribute('aria-label', `${settings.width} by ${settings.height} album cover grid`);
+        chart.style.setProperty('--topster-columns', String(settings.width));
+        chart.style.setProperty('--topster-rows', String(settings.height));
+        chart.style.setProperty('--topster-cover-size', `${getTopsterCoverSize(settings)}px`);
+        chart.style.setProperty('--topster-radius', `${settings.roundCorners}px`);
+        chart.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
 
         for (let i = 0; i < pageSize; i++) {
             const entry = pageEntries[i];
             const absoluteIndex = start + i;
             chart.appendChild(createTopsterTile(entry, absoluteIndex + 1, topsterReadOnly ? null : () => {
                 if (entry) openCoverPicker(entry, absoluteIndex);
-            }, currentSettings.coverOverlay));
+            }, settings.coverOverlay));
         }
 
         chartWrap.appendChild(chart);
         layout.appendChild(chartWrap);
 
-        const pageList = document.createElement('div');
-        pageList.className = 'topster-list';
-        pageList.style.setProperty('--topster-rows', String(currentSettings.height));
-        pageList.style.setProperty('--topster-album-gap', `${currentSettings.albumGap}px`);
+        if (settings.sidebarMode !== 'hidden') {
+            const pageList = document.createElement('div');
+            pageList.className = 'topster-list';
+            pageList.style.setProperty('--topster-rows', String(settings.height));
+            pageList.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
 
-        for (let rowIndex = 0; rowIndex < currentSettings.height; rowIndex++) {
-            const rowList = document.createElement('ol');
-            rowList.className = 'topster-list-row';
-            rowList.start = start + (rowIndex * currentSettings.width) + 1;
+            for (let rowIndex = 0; rowIndex < settings.height; rowIndex++) {
+                const rowList = document.createElement('ol');
+                rowList.className = 'topster-list-row';
+                rowList.start = start + (rowIndex * settings.width) + 1;
 
-            for (let columnIndex = 0; columnIndex < currentSettings.width; columnIndex++) {
-                const offset = (rowIndex * currentSettings.width) + columnIndex;
-                const entry = pageEntries[offset];
-                if (!entry) continue;
+                for (let columnIndex = 0; columnIndex < settings.width; columnIndex++) {
+                    const offset = (rowIndex * settings.width) + columnIndex;
+                    const entry = pageEntries[offset];
+                    if (!entry) continue;
 
-                const li = document.createElement('li');
-                const itemIndex = start + offset + 1;
-                const indexSpan = document.createElement('span');
-                indexSpan.className = 'topster-list-index';
-                indexSpan.textContent = `${itemIndex}.`;
+                    const li = document.createElement('li');
+                    const itemIndex = start + offset + 1;
+                    const indexSpan = document.createElement('span');
+                    indexSpan.className = 'topster-list-index';
+                    indexSpan.textContent = `${itemIndex}.`;
 
-                const textSpan = document.createElement('span');
-                textSpan.className = 'topster-list-text';
-                textSpan.textContent = formatSidebarEntry(entry, currentSettings.sidebarMode);
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'topster-list-text';
+                    textSpan.textContent = formatSidebarEntry(entry, settings.sidebarMode);
 
-                if (entry.status === 'loading') {
-                    li.classList.add('topster-loading');
-                    textSpan.textContent += ' [looking up cover]';
-                } else if (entry.status === 'missing') {
-                    li.classList.add('topster-missing');
-                    textSpan.textContent += ' [no cover found]';
+                    if (entry.status === 'loading') {
+                        li.classList.add('topster-loading');
+                        textSpan.textContent += ' [looking up cover]';
+                    } else if (entry.status === 'missing') {
+                        li.classList.add('topster-missing');
+                        textSpan.textContent += ' [no cover found]';
+                    }
+
+                    li.value = itemIndex;
+                    li.appendChild(indexSpan);
+                    li.appendChild(textSpan);
+                    rowList.appendChild(li);
                 }
 
-                li.value = itemIndex;
-                li.appendChild(indexSpan);
-                li.appendChild(textSpan);
-                rowList.appendChild(li);
+                pageList.appendChild(rowList);
             }
 
-            pageList.appendChild(rowList);
+            layout.appendChild(pageList);
         }
 
-        layout.appendChild(pageList);
         page.appendChild(layout);
         return page;
     }
@@ -903,23 +980,27 @@ async function initTopsterImporter(albumCards) {
     }
 
     function syncAllTopsterSidebarHeights() {
+        updateTopsterResponsiveMetrics();
+        const effectiveSettings = getEffectiveTopsterSettings(currentSettings);
+        if (effectiveSettings.sidebarMode === 'hidden') return;
+
         const pages = pagesContainer.querySelectorAll('.topster-page');
         pages.forEach(page => {
             const grid = page.querySelector('.topster-chart-grid');
             const pageList = page.querySelector('.topster-list');
-            if (!grid || !pageList || currentSettings.sidebarMode === 'hidden') return;
+            if (!grid || !pageList) return;
 
             const height = Math.max(1, Math.round(grid.getBoundingClientRect().height));
             pageList.style.height = `${height}px`;
-            fitSidebarText(pageList, height);
+            fitSidebarText(pageList, height, effectiveSettings);
         });
     }
 
-    function fitSidebarText(pageList, maxHeight) {
+    function fitSidebarText(pageList, maxHeight, settings = getEffectiveTopsterSettings(currentSettings)) {
         const computed = getComputedStyle(pageList);
         const configuredBase = Number.parseFloat(getComputedStyle(output).getPropertyValue('--topster-list-font-size')) || 12;
-        const rowCount = Math.max(1, currentSettings.height);
-        const itemCountPerRow = Math.max(1, currentSettings.width);
+        const rowCount = Math.max(1, settings.height);
+        const itemCountPerRow = Math.max(1, settings.width);
         const gap = Number.parseFloat(computed.rowGap || computed.gap || '0') || 0;
         const paddingTop = Number.parseFloat(computed.paddingTop || '0') || 0;
         const paddingBottom = Number.parseFloat(computed.paddingBottom || '0') || 0;
@@ -978,19 +1059,22 @@ async function initTopsterImporter(albumCards) {
 
     function applyTopsterSettings(settings) {
         currentSettings = normalizeTopsterSettings(settings);
-        const coverSize = getTopsterCoverSize(currentSettings);
-        const fontFamily = getFontFamily(currentSettings.font);
-        const listFontSize = getTopsterListFontSize(currentSettings, coverSize);
+        const effectiveSettings = getEffectiveTopsterSettings(currentSettings);
+        const coverSize = getTopsterCoverSize(effectiveSettings);
+        const fontFamily = getFontFamily(effectiveSettings.font);
+        const listFontSize = getTopsterListFontSize(effectiveSettings, coverSize);
 
         output.style.setProperty('--topster-cover-size', `${coverSize}px`);
-        output.style.setProperty('--topster-radius', `${currentSettings.roundCorners}px`);
-        output.style.setProperty('--topster-album-gap', `${currentSettings.albumGap}px`);
+        output.style.setProperty('--topster-radius', `${effectiveSettings.roundCorners}px`);
+        output.style.setProperty('--topster-album-gap', `${effectiveSettings.albumGap}px`);
         output.style.setProperty('--topster-list-font-size', `${listFontSize}px`);
-        output.style.setProperty('--topster-columns', String(currentSettings.width));
-        output.style.setProperty('--topster-rows', String(currentSettings.height));
+        output.style.setProperty('--topster-columns', String(effectiveSettings.width));
+        output.style.setProperty('--topster-rows', String(effectiveSettings.height));
         output.style.fontFamily = fontFamily;
-        output.classList.toggle('topster-sidebar-hidden', currentSettings.sidebarMode === 'hidden');
-        output.classList.toggle('topster-cover-overlay-enabled', currentSettings.coverOverlay !== 'none');
+        output.classList.toggle('topster-sidebar-hidden', effectiveSettings.sidebarMode === 'hidden');
+        output.classList.toggle('topster-mobile-sidebar-hidden', shouldForceTopsterSidebarHidden());
+        output.classList.toggle('topster-cover-overlay-enabled', effectiveSettings.coverOverlay !== 'none');
+        updateTopsterResponsiveMetrics();
         buildButton.textContent = 'Build';
     }
 
