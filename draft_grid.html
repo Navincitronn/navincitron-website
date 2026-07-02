@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Navincitron - Albums</title>
+    <title>Navincitron - Draft Albums</title>
     <link rel="stylesheet" href="styles.css?v=20260702-topster-draft-file-v10">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
-<body>
+<body data-topster-source="draft-file">
     <header>
         <div class="header-left">
             <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
@@ -30,7 +30,7 @@
         <section class="grid-builder-page">
             <div class="title-bar">
                 <br>
-                <h2 class="center">ALBUMS</h2>
+                <h2 class="center">DRAFT ALBUMS</h2>
             </div>
             <br>
             <hr>
@@ -45,6 +45,11 @@
                     <select id="topster-range" hidden disabled>
                         <option value="0">All</option>
                     </select>
+                </div>
+                <div class="topster-draft-file-row">
+                    <label for="topster-draft-file-input">Draft Notepad file</label>
+                    <input type="file" id="topster-draft-file-input" accept=".txt,text/plain">
+                    <p class="topster-source-note">Upload a Notepad .txt file in the same format as <code>grid.txt</code>. Press <strong>Build</strong> to preview it, then <strong>Save Settings</strong> to publish it to <code>draft_album_list.html</code>.</p>
                 </div>
                 <details class="topster-settings-panel" open>
                     <summary>Topster display settings</summary>

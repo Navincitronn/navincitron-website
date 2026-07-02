@@ -1510,3 +1510,31 @@ button:hover {
     color: #3EA055;
 }
 
+
+/* Draft Topster file input */
+.topster-draft-file-row {
+    background-color: #3a3a3a;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-sizing: border-box;
+    margin: 10px 0 15px;
+    padding: 12px;
+    text-align: center;
+}
+
+.topster-draft-file-row label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.topster-draft-file-row input[type="file"] {
+    background-color: #f2f2f2;
+    border: 1px solid #aaa;
+    border-radius: 5px;
+    box-sizing: border-box;
+    color: #000;
+    max-width: 520px;
+    padding: 8px;
+    width: min(100%, 520px);
+}

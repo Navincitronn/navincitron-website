@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260701-topster-iphone-mobile-text-v8';
+const TOPSTER_FRONTEND_VERSION = '20260702-topster-draft-file-v10';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -18,6 +18,9 @@ let topsterSharedStoreAvailable = false;
 let topsterSharedStoreWritable = false;
 let topsterSharedCoverCache = {};
 let topsterSharedSettings = null;
+let topsterSharedSourceText = '';
+let topsterSharedSourceSignature = '';
+let topsterSharedSourceName = '';
 let topsterSharedSaveTimer = null;
 let topsterHasUnsavedPublishedChanges = false;
 
@@ -75,7 +78,10 @@ function buildTopsterApiUrl(path) {
 }
 
 function getTopsterStoreSourceKey() {
-    return getTopsterDataSourceConfig().kind === 'ranked-sheet' ? 'ranked' : 'grid';
+    const kind = getTopsterDataSourceConfig().kind;
+    if (kind === 'ranked-sheet') return 'ranked';
+    if (kind === 'draft-file') return 'draft';
+    return 'grid';
 }
 
 function buildTopsterSharedStoreUrl() {
@@ -141,6 +147,7 @@ function isTopsterEditorPage() {
     const fileName = window.location.pathname.split('/').pop().toLowerCase();
     return fileName === 'grid.html'
         || fileName === 'ranked_grid.html'
+        || fileName === 'draft_grid.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -157,6 +164,16 @@ function buildTopsterAdminLoginUrl() {
 
 function getTopsterDataSourceConfig() {
     const sourceName = String((document.body && document.body.dataset.topsterSource) || '').trim().toLowerCase();
+
+    if (sourceName === 'draft-file' || sourceName === 'draft') {
+        return {
+            kind: 'draft-file',
+            label: 'draft notepad file',
+            readLabel: 'draft notepad file',
+            apiPath: '/api/draft-grid-text',
+            fileInputId: 'topster-draft-file-input'
+        };
+    }
 
     if (sourceName === 'ranked-sheet' || sourceName === 'ranked') {
         return {
@@ -207,6 +224,7 @@ async function initTopsterImporter(albumCards) {
     const fontSelect = document.getElementById('topster-font');
     const coverOverlaySelect = document.getElementById('topster-cover-overlay');
     const deviceProfileSelect = document.getElementById('topster-device-profile');
+    const draftFileInput = document.getElementById('topster-draft-file-input');
     const coverPicker = document.getElementById('topster-cover-picker');
     const coverPickerTitle = document.getElementById('topster-cover-picker-title');
     const coverPickerSearch = document.getElementById('topster-cover-picker-search');
@@ -228,6 +246,8 @@ async function initTopsterImporter(albumCards) {
     let activeLookupToken = 0;
     let localIndexLoaded = albumCatalog.records.length > 0;
     let currentGridSignature = '';
+    let currentSourceText = '';
+    let currentSourceName = '';
     await loadTopsterSharedStore();
     let pickerEntryIndex = null;
     let pickerLookupToken = 0;
@@ -445,18 +465,35 @@ async function initTopsterImporter(albumCards) {
         }
 
         if (saveSettingsButton) saveSettingsButton.disabled = true;
-        status.textContent = `Saving ${getTopsterStoreSourceKey() === 'ranked' ? 'Ranked Albums' : 'Albums'} settings and cover selections to the shared backend...`;
+        const sourceKey = getTopsterStoreSourceKey();
+        const publicPageName = sourceKey === 'ranked' ? 'ranked_album_list.html' : (sourceKey === 'draft' ? 'draft_album_list.html' : 'album_list.html');
+        const sourceDisplayName = sourceKey === 'ranked' ? 'Ranked Albums' : (sourceKey === 'draft' ? 'Draft Albums' : 'Albums');
+        status.textContent = `Saving ${sourceDisplayName} settings and cover selections to the shared backend...`;
 
-        const ok = await saveTopsterSharedStoreNow({
+        const sharedPayload = {
             settings: currentSettingsProfiles,
             coverCache: getCoverCache()
-        });
+        };
+        if (sourceKey === 'draft') {
+            if (!currentSourceText && !importedEntries.length) {
+                status.textContent = 'Select a draft .txt file and press Build before saving the shared draft Topster.';
+                if (saveSettingsButton) saveSettingsButton.disabled = false;
+                return;
+            }
+            if (currentSourceText) {
+                sharedPayload.sourceText = currentSourceText;
+                sharedPayload.sourceName = currentSourceName || 'draft notepad file';
+                sharedPayload.sourceSignature = currentGridSignature || simpleTextHash(currentSourceText);
+            }
+        }
+
+        const ok = await saveTopsterSharedStoreNow(sharedPayload);
 
         if (saveSettingsButton) saveSettingsButton.disabled = false;
 
         if (ok) {
             topsterHasUnsavedPublishedChanges = false;
-            status.textContent = `Saved shared ${getTopsterStoreSourceKey() === 'ranked' ? 'Ranked Albums' : 'Albums'} settings and cover selections. Public list pages will use these values.`;
+            status.textContent = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' ? ', source file,' : ''} and cover selections. ${publicPageName} will use these values.`;
         } else {
             status.textContent = 'Shared save failed. Check that the backend is deployed, the admin session is active, and /api/topster-shared-store is reachable.';
         }
@@ -595,7 +632,7 @@ async function initTopsterImporter(albumCards) {
         window.requestAnimationFrame(syncAllTopsterSidebarHeights);
 
         status.textContent = topsterEditorPage
-            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : 'album_list.html'}.`
+            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : (getTopsterStoreSourceKey() === 'draft' ? 'draft_album_list.html' : 'album_list.html')}.`
             : `Updated cover for ${formatEntryName(entry)}.`;
 
         closeCoverPicker();
@@ -625,6 +662,8 @@ async function initTopsterImporter(albumCards) {
                 && source === 'build'
                 && !topsterPrelookupIsComplete(loaded.signature);
 
+            currentSourceText = loaded.text || '';
+            currentSourceName = loaded.source || topsterSourceLabel;
             await buildTopsterFromText(loaded.text, loaded.signature, source, { prelookupOnly });
         } catch (error) {
             if (token !== activeLookupToken) return;
@@ -704,6 +743,8 @@ async function initTopsterImporter(albumCards) {
             return normalizedEntry;
         });
         currentGridSignature = saved.signature || '';
+        currentSourceText = typeof saved.sourceText === 'string' ? saved.sourceText : '';
+        currentSourceName = typeof saved.sourceName === 'string' ? saved.sourceName : '';
         const selectedStart = populateRangeSelect(importedEntries.length, typeof saved.rangeStart === 'number' ? saved.rangeStart : 0);
         renderTopster(importedEntries, selectedStart, { scroll: false });
         status.textContent = '';
@@ -715,6 +756,8 @@ async function initTopsterImporter(albumCards) {
         const payload = {
             savedAt: new Date().toISOString(),
             signature: currentGridSignature,
+            sourceText: currentSourceText,
+            sourceName: currentSourceName,
             rangeStart: 0,
             settings: currentSettings,
             entries: importedEntries
@@ -1143,6 +1186,9 @@ async function loadTopsterSharedStore() {
         topsterSharedStoreWritable = Boolean(payload.writable);
         topsterSharedCoverCache = payload.coverCache && typeof payload.coverCache === 'object' ? payload.coverCache : {};
         topsterSharedSettings = payload.settings && typeof payload.settings === 'object' ? payload.settings : null;
+        topsterSharedSourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
+        topsterSharedSourceSignature = typeof payload.sourceSignature === 'string' ? payload.sourceSignature : '';
+        topsterSharedSourceName = typeof payload.sourceName === 'string' ? payload.sourceName : '';
     } catch (error) {
         if (timeoutId) window.clearTimeout(timeoutId);
         topsterSharedStoreAvailable = false;
@@ -1174,6 +1220,15 @@ async function saveTopsterSharedStoreNow(payload) {
         }
         if (result.settings && typeof result.settings === 'object') {
             topsterSharedSettings = result.settings;
+        }
+        if (typeof result.sourceText === 'string') {
+            topsterSharedSourceText = result.sourceText;
+        }
+        if (typeof result.sourceSignature === 'string') {
+            topsterSharedSourceSignature = result.sourceSignature;
+        }
+        if (typeof result.sourceName === 'string') {
+            topsterSharedSourceName = result.sourceName;
         }
         return true;
     } catch (error) {
@@ -1444,6 +1499,11 @@ function clearSavedTopsterState() {
 
 async function loadGridTextFile() {
     const source = getTopsterDataSourceConfig();
+
+    if (source.kind === 'draft-file') {
+        return loadDraftTextFile(source);
+    }
+
     const apiResult = await tryLoadGridTextFromApi(source);
     if (apiResult) return apiResult;
 
@@ -1452,6 +1512,44 @@ async function loadGridTextFile() {
     }
 
     return loadPlainGridTextFile(source);
+}
+
+async function loadDraftTextFile(source = getTopsterDataSourceConfig()) {
+    const fileInput = source.fileInputId ? document.getElementById(source.fileInputId) : null;
+    const selectedFile = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+    if (selectedFile) {
+        const text = await readTextFromSelectedDraftFile(selectedFile);
+        return {
+            text,
+            signature: simpleTextHash(text),
+            source: selectedFile.name || source.label
+        };
+    }
+
+    const apiResult = await tryLoadGridTextFromApi(source);
+    if (apiResult) return apiResult;
+
+    if (topsterSharedSourceText) {
+        return {
+            text: topsterSharedSourceText,
+            signature: topsterSharedSourceSignature || simpleTextHash(topsterSharedSourceText),
+            source: topsterSharedSourceName || source.label
+        };
+    }
+
+    throw new Error(isTopsterEditorPage()
+        ? 'Select a Notepad .txt file, then press Build.'
+        : 'No draft Topster file has been published yet.');
+}
+
+function readTextFromSelectedDraftFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Could not read the selected Notepad file.'));
+        reader.readAsText(file);
+    });
 }
 
 async function loadPlainGridTextFile(source = getTopsterDataSourceConfig()) {
