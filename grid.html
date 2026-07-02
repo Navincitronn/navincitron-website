@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Albums</title>
-    <link rel="stylesheet" href="styles.css?v=20260701-topster-responsive-fit-v6">
+    <link rel="stylesheet" href="styles.css?v=20260701-topster-device-profile-mobile-info-v7">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
 <body>
@@ -49,6 +49,12 @@
                 <details class="topster-settings-panel" open>
                     <summary>Topster display settings</summary>
                     <div class="topster-settings-grid">
+                        <label for="topster-device-profile">Configure device</label>
+                        <select id="topster-device-profile">
+                            <option value="desktop" selected>Desktop</option>
+                            <option value="mobile">Mobile / Tablet</option>
+                        </select>
+
                         <label for="topster-width">Width <span class="topster-slider-value" id="topster-width-value">10</span></label>
                         <div class="topster-slider-control">
                             <input type="range" id="topster-width" min="1" max="25" step="1" value="10">
@@ -140,7 +146,7 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260701-topster-responsive-fit-v6';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260701-topster-device-profile-mobile-info-v7';
 
         function markTopsterPublishDirty() {
             window.__navincitronTopsterPublishDirty = true;
@@ -167,6 +173,6 @@
             });
         })();
     </script>
-    <script src="topster_grid.js?v=20260701-topster-responsive-fit-v6"></script>
+    <script src="topster_grid.js?v=20260701-topster-device-profile-mobile-info-v7"></script>
 </body>
 </html>

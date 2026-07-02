@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260701-topster-responsive-fit-v6';
+const TOPSTER_FRONTEND_VERSION = '20260701-topster-device-profile-mobile-info-v7';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -206,6 +206,7 @@ async function initTopsterImporter(albumCards) {
     const albumGapValue = document.getElementById('topster-album-gap-value');
     const fontSelect = document.getElementById('topster-font');
     const coverOverlaySelect = document.getElementById('topster-cover-overlay');
+    const deviceProfileSelect = document.getElementById('topster-device-profile');
     const coverPicker = document.getElementById('topster-cover-picker');
     const coverPickerTitle = document.getElementById('topster-cover-picker-title');
     const coverPickerSearch = document.getElementById('topster-cover-picker-search');
@@ -228,13 +229,15 @@ async function initTopsterImporter(albumCards) {
     let localIndexLoaded = albumCatalog.records.length > 0;
     let currentGridSignature = '';
     await loadTopsterSharedStore();
-    let currentSettings = normalizeTopsterSettings(loadTopsterSettings());
     let pickerEntryIndex = null;
     let pickerLookupToken = 0;
     const topsterSourceLabel = getTopsterSourceLabel();
     const topsterReadOnly = document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list');
     const topsterAutoLoad = document.body && (document.body.dataset.topsterAutoload === 'true' || topsterReadOnly);
     const topsterEditorPage = isTopsterEditorPage();
+    let currentSettingsProfiles = normalizeTopsterSettingsProfiles(loadTopsterSettings());
+    let currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
+    let currentSettings = normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]);
 
     if (topsterEditorPage && topsterSharedStoreAvailable && !topsterSharedStoreWritable) {
         status.textContent = 'Grid editing requires Topster admin login. Redirecting...';
@@ -246,6 +249,7 @@ async function initTopsterImporter(albumCards) {
         status.textContent = 'Sampler backend shared store is unavailable. Editor controls will still work locally, but Save Settings cannot publish until /api/topster-shared-store is reachable.';
     }
 
+    if (deviceProfileSelect) deviceProfileSelect.value = currentSettingsProfile;
     setSettingsControls(currentSettings);
     applyTopsterSettings(currentSettings);
     loadSavedTopster();
@@ -309,19 +313,25 @@ async function initTopsterImporter(albumCards) {
         if (element) element.addEventListener('change', handleSettingsChange);
     });
 
-
-
-    function shouldForceTopsterSidebarHidden() {
-        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-        return window.matchMedia('(max-width: 1180px), (hover: none) and (pointer: coarse)').matches;
+    if (deviceProfileSelect) {
+        deviceProfileSelect.addEventListener('change', handleSettingsProfileChange);
     }
 
     function getEffectiveTopsterSettings(settings = currentSettings) {
-        const effectiveSettings = normalizeTopsterSettings(settings);
-        if (shouldForceTopsterSidebarHidden()) {
-            effectiveSettings.sidebarMode = 'hidden';
-        }
-        return effectiveSettings;
+        return normalizeTopsterSettings(settings);
+    }
+
+    function syncCurrentSettingsProfileToViewport() {
+        if (topsterEditorPage) return false;
+
+        const nextProfile = getAutomaticTopsterSettingsProfile();
+        if (nextProfile === currentSettingsProfile) return false;
+
+        currentSettingsProfile = nextProfile;
+        currentSettings = normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]);
+        setSettingsControls(currentSettings);
+        applyTopsterSettings(currentSettings);
+        return true;
     }
 
     function updateTopsterResponsiveMetrics() {
@@ -352,16 +362,13 @@ async function initTopsterImporter(albumCards) {
     }
 
     let topsterResizeFrame = 0;
-    let topsterLastForcedSidebarHidden = shouldForceTopsterSidebarHidden();
     function scheduleTopsterResponsiveRefresh() {
         if (topsterResizeFrame) window.cancelAnimationFrame(topsterResizeFrame);
         topsterResizeFrame = window.requestAnimationFrame(() => {
             topsterResizeFrame = 0;
-            const nextForcedSidebarHidden = shouldForceTopsterSidebarHidden();
-            const sidebarModeChanged = nextForcedSidebarHidden !== topsterLastForcedSidebarHidden;
-            topsterLastForcedSidebarHidden = nextForcedSidebarHidden;
+            const profileChanged = syncCurrentSettingsProfileToViewport();
 
-            if (sidebarModeChanged && importedEntries.length) {
+            if (profileChanged && importedEntries.length) {
                 renderTopster(importedEntries, 0, { scroll: false });
                 return;
             }
@@ -378,9 +385,31 @@ async function initTopsterImporter(albumCards) {
         window.setTimeout(scheduleTopsterResponsiveRefresh, 120);
     }, { passive: true });
 
+    function handleSettingsProfileChange() {
+        const previousSettings = normalizeTopsterSettings(readSettingsControls());
+        currentSettingsProfiles[currentSettingsProfile] = previousSettings;
+        currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
+        currentSettings = normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]);
+        setSettingsControls(currentSettings);
+        applyTopsterSettings(currentSettings);
+        saveTopsterSettings(currentSettingsProfiles);
+        safeMarkTopsterPublishDirty();
+
+        if (importedEntries.length) {
+            const selectedStart = Number(rangeSelect.value || 0);
+            renderTopster(importedEntries, selectedStart, { scroll: false });
+            saveCurrentTopster();
+        }
+
+        status.textContent = topsterEditorPage
+            ? `Now configuring ${getTopsterSettingsProfileLabel(currentSettingsProfile)} Topster display settings. Press Save Settings to publish.`
+            : '';
+    }
+
     function handleSettingsChange() {
         currentSettings = normalizeTopsterSettings(readSettingsControls());
-        saveTopsterSettings(currentSettings);
+        currentSettingsProfiles[currentSettingsProfile] = currentSettings;
+        saveTopsterSettings(currentSettingsProfiles);
         applyTopsterSettings(currentSettings);
         updateSettingsValueLabels(currentSettings);
         safeMarkTopsterPublishDirty();
@@ -405,7 +434,9 @@ async function initTopsterImporter(albumCards) {
         if (!topsterEditorPage) return;
 
         currentSettings = normalizeTopsterSettings(readSettingsControls());
-        saveTopsterSettings(currentSettings);
+        currentSettingsProfiles[currentSettingsProfile] = currentSettings;
+        currentSettingsProfiles = normalizeTopsterSettingsProfiles(currentSettingsProfiles);
+        saveTopsterSettings(currentSettingsProfiles);
         saveCurrentTopster();
 
         if (!topsterSharedStoreAvailable || !topsterSharedStoreWritable) {
@@ -417,7 +448,7 @@ async function initTopsterImporter(albumCards) {
         status.textContent = `Saving ${getTopsterStoreSourceKey() === 'ranked' ? 'Ranked Albums' : 'Albums'} settings and cover selections to the shared backend...`;
 
         const ok = await saveTopsterSharedStoreNow({
-            settings: currentSettings,
+            settings: currentSettingsProfiles,
             coverCache: getCoverCache()
         });
 
@@ -1072,7 +1103,6 @@ async function initTopsterImporter(albumCards) {
         output.style.setProperty('--topster-rows', String(effectiveSettings.height));
         output.style.fontFamily = fontFamily;
         output.classList.toggle('topster-sidebar-hidden', effectiveSettings.sidebarMode === 'hidden');
-        output.classList.toggle('topster-mobile-sidebar-hidden', shouldForceTopsterSidebarHidden());
         output.classList.toggle('topster-cover-overlay-enabled', effectiveSettings.coverOverlay !== 'none');
         updateTopsterResponsiveMetrics();
         buildButton.textContent = 'Build';
@@ -1208,37 +1238,39 @@ function loadTopsterSettings() {
     if (isTopsterEditorPage()) {
         try {
             const localSettings = JSON.parse(localStorage.getItem(getTopsterSettingsStorageKey()) || 'null');
-            if (localSettings) return localSettings;
+            if (localSettings) return normalizeTopsterSettingsProfiles(localSettings);
         } catch (error) {
             // Fall back to the published backend settings below.
         }
     }
 
     if (shouldUseTopsterSharedStore() && topsterSharedSettings) {
-        return topsterSharedSettings;
+        return normalizeTopsterSettingsProfiles(topsterSharedSettings);
     }
 
     // Public list pages should use only the backend-published settings for their source.
     // If the backend is unavailable, fall back to defaults instead of a visitor's old local settings.
     if (isTopsterReadOnlyPage()) {
-        return {};
+        return normalizeTopsterSettingsProfiles({});
     }
 
     try {
-        return JSON.parse(localStorage.getItem(getTopsterSettingsStorageKey()) || 'null')
+        return normalizeTopsterSettingsProfiles(
+            JSON.parse(localStorage.getItem(getTopsterSettingsStorageKey()) || 'null')
             || JSON.parse(localStorage.getItem(TOPSTER_SETTINGS_KEY) || 'null')
-            || {};
+            || {}
+        );
     } catch (error) {
-        return {};
+        return normalizeTopsterSettingsProfiles({});
     }
 }
 
 function saveTopsterSettings(settings) {
-    const normalizedSettings = normalizeTopsterSettings(settings);
+    const normalizedProfiles = normalizeTopsterSettingsProfiles(settings);
 
     if (isTopsterEditorPage()) {
         try {
-            localStorage.setItem(getTopsterSettingsStorageKey(), JSON.stringify(normalizedSettings));
+            localStorage.setItem(getTopsterSettingsStorageKey(), JSON.stringify(normalizedProfiles));
         } catch (error) {
             // Settings persistence is helpful but not required for rendering.
         }
@@ -1246,7 +1278,7 @@ function saveTopsterSettings(settings) {
     }
 
     if (shouldUseTopsterSharedStore()) {
-        topsterSharedSettings = normalizedSettings;
+        topsterSharedSettings = normalizedProfiles;
         return;
     }
 
@@ -1255,10 +1287,45 @@ function saveTopsterSettings(settings) {
     }
 
     try {
-        localStorage.setItem(getTopsterSettingsStorageKey(), JSON.stringify(normalizedSettings));
+        localStorage.setItem(getTopsterSettingsStorageKey(), JSON.stringify(normalizedProfiles));
     } catch (error) {
         // Settings persistence is helpful but not required for rendering.
     }
+}
+
+function getAutomaticTopsterSettingsProfile() {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'desktop';
+    return window.matchMedia('(max-width: 1180px), (hover: none) and (pointer: coarse)').matches ? 'mobile' : 'desktop';
+}
+
+function getInitialTopsterSettingsProfile(deviceProfileSelect, editorPage) {
+    if (editorPage && deviceProfileSelect && deviceProfileSelect.value === 'mobile') return 'mobile';
+    if (editorPage && deviceProfileSelect && deviceProfileSelect.value === 'desktop') return 'desktop';
+    return editorPage ? 'desktop' : getAutomaticTopsterSettingsProfile();
+}
+
+function getTopsterSettingsProfileLabel(profile) {
+    return profile === 'mobile' ? 'mobile/tablet' : 'desktop';
+}
+
+function normalizeTopsterSettingsProfiles(settings) {
+    const raw = settings && typeof settings === 'object' ? settings : {};
+    const looksLikeProfiles = raw.desktop && typeof raw.desktop === 'object' || raw.mobile && typeof raw.mobile === 'object';
+
+    if (looksLikeProfiles) {
+        const desktop = normalizeTopsterSettings(raw.desktop || raw.mobile || {});
+        const mobile = normalizeTopsterSettings(raw.mobile || raw.desktop || {});
+        return { desktop, mobile };
+    }
+
+    const base = normalizeTopsterSettings(raw);
+    return {
+        desktop: base,
+        mobile: {
+            ...base,
+            sidebarMode: base.sidebarMode
+        }
+    };
 }
 
 function normalizeTopsterSettings(settings) {
@@ -2470,6 +2537,7 @@ function isUsefulLastfmImage(imageSrc) {
 function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none') {
     const tile = document.createElement('div');
     tile.className = 'topster-tile';
+    let mobileInfoTimer = null;
 
     if (!entry) {
         const empty = document.createElement('div');
@@ -2483,6 +2551,22 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     const label = `${displayIndex}. ${formatEntryName(entry)}`;
     const overlayText = getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode);
 
+    const showMobileInfo = event => {
+        if (!isTopsterTouchTooltipDevice()) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        toggleTopsterMobileTileInfo(tile, true, () => {
+            window.clearTimeout(mobileInfoTimer);
+            mobileInfoTimer = null;
+        });
+        window.clearTimeout(mobileInfoTimer);
+        mobileInfoTimer = window.setTimeout(() => {
+            toggleTopsterMobileTileInfo(tile, false);
+            mobileInfoTimer = null;
+        }, 10000);
+        return true;
+    };
+
     if (typeof onSelectCover === 'function') {
         tile.title = `${label} — click to choose a cover`;
         tile.classList.add('topster-tile-selectable');
@@ -2490,6 +2574,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         tile.setAttribute('tabindex', '0');
         tile.setAttribute('aria-label', `${label}. Click to choose a cover.`);
         tile.addEventListener('click', event => {
+            if (showMobileInfo(event)) return;
             event.preventDefault();
             onSelectCover();
         });
@@ -2502,6 +2587,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     } else {
         tile.title = label;
         tile.setAttribute('aria-label', label);
+        tile.addEventListener('click', showMobileInfo);
     }
 
     if (cover && cover.imageSrc) {
@@ -2540,7 +2626,32 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         tile.appendChild(overlay);
     }
 
+    const mobileInfo = document.createElement('span');
+    mobileInfo.className = 'topster-mobile-tile-info';
+    mobileInfo.textContent = label;
+    mobileInfo.setAttribute('aria-hidden', 'true');
+    tile.appendChild(mobileInfo);
+
     return tile;
+}
+
+function isTopsterTouchTooltipDevice() {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
+function toggleTopsterMobileTileInfo(tile, forceShow, onHide) {
+    if (!tile) return;
+
+    const currentlyActive = tile.classList.contains('topster-mobile-info-active');
+    const show = typeof forceShow === 'boolean' ? (forceShow && !currentlyActive) : !currentlyActive;
+
+    document.querySelectorAll('.topster-tile.topster-mobile-info-active').forEach(activeTile => {
+        if (activeTile !== tile) activeTile.classList.remove('topster-mobile-info-active');
+    });
+
+    tile.classList.toggle('topster-mobile-info-active', show);
+    if (!show && typeof onHide === 'function') onHide();
 }
 
 function getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode) {

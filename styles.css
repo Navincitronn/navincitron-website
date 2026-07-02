@@ -1346,25 +1346,68 @@ button:hover {
 
     .topster-layout,
     .topster-output .topster-layout,
-    .topster-output.topster-sidebar-hidden .topster-layout,
-    .topster-output.topster-mobile-sidebar-hidden .topster-layout {
+    .topster-output.topster-sidebar-hidden .topster-layout {
         display: grid;
         grid-template-columns: minmax(0, 1fr) !important;
     }
 
     .topster-list,
-    .topster-output .topster-list,
-    .topster-output.topster-mobile-sidebar-hidden .topster-list {
+    .topster-output .topster-list {
+        height: auto !important;
+        margin-top: var(--topster-frame-gap, 8px);
+        width: 100%;
+    }
+
+    .topster-output.topster-sidebar-hidden .topster-list {
         display: none !important;
     }
 
-    .topster-chart-wrap {
-        width: 100%;
-    }
-
+    .topster-chart-wrap,
     .topster-chart-grid {
         width: 100%;
     }
+}
+
+
+/* Mobile/tablet tap-to-reveal Topster album information */
+.topster-tile img,
+.topster-tile .topster-cover-overlay,
+.topster-tile .topster-tile-placeholder {
+    transition: opacity 1.5s ease;
+}
+
+.topster-mobile-tile-info {
+    align-items: center;
+    background: rgba(0, 0, 0, 0.76);
+    border-radius: inherit;
+    box-sizing: border-box;
+    color: #fff;
+    display: flex;
+    font-family: Arial, sans-serif;
+    font-size: clamp(9px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.075), 18px);
+    font-weight: bold;
+    inset: 0;
+    justify-content: center;
+    line-height: 1.18;
+    opacity: 0;
+    overflow-wrap: anywhere;
+    padding: 9%;
+    pointer-events: none;
+    position: absolute;
+    text-align: center;
+    transition: opacity 0.25s ease;
+    word-break: break-word;
+    z-index: 4;
+}
+
+.topster-tile.topster-mobile-info-active img,
+.topster-tile.topster-mobile-info-active .topster-cover-overlay,
+.topster-tile.topster-mobile-info-active .topster-tile-placeholder {
+    opacity: 0.18;
+}
+
+.topster-tile.topster-mobile-info-active .topster-mobile-tile-info {
+    opacity: 1;
 }
 
 /* Songguesser refinements */
