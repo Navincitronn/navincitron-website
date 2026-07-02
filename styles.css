@@ -1373,7 +1373,7 @@ button:hover {
 .topster-tile img,
 .topster-tile .topster-cover-overlay,
 .topster-tile .topster-tile-placeholder {
-    transition: opacity 1.5s ease;
+    transition: opacity 3s ease;
 }
 
 .topster-mobile-tile-info {
@@ -1409,6 +1409,80 @@ button:hover {
 .topster-tile.topster-mobile-info-active .topster-mobile-tile-info {
     opacity: 1;
 }
+
+/* iPhone/phone portrait sizing for tap-to-reveal album info and cover overlays.
+   Desktop/tablet scaling remains controlled by the normal Topster settings. */
+.topster-mobile-info-medium {
+    font-size: clamp(7px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.064), 16px);
+    line-height: 1.12;
+}
+
+.topster-mobile-info-long {
+    font-size: clamp(6px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.054), 14px);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+}
+
+.topster-mobile-info-xlong {
+    font-size: clamp(5px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.047), 12px);
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    padding: 7%;
+}
+
+@media only screen and (max-width: 480px) and (orientation: portrait) {
+    .topster-mobile-tile-info {
+        font-size: clamp(4.5px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.047), 9px);
+        line-height: 1.04;
+        padding: 6%;
+    }
+
+    .topster-mobile-info-medium {
+        font-size: clamp(4px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.041), 8px);
+        line-height: 1.02;
+    }
+
+    .topster-mobile-info-long {
+        font-size: clamp(3.6px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.035), 7px);
+        letter-spacing: -0.025em;
+        line-height: 1;
+    }
+
+    .topster-mobile-info-xlong {
+        font-size: clamp(3.2px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.031), 6px);
+        letter-spacing: -0.035em;
+        line-height: 0.98;
+        padding: 4.5%;
+    }
+
+    .topster-cover-overlay {
+        left: 3%;
+        letter-spacing: -0.1em;
+        max-width: 94%;
+        right: 3%;
+        -webkit-text-stroke: max(0.55px, calc(var(--topster-overlay-size) / 190)) rgba(255, 255, 255, 0.98);
+    }
+
+    .topster-cover-overlay-length-1 {
+        font-size: clamp(5px, calc(var(--topster-overlay-size) * 0.44), 999px);
+    }
+
+    .topster-cover-overlay-length-2 {
+        font-size: clamp(4.5px, calc(var(--topster-overlay-size) * 0.31), 999px);
+    }
+
+    .topster-cover-overlay-length-3 {
+        font-size: clamp(4px, calc(var(--topster-overlay-size) * 0.205), 999px);
+        transform: translateY(-50%) scaleX(0.78);
+    }
+
+    .topster-cover-overlay-length-4,
+    .topster-cover-overlay-length-5 {
+        font-size: clamp(3.4px, calc(var(--topster-overlay-size) * 0.145), 999px);
+        transform: translateY(-50%) scaleX(0.72);
+    }
+}
+
 
 /* Songguesser refinements */
 .shuffle-buttons {

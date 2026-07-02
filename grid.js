@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260701-topster-device-profile-mobile-info-v7';
+const TOPSTER_FRONTEND_VERSION = '20260701-topster-iphone-mobile-text-v8';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -2627,7 +2627,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     }
 
     const mobileInfo = document.createElement('span');
-    mobileInfo.className = 'topster-mobile-tile-info';
+    mobileInfo.className = `topster-mobile-tile-info ${getTopsterMobileInfoLengthClass(label)}`;
     mobileInfo.textContent = label;
     mobileInfo.setAttribute('aria-hidden', 'true');
     tile.appendChild(mobileInfo);
@@ -2638,6 +2638,14 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
 function isTopsterTouchTooltipDevice() {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
     return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
+function getTopsterMobileInfoLengthClass(label) {
+    const length = String(label || '').length;
+    if (length >= 72) return 'topster-mobile-info-xlong';
+    if (length >= 52) return 'topster-mobile-info-long';
+    if (length >= 34) return 'topster-mobile-info-medium';
+    return 'topster-mobile-info-short';
 }
 
 function toggleTopsterMobileTileInfo(tile, forceShow, onHide) {
