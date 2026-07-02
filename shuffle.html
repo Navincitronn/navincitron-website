@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Spotify Shuffle</title>
-    <link rel="stylesheet" href="styles.css?v=20260630-songguesser-grid-hints">
+    <link rel="stylesheet" href="styles.css?v=20260702-sampler-transport">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
     <style>
         .shuffle-panel {
@@ -275,6 +275,15 @@
             margin-bottom: 24px;
         }
 
+        .sampler-transport-controls {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .sampler-transport-controls[hidden] {
+            display: none;
+        }
+
         .songguesser-answer-hint {
             color: #ffcf85;
             font-weight: bold;
@@ -461,6 +470,13 @@
                     <button id="stop-sampler" type="button" class="danger-button">Stop Sampler + Spotify</button>
                 </div>
 
+                <div id="sampler-transport-controls" class="shuffle-buttons sampler-transport-controls">
+                    <button id="previous-track" type="button" class="secondary-button">Previous Track</button>
+                    <button id="pause-sampler" type="button" class="secondary-button">Pause</button>
+                    <button id="play-sampler" type="button" class="secondary-button">Play</button>
+                    <button id="next-track" type="button" class="secondary-button">Next Track</button>
+                </div>
+
                 <p id="spotify-auth-status" class="spotify-auth-status disconnected">Spotify: checking login...</p>
                 <p id="sampler-status" class="sampler-status">Status: idle</p>
             </div>
@@ -504,6 +520,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20260630-songguesser-grid-hints"></script>
+    <script src="shuffle.js?v=20260702-sampler-transport"></script>
 </body>
 </html>

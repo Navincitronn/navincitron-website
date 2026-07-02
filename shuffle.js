@@ -20,6 +20,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const hintAlbumInput = document.getElementById("hint-album");
     const startButton = document.getElementById("start-sampler");
     const stopButton = document.getElementById("stop-sampler");
+    const samplerTransportControls = document.getElementById("sampler-transport-controls");
+    const previousTrackButton = document.getElementById("previous-track");
+    const pauseSamplerButton = document.getElementById("pause-sampler");
+    const playSamplerButton = document.getElementById("play-sampler");
+    const nextTrackButton = document.getElementById("next-track");
     const samplerStatus = document.getElementById("sampler-status");
     const samplerLog = document.getElementById("sampler-log");
     const samplerLogWrap = document.getElementById("shuffle-log-wrap");
@@ -102,6 +107,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (samplerLogWrap) {
             samplerLogWrap.hidden = guessing;
+        }
+
+        if (samplerTransportControls) {
+            samplerTransportControls.hidden = guessing;
         }
 
         if (songguesserPanel && !guessing) {
@@ -192,6 +201,42 @@ document.addEventListener("DOMContentLoaded", () => {
         currentTrackTitle.textContent = "Songguesser";
     }
 
+
+    function updateTransportControls(running, samplerControl) {
+        const paused = Boolean(samplerControl && samplerControl.paused);
+
+        [previousTrackButton, pauseSamplerButton, playSamplerButton, nextTrackButton].forEach((button) => {
+            if (button) button.disabled = !running || songguesserEnabled();
+        });
+
+        if (pauseSamplerButton) pauseSamplerButton.disabled = !running || paused || songguesserEnabled();
+        if (playSamplerButton) playSamplerButton.disabled = !running || !paused || songguesserEnabled();
+    }
+
+    async function sendSamplerControl(command) {
+        if (songguesserEnabled()) return;
+
+        setStatus(`${command} requested`);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/control/${command}`, {
+                method: "POST",
+                credentials: "include",
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.ok) {
+                setStatus(data.error || `could not ${command}`);
+                return;
+            }
+
+            await pollStatus();
+        } catch (error) {
+            setStatus(`could not ${command}: ${error}`);
+        }
+    }
+
     function updateCover(coverArt) {
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
 
@@ -227,9 +272,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            setStatus(data.running ? "running" : "idle");
+            const paused = Boolean(data.samplerControl && data.samplerControl.paused);
+            setStatus(data.running ? (paused ? "paused" : "running") : "idle");
             setLog(data.log || []);
             updateCover(data.coverArt || null);
+            updateTransportControls(Boolean(data.running), data.samplerControl || null);
         } catch (error) {
             setStatus(`status unavailable: ${error}`);
         }
@@ -886,6 +933,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             setStatus("running");
+            updateTransportControls(true, { paused: false });
             await pollStatus();
         } catch (error) {
             setStatus(`could not start sampler: ${error}`);
@@ -915,6 +963,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             songguesserAcceptingGuesses = false;
             setStatus("idle");
+            updateTransportControls(false, { paused: false });
             await pollStatus();
         } catch (error) {
             setStatus(`could not stop sampler: ${error}`);
@@ -950,6 +999,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (stopButton) {
         stopButton.addEventListener("click", stopSampler);
+    }
+
+    if (previousTrackButton) {
+        previousTrackButton.addEventListener("click", () => sendSamplerControl("previous"));
+    }
+
+    if (pauseSamplerButton) {
+        pauseSamplerButton.addEventListener("click", () => sendSamplerControl("pause"));
+    }
+
+    if (playSamplerButton) {
+        playSamplerButton.addEventListener("click", () => sendSamplerControl("play"));
+    }
+
+    if (nextTrackButton) {
+        nextTrackButton.addEventListener("click", () => sendSamplerControl("next"));
     }
 
 
