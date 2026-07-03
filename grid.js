@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260702-topster-draft-file-v10';
+const TOPSTER_FRONTEND_VERSION = '20260702-topster-draft-persist-v11';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -17,6 +17,7 @@ let topsterSharedStoreLoaded = false;
 let topsterSharedStoreAvailable = false;
 let topsterSharedStoreWritable = false;
 let topsterSharedCoverCache = {};
+let topsterEditorWorkingCoverCache = null;
 let topsterSharedSettings = null;
 let topsterSharedSourceText = '';
 let topsterSharedSourceSignature = '';
@@ -318,6 +319,22 @@ async function initTopsterImporter(albumCards) {
         saveSettingsButton.addEventListener('click', publishTopsterSettingsAndCovers);
     }
 
+    if (draftFileInput) {
+        draftFileInput.addEventListener('change', () => {
+            const selectedFile = draftFileInput.files && draftFileInput.files[0] ? draftFileInput.files[0] : null;
+            activeLookupToken++;
+            clearTopsterPrelookupState();
+            currentGridSignature = '';
+            currentSourceText = '';
+            currentSourceName = selectedFile ? selectedFile.name : '';
+            if (selectedFile) {
+                status.textContent = `Selected ${selectedFile.name}. Press Build to read this draft file and refresh the draft Topster.`;
+            } else {
+                status.textContent = 'No draft file selected.';
+            }
+        });
+    }
+
     rangeSelect.addEventListener('change', () => {
         renderTopster(importedEntries, 0, { scroll: false });
         saveCurrentTopster();
@@ -450,6 +467,36 @@ async function initTopsterImporter(albumCards) {
             : `Updated Topster display settings to ${currentSettings.width}x${currentSettings.height}.`;
     }
 
+    function getPublishableCoverCache() {
+        const cache = getCoverCache();
+
+        importedEntries.forEach(entry => {
+            if (!entry || !entry.cover || !entry.cover.imageSrc) return;
+
+            const cachedCover = {
+                title: entry.cover.title || entry.title || '',
+                artist: entry.cover.artist || entry.artist || '',
+                imageSrc: entry.cover.imageSrc,
+                href: entry.cover.href || '',
+                source: entry.cover.source || '',
+                selectedManually: Boolean(entry.cover.selectedManually),
+                savedAt: entry.cover.savedAt || new Date().toISOString()
+            };
+
+            buildCoverCacheAliases(entry).forEach(alias => {
+                cache[alias] = cachedCover;
+            });
+            cache[buildCoverCacheKey(entry)] = cachedCover;
+        });
+
+        if (isTopsterEditorPage()) {
+            topsterEditorWorkingCoverCache = cache;
+            writeLocalTopsterCoverCache(cache);
+        }
+
+        return cache;
+    }
+
     async function publishTopsterSettingsAndCovers() {
         if (!topsterEditorPage) return;
 
@@ -472,7 +519,7 @@ async function initTopsterImporter(albumCards) {
 
         const sharedPayload = {
             settings: currentSettingsProfiles,
-            coverCache: getCoverCache()
+            coverCache: getPublishableCoverCache()
         };
         if (sourceKey === 'draft') {
             if (!currentSourceText && !importedEntries.length) {
@@ -480,10 +527,11 @@ async function initTopsterImporter(albumCards) {
                 if (saveSettingsButton) saveSettingsButton.disabled = false;
                 return;
             }
-            if (currentSourceText) {
-                sharedPayload.sourceText = currentSourceText;
-                sharedPayload.sourceName = currentSourceName || 'draft notepad file';
-                sharedPayload.sourceSignature = currentGridSignature || simpleTextHash(currentSourceText);
+            const publishSourceText = currentSourceText || topsterSharedSourceText || '';
+            if (publishSourceText) {
+                sharedPayload.sourceText = publishSourceText;
+                sharedPayload.sourceName = currentSourceName || topsterSharedSourceName || 'draft notepad file';
+                sharedPayload.sourceSignature = currentGridSignature || topsterSharedSourceSignature || simpleTextHash(publishSourceText);
             }
         }
 
@@ -865,7 +913,7 @@ async function initTopsterImporter(albumCards) {
         stopButton.disabled = true;
         buildButton.disabled = false;
         refreshButton.disabled = false;
-        status.textContent = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters.`;
+        status.textContent = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters, then Save Settings to publish the updated draft/list cache.`;
     }
 
     async function resolveVisibleRange(startIndex = 0) {
@@ -918,7 +966,7 @@ async function initTopsterImporter(albumCards) {
             refreshButton.disabled = false;
             const missingCount = importedEntries.filter(entry => entry.status === 'missing').length;
             saveCurrentTopster();
-            status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.`;
+            status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.${topsterEditorPage ? ' Press Save Settings to publish the updated source/settings/cache.' : ''}`;
         }
     }
 
@@ -1217,6 +1265,10 @@ async function saveTopsterSharedStoreNow(payload) {
 
         if (result.coverCache && typeof result.coverCache === 'object') {
             topsterSharedCoverCache = result.coverCache;
+            if (isTopsterEditorPage()) {
+                topsterEditorWorkingCoverCache = cloneCoverCache(result.coverCache);
+                writeLocalTopsterCoverCache(topsterEditorWorkingCoverCache);
+            }
         }
         if (result.settings && typeof result.settings === 'object') {
             topsterSharedSettings = result.settings;
@@ -1255,6 +1307,7 @@ async function flushTopsterSharedCoverCacheSave() {
 
 async function clearTopsterCoverCache() {
     topsterSharedCoverCache = {};
+    topsterEditorWorkingCoverCache = {};
     clearTopsterPrelookupState();
 
     try {
@@ -2269,14 +2322,55 @@ function buildCoverCacheAliases(entry) {
     return Array.from(new Set(aliases.filter(key => key.replace(/\|/g, ''))));
 }
 
+
+function readLocalTopsterCoverCache() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(getTopsterCoverCacheStorageKey()) || 'null');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function writeLocalTopsterCoverCache(cache) {
+    try {
+        localStorage.setItem(getTopsterCoverCacheStorageKey(), JSON.stringify(cache || {}));
+        return true;
+    } catch (error) {
+        // Some large Topster caches can exceed browser localStorage. Keep the in-memory
+        // working cache so Save Settings can still publish the complete cache to Redis.
+        return false;
+    }
+}
+
+function cloneCoverCache(cache) {
+    return cache && typeof cache === 'object' ? { ...cache } : {};
+}
+
+function getTopsterEditorWorkingCoverCache() {
+    if (topsterEditorWorkingCoverCache && typeof topsterEditorWorkingCoverCache === 'object') {
+        return topsterEditorWorkingCoverCache;
+    }
+
+    const sharedCache = shouldUseTopsterSharedStore()
+        ? cloneCoverCache(topsterSharedCoverCache)
+        : {};
+    const localCache = readLocalTopsterCoverCache();
+
+    // Seed from the published backend cache first, then overlay the host's local
+    // working changes. This prevents a partially saved local cache from hiding
+    // older published covers, while still letting new/manual local choices win.
+    topsterEditorWorkingCoverCache = {
+        ...sharedCache,
+        ...localCache
+    };
+
+    return topsterEditorWorkingCoverCache;
+}
+
 function getCoverCache() {
     if (isTopsterEditorPage()) {
-        try {
-            const localCache = JSON.parse(localStorage.getItem(getTopsterCoverCacheStorageKey()) || 'null');
-            if (localCache && typeof localCache === 'object') return localCache;
-        } catch (error) {
-            // Fall back to the published backend cache below.
-        }
+        return getTopsterEditorWorkingCoverCache();
     }
 
     if (shouldUseTopsterSharedStore()) {
@@ -2351,11 +2445,8 @@ function setCachedCover(key, cover) {
     });
 
     if (isTopsterEditorPage()) {
-        try {
-            localStorage.setItem(getTopsterCoverCacheStorageKey(), JSON.stringify(cache));
-        } catch (error) {
-            // Browser storage can fill up; failing to cache should not prevent the grid from rendering.
-        }
+        topsterEditorWorkingCoverCache = cache;
+        writeLocalTopsterCoverCache(cache);
         safeMarkTopsterPublishDirty();
         return;
     }
