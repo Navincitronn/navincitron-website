@@ -51,6 +51,10 @@
             return;
         }
 
+        coverImage.onerror = () => {
+            coverImage.onerror = null;
+            clearArtwork();
+        };
         coverImage.src = url;
         coverImage.alt = title ? `${title} artwork` : "Current album artwork";
         coverFrame.classList.remove("empty");
@@ -115,7 +119,7 @@
         setStatus("Spotify is connected, but no song is currently playing.");
     }
 
-    function displayTrack(track, geniusSong, geniusError = "") {
+    function displayTrack(track, geniusSong, geniusError = "", geniusErrorCode = "") {
         const trackKey = String(track.key || `${track.artist}::${track.title}`);
         const trackChanged = trackKey !== lastTrackKey;
         lastTrackKey = trackKey;
@@ -126,8 +130,13 @@
         songTitle.textContent = track.title || "Unknown song";
         songArtist.textContent = track.artist || "Unknown artist";
         songAlbum.textContent = track.album || "Unknown album";
-        sourceBadge.textContent = track.isLocal ? "Spotify Local File" : "Spotify Track";
-        setArtwork(track.coverUrl || (geniusSong && (geniusSong.thumbnailUrl || geniusSong.imageUrl)), track.album || track.title);
+        sourceBadge.textContent = track.isLocal
+            ? (track.artworkSource === "lastfm" ? "Spotify Local File · Last.fm Artwork" : "Spotify Local File")
+            : "Spotify Track";
+        const geniusArtworkFallback = track.isLocal
+            ? ""
+            : (geniusSong && (geniusSong.thumbnailUrl || geniusSong.imageUrl));
+        setArtwork(track.coverUrl || geniusArtworkFallback, track.album || track.title);
         setExternalLink(spotifyLink, track.spotifyUrl || "");
 
         if (!geniusSong) {
@@ -138,12 +147,21 @@
             if (trackChanged || lastGeniusSongId !== null) {
                 clearEmbed("No Genius lyrics page was matched for this track.");
             }
-            setStatus(
-                geniusError
-                    ? `Now playing: ${track.artist} - ${track.title}. Genius lookup is temporarily unavailable.`
-                    : `Now playing: ${track.artist} - ${track.title}. No confident Genius match was found.`,
-                geniusError ? "error" : ""
-            );
+            let statusMessage = `Now playing: ${track.artist} - ${track.title}. No confident Genius match was found.`;
+            let statusType = "";
+
+            if (geniusErrorCode === "not_configured") {
+                statusMessage = `Now playing: ${track.artist} - ${track.title}. Genius API access token is not configured on the backend.`;
+                statusType = "error";
+            } else if (geniusErrorCode === "authentication_failed") {
+                statusMessage = `Now playing: ${track.artist} - ${track.title}. Genius rejected the configured access token.`;
+                statusType = "error";
+            } else if (geniusError) {
+                statusMessage = `Now playing: ${track.artist} - ${track.title}. Genius lookup failed: ${geniusError}`;
+                statusType = "error";
+            }
+
+            setStatus(statusMessage, statusType);
             return;
         }
 
@@ -210,7 +228,7 @@
                 return;
             }
 
-            displayTrack(data.track, data.genius || null, data.geniusError || "");
+            displayTrack(data.track, data.genius || null, data.geniusError || "", data.geniusErrorCode || "");
         } catch (error) {
             setStatus(`Lyrics status unavailable: ${error.message || error}`, "error");
         } finally {
