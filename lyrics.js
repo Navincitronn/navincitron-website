@@ -142,10 +142,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base target="_blank">
     <style>
-        html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; }
-        body { overflow: hidden; }
-        iframe { border: 0; display: block; max-width: 100%; width: 100%; }
-        .rg_embed_link { box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
+        html, body { margin: 0; padding: 0; background: #e1e6eb; color: #111111; }
+        body { isolation: isolate; overflow: hidden; }
+        iframe { background: #e1e6eb; border: 0; display: block; max-width: 100%; mix-blend-mode: multiply; width: 100%; }
+        .rg_embed_link { background: #e1e6eb; box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
     </style>
 </head>
 <body>
@@ -267,7 +267,7 @@
 
         if (!geniusSong) {
             annotationBadge.classList.add("lyrics-hidden");
-            descriptionElement.textContent = "No Genius description is available because this track could not be matched to a Genius song page.";
+            descriptionElement.textContent = "There is no description for this track";
             descriptionElement.classList.add("empty");
             setExternalLink(geniusLink, "");
             if (trackChanged || lastGeniusSongId !== null) {
@@ -295,11 +295,12 @@
         annotationBadge.textContent = `${annotationCount} Genius annotation${annotationCount === 1 ? "" : "s"}`;
         annotationBadge.classList.remove("lyrics-hidden");
 
-        if (geniusSong.description) {
-            descriptionElement.textContent = geniusSong.description;
+        const geniusDescription = String(geniusSong.description || "").trim();
+        if (geniusDescription && geniusDescription !== "?") {
+            descriptionElement.textContent = geniusDescription;
             descriptionElement.classList.remove("empty");
         } else {
-            descriptionElement.textContent = "No Genius description is available for this song.";
+            descriptionElement.textContent = "There is no description for this track";
             descriptionElement.classList.add("empty");
         }
 
