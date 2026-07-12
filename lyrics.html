@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Lyrics</title>
+    <link rel="stylesheet" href="styles.css?v=20260712-lyrics">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+    <style>
+        /* All page-specific rules are scoped to lyrics.html so they cannot alter
+           the grid, sampler, album, or other site layouts. */
+        .lyrics-page {
+            box-sizing: border-box;
+            margin: 0 auto;
+            max-width: 1040px;
+            padding: 20px;
+        }
+
+        .lyrics-page *,
+        .lyrics-page *::before,
+        .lyrics-page *::after {
+            box-sizing: border-box;
+        }
+
+        .lyrics-heading {
+            margin: 20px 0 8px;
+            text-align: center;
+        }
+
+        .lyrics-intro {
+            color: #dddddd;
+            line-height: 1.5;
+            margin: 12px auto 0;
+            max-width: 760px;
+            text-align: center;
+        }
+
+        .lyrics-toolbar {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .lyrics-toolbar button,
+        .lyrics-toolbar a {
+            background-color: #1974D2;
+            border: 0;
+            border-radius: 5px;
+            color: #ffffff;
+            cursor: pointer;
+            display: inline-block;
+            font: inherit;
+            margin: 0;
+            padding: 10px 16px;
+            text-decoration: none;
+        }
+
+        .lyrics-toolbar button:hover,
+        .lyrics-toolbar a:hover {
+            background-color: #145a8a;
+        }
+
+        .lyrics-toolbar .lyrics-login-button.connected {
+            background-color: #1f8f3a;
+        }
+
+        .lyrics-toolbar .lyrics-login-button.connected:hover {
+            background-color: #16682b;
+        }
+
+        .lyrics-toolbar .lyrics-secondary-button {
+            background-color: #666666;
+        }
+
+        .lyrics-toolbar .lyrics-secondary-button:hover {
+            background-color: #555555;
+        }
+
+        .lyrics-status {
+            background-color: #444444;
+            border-radius: 8px;
+            color: #dddddd;
+            line-height: 1.45;
+            margin: 0 auto 20px;
+            max-width: 760px;
+            padding: 12px 16px;
+            text-align: center;
+        }
+
+        .lyrics-status.error {
+            color: #ffb0b0;
+        }
+
+        .lyrics-status.success {
+            color: #aee8ae;
+        }
+
+        .lyrics-song-card {
+            align-items: center;
+            background-color: #444444;
+            border-radius: 10px;
+            display: grid;
+            gap: 20px;
+            grid-template-columns: 220px minmax(0, 1fr);
+            margin: 0 auto 20px;
+            padding: 20px;
+        }
+
+        .lyrics-cover-frame {
+            align-items: center;
+            background: linear-gradient(135deg, #222222, #333333);
+            border-radius: 8px;
+            display: flex;
+            height: 220px;
+            justify-content: center;
+            overflow: hidden;
+            width: 220px;
+        }
+
+        .lyrics-cover-frame::after {
+            color: #aaaaaa;
+            content: "No artwork";
+            display: none;
+            font-size: 14px;
+        }
+
+        .lyrics-cover-frame.empty::after {
+            display: block;
+        }
+
+        .lyrics-cover-image {
+            height: 220px;
+            object-fit: cover;
+            width: 220px;
+        }
+
+        .lyrics-cover-frame.empty .lyrics-cover-image {
+            display: none;
+        }
+
+        .lyrics-song-title {
+            color: #ffffff;
+            font-size: 30px;
+            line-height: 1.2;
+            margin: 0 0 8px;
+            overflow-wrap: anywhere;
+        }
+
+        .lyrics-song-artist {
+            color: #f2f2f2;
+            font-size: 20px;
+            margin: 0 0 8px;
+        }
+
+        .lyrics-song-album {
+            color: #cccccc;
+            font-size: 16px;
+            margin: 0 0 12px;
+        }
+
+        .lyrics-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .lyrics-badge {
+            background-color: #333333;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 999px;
+            color: #dddddd;
+            display: inline-block;
+            font-size: 13px;
+            padding: 5px 9px;
+        }
+
+        .lyrics-description {
+            color: #eeeeee;
+            line-height: 1.55;
+            margin: 12px 0 0;
+            white-space: pre-line;
+        }
+
+        .lyrics-description.empty {
+            color: #bbbbbb;
+            font-style: italic;
+        }
+
+        .lyrics-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .lyrics-links a {
+            color: #87CEEB;
+            font-weight: bold;
+        }
+
+        .lyrics-links a[hidden] {
+            display: none;
+        }
+
+        .lyrics-embed-card {
+            background-color: #444444;
+            border-radius: 10px;
+            margin: 0 auto;
+            min-height: 220px;
+            padding: 20px;
+        }
+
+        .lyrics-embed-card h3 {
+            margin: 0 0 16px;
+            text-align: center;
+        }
+
+        .lyrics-embed-note {
+            color: #cccccc;
+            font-size: 13px;
+            line-height: 1.45;
+            margin: 0 0 16px;
+            text-align: center;
+        }
+
+        .lyrics-embed-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            color: #111111;
+            min-height: 160px;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .lyrics-embed-placeholder {
+            align-items: center;
+            color: #666666;
+            display: flex;
+            justify-content: center;
+            line-height: 1.5;
+            min-height: 160px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .lyrics-embed-container iframe {
+            border: 0;
+            display: block;
+            max-width: 100%;
+            width: 100%;
+        }
+
+        .lyrics-hidden {
+            display: none !important;
+        }
+
+        @media only screen and (max-width: 700px) {
+            .lyrics-page {
+                padding: 14px;
+            }
+
+            .lyrics-song-card {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .lyrics-cover-frame {
+                height: min(76vw, 300px);
+                margin: 0 auto;
+                width: min(76vw, 300px);
+            }
+
+            .lyrics-cover-image {
+                height: 100%;
+                width: 100%;
+            }
+
+            .lyrics-song-title {
+                font-size: 25px;
+            }
+
+            .lyrics-badges,
+            .lyrics-links {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="album_list.html">List</a>
+            <a href="ranked_album_list.html">Rank</a>
+            <a href="lyrics.html" aria-current="page">Lyrics</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="lyrics-page">
+            <h2 class="lyrics-heading">LYRICS</h2>
+            <hr>
+            <p class="lyrics-intro">
+                Displays the Genius lyrics and annotations for the song currently playing on the connected Spotify account. Local Spotify files are matched from their artist, title, and album metadata.
+            </p>
+
+            <div class="lyrics-toolbar">
+                <button type="button" id="lyrics-login" class="lyrics-login-button">Login with Spotify</button>
+                <button type="button" id="lyrics-refresh" class="lyrics-secondary-button">Refresh Now</button>
+            </div>
+
+            <div id="lyrics-status" class="lyrics-status" role="status" aria-live="polite">
+                Checking Spotify connection…
+            </div>
+
+            <article id="lyrics-song-card" class="lyrics-song-card lyrics-hidden" aria-live="polite">
+                <div id="lyrics-cover-frame" class="lyrics-cover-frame empty">
+                    <img id="lyrics-cover-image" class="lyrics-cover-image" alt="Current album artwork">
+                </div>
+
+                <div class="lyrics-song-information">
+                    <h1 id="lyrics-song-title" class="lyrics-song-title">No song detected</h1>
+                    <p id="lyrics-song-artist" class="lyrics-song-artist"></p>
+                    <p id="lyrics-song-album" class="lyrics-song-album"></p>
+
+                    <div class="lyrics-badges">
+                        <span id="lyrics-source-badge" class="lyrics-badge">Spotify</span>
+                        <span id="lyrics-annotation-badge" class="lyrics-badge lyrics-hidden"></span>
+                    </div>
+
+                    <p id="lyrics-description" class="lyrics-description empty">No Genius description is available for this song.</p>
+
+                    <div class="lyrics-links">
+                        <a id="lyrics-genius-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open on Genius</a>
+                        <a id="lyrics-spotify-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open on Spotify</a>
+                    </div>
+                </div>
+            </article>
+
+            <section id="lyrics-embed-card" class="lyrics-embed-card lyrics-hidden">
+                <h3>Genius Lyrics &amp; Annotations</h3>
+                <p class="lyrics-embed-note">
+                    Select highlighted lyrics inside the Genius embed to view available annotations.
+                </p>
+                <div id="lyrics-embed-container" class="lyrics-embed-container">
+                    <div class="lyrics-embed-placeholder">Waiting for a currently playing song.</div>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <footer></footer>
+    <script src="lyrics.js?v=20260712-lyrics"></script>
+</body>
+</html>
