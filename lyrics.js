@@ -142,14 +142,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base target="_blank">
     <style>
-        html, body { margin: 0; padding: 0; background: #969693; color: #111111; }
+        :root { color-scheme: light; }
+        html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; }
         body { isolation: isolate; overflow: hidden; position: relative; }
 
-        /* Genius renders the lyrics inside a cross-origin child frame. Its
-           internal white background cannot be changed directly, so this
-           non-interactive tint layer is composited over the rendered embed.
-           The multiply blend preserves black text while converting white to
-           the requested #969693 lyrics color. */
+        /* Genius renders the lyrics inside a cross-origin child frame. Keep
+           every surface below the tint white, then multiply one solid #969693
+           layer across the complete embed. White Genius content and exposed
+           outer-frame space therefore resolve to the same final shade instead
+           of the outer space being tinted twice and appearing darker. */
         body::after {
             background: #969693;
             content: "";
@@ -160,8 +161,8 @@
             z-index: 2147483647;
         }
 
-        iframe { background: #969693; border: 0; display: block; max-width: 100%; width: 100%; }
-        .rg_embed_link { background: #969693; box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
+        iframe { background: #ffffff; border: 0; display: block; max-width: 100%; width: 100%; }
+        .rg_embed_link { background: #ffffff; box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
     </style>
 </head>
 <body>
@@ -229,6 +230,7 @@
         frame.referrerPolicy = "strict-origin-when-cross-origin";
         frame.setAttribute("scrolling", "no");
         frame.setAttribute("allowtransparency", "true");
+        frame.style.backgroundColor = "#969693";
         frame.style.height = "320px";
         activeEmbedFrame = frame;
 
