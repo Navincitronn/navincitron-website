@@ -25,6 +25,11 @@
     let lastGeniusSongId = null;
     let requestInProgress = false;
     let pollTimer = null;
+    let activeEmbedFrame = null;
+    let embedResizeTimer = null;
+
+    const GENIUS_EMBED_HEIGHT_MESSAGE = "navincitron-genius-embed-height";
+    const GENIUS_EMBED_ERROR_MESSAGE = "navincitron-genius-embed-error";
 
     function setStatus(message, type = "") {
         statusElement.textContent = message;
@@ -70,13 +75,121 @@
         }
     }
 
+    function stopEmbedResizePolling() {
+        if (embedResizeTimer) {
+            window.clearInterval(embedResizeTimer);
+            embedResizeTimer = null;
+        }
+    }
+
     function clearEmbed(message = "Waiting for a currently playing song.") {
         lastGeniusSongId = null;
+        activeEmbedFrame = null;
+        stopEmbedResizePolling();
         embedContainer.replaceChildren();
         const placeholder = document.createElement("div");
         placeholder.className = "lyrics-embed-placeholder";
         placeholder.textContent = message;
         embedContainer.appendChild(placeholder);
+    }
+
+    function escapeEmbedHtml(value) {
+        return String(value || "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+    }
+
+    function resizeGeniusEmbedFrame(frame) {
+        if (!frame || frame !== activeEmbedFrame || !frame.isConnected) return;
+
+        try {
+            const documentElement = frame.contentDocument && frame.contentDocument.documentElement;
+            const body = frame.contentDocument && frame.contentDocument.body;
+            if (!documentElement || !body) return;
+
+            const measuredHeight = Math.max(
+                220,
+                body.scrollHeight || 0,
+                body.offsetHeight || 0,
+                documentElement.scrollHeight || 0,
+                documentElement.offsetHeight || 0
+            );
+            frame.style.height = `${Math.min(measuredHeight + 8, 6000)}px`;
+        } catch (error) {
+            // The outer srcdoc frame normally remains same-origin. If Genius
+            // changes its embed to navigate the outer frame, retain the default
+            // height rather than interrupting the rest of lyrics.html.
+        }
+    }
+
+    function buildGeniusEmbedDocument(geniusSong, songId) {
+        const songUrl = geniusSong.url || `https://genius.com/songs/${songId}`;
+        const scriptUrl = geniusSong.embedScriptUrl || `https://genius.com/songs/${songId}/embed.js`;
+        const title = geniusSong.title || "this song";
+        const artist = geniusSong.artist ? ` by ${geniusSong.artist}` : "";
+        const linkText = `Read “${title}”${artist} on Genius`;
+
+        // Genius's embed script uses document.write(). It therefore has to run
+        // while this iframe document is being parsed; appending the script to
+        // the already-loaded parent document can result in a blank embed.
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base target="_blank">
+    <style>
+        html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; }
+        body { overflow: hidden; }
+        iframe { border: 0; display: block; max-width: 100%; width: 100%; }
+        .rg_embed_link { box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
+    </style>
+</head>
+<body>
+    <div id="rg_embed_link_${songId}" class="rg_embed_link" data-song-id="${songId}">
+        <a href="${escapeEmbedHtml(songUrl)}" rel="noopener noreferrer">${escapeEmbedHtml(linkText)}</a>
+    </div>
+    <script
+        crossorigin="anonymous"
+        src="${escapeEmbedHtml(scriptUrl)}"
+        onerror="parent.postMessage({type: '${GENIUS_EMBED_ERROR_MESSAGE}', songId: ${songId}}, '*')"
+    ><\/script>
+    <script>
+        (() => {
+            const reportHeight = () => {
+                const root = document.documentElement;
+                const body = document.body;
+                const height = Math.max(
+                    220,
+                    body ? body.scrollHeight : 0,
+                    body ? body.offsetHeight : 0,
+                    root ? root.scrollHeight : 0,
+                    root ? root.offsetHeight : 0
+                );
+                parent.postMessage({
+                    type: '${GENIUS_EMBED_HEIGHT_MESSAGE}',
+                    songId: ${songId},
+                    height
+                }, '*');
+            };
+
+            window.addEventListener('load', reportHeight);
+            window.setTimeout(reportHeight, 250);
+            window.setTimeout(reportHeight, 1000);
+            window.setTimeout(reportHeight, 2500);
+
+            if ('ResizeObserver' in window) {
+                const observer = new ResizeObserver(reportHeight);
+                observer.observe(document.documentElement);
+                if (document.body) observer.observe(document.body);
+            }
+        })();
+    <\/script>
+</body>
+</html>`;
     }
 
     function renderGeniusEmbed(geniusSong) {
@@ -86,28 +199,41 @@
             return;
         }
 
-        if (lastGeniusSongId === songId && embedContainer.querySelector(".rg_embed_link")) {
+        if (lastGeniusSongId === songId && activeEmbedFrame && activeEmbedFrame.isConnected) {
             return;
         }
 
+        stopEmbedResizePolling();
         lastGeniusSongId = songId;
         embedContainer.replaceChildren();
 
-        const embedTarget = document.createElement("div");
-        embedTarget.id = `rg_embed_link_${songId}`;
-        embedTarget.className = "rg_embed_link";
-        embedTarget.dataset.songId = String(songId);
-        embedContainer.appendChild(embedTarget);
+        const frame = document.createElement("iframe");
+        frame.className = "lyrics-genius-frame";
+        frame.title = `Genius lyrics and annotations for ${geniusSong.title || "the current song"}`;
+        frame.referrerPolicy = "strict-origin-when-cross-origin";
+        frame.setAttribute("scrolling", "no");
+        frame.setAttribute("allowtransparency", "true");
+        frame.style.height = "320px";
+        activeEmbedFrame = frame;
 
-        const embedScript = document.createElement("script");
-        embedScript.src = geniusSong.embedScriptUrl || `https://genius.com/songs/${songId}/embed.js`;
-        embedScript.async = true;
-        embedScript.dataset.geniusSongId = String(songId);
-        embedScript.onerror = () => {
-            if (lastGeniusSongId !== songId) return;
-            clearEmbed("The Genius embed could not load. Use “Open on Genius” to view the lyrics page directly.");
-        };
-        embedContainer.appendChild(embedScript);
+        frame.addEventListener("load", () => {
+            if (frame !== activeEmbedFrame) return;
+            resizeGeniusEmbedFrame(frame);
+
+            let attempts = 0;
+            stopEmbedResizePolling();
+            embedResizeTimer = window.setInterval(() => {
+                if (frame !== activeEmbedFrame || !frame.isConnected || attempts >= 40) {
+                    stopEmbedResizePolling();
+                    return;
+                }
+                attempts += 1;
+                resizeGeniusEmbedFrame(frame);
+            }, 250);
+        });
+
+        embedContainer.appendChild(frame);
+        frame.srcdoc = buildGeniusEmbedDocument(geniusSong, songId);
     }
 
     function displayNoTrack() {
@@ -235,6 +361,26 @@
             requestInProgress = false;
         }
     }
+
+    window.addEventListener("message", (event) => {
+        const frame = activeEmbedFrame;
+        if (!frame || event.source !== frame.contentWindow) return;
+
+        const data = event.data;
+        if (!data || typeof data !== "object" || Number(data.songId) !== lastGeniusSongId) return;
+
+        if (data.type === GENIUS_EMBED_HEIGHT_MESSAGE) {
+            const height = Number(data.height);
+            if (Number.isFinite(height) && height >= 160) {
+                frame.style.height = `${Math.min(Math.ceil(height) + 8, 6000)}px`;
+            }
+            return;
+        }
+
+        if (data.type === GENIUS_EMBED_ERROR_MESSAGE) {
+            clearEmbed("The Genius embed was blocked or could not load. Use “Open on Genius” to view the lyrics page directly.");
+        }
+    });
 
     function schedulePolling() {
         if (pollTimer) window.clearInterval(pollTimer);
