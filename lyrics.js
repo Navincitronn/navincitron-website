@@ -16,8 +16,14 @@
     const sourceBadge = document.getElementById("lyrics-source-badge");
     const annotationBadge = document.getElementById("lyrics-annotation-badge");
     const descriptionElement = document.getElementById("lyrics-description");
-    const geniusLink = document.getElementById("lyrics-genius-link");
-    const spotifyLink = document.getElementById("lyrics-spotify-link");
+    const progressTrack = document.getElementById("lyrics-progress-track");
+    const progressFill = document.getElementById("lyrics-progress-fill");
+    const progressCurrent = document.getElementById("lyrics-progress-current");
+    const progressDuration = document.getElementById("lyrics-progress-duration");
+    const previousTrackButton = document.getElementById("lyrics-previous-track");
+    const pauseButton = document.getElementById("lyrics-pause");
+    const playButton = document.getElementById("lyrics-play");
+    const nextTrackButton = document.getElementById("lyrics-next-track");
     const embedCard = document.getElementById("lyrics-embed-card");
     const embedContainer = document.getElementById("lyrics-embed-container");
 
@@ -27,9 +33,26 @@
     let pollTimer = null;
     let activeEmbedFrame = null;
     let embedResizeTimer = null;
+    let spotifyAuthenticated = false;
+    let hasCurrentTrack = false;
+    let playbackControlInProgress = false;
+    let lastEmbedInteractionAt = 0;
+    let playbackClock = {
+        progressMs: 0,
+        durationMs: 0,
+        isPlaying: false,
+        sampledAt: Date.now(),
+    };
 
     const GENIUS_EMBED_HEIGHT_MESSAGE = "navincitron-genius-embed-height";
     const GENIUS_EMBED_ERROR_MESSAGE = "navincitron-genius-embed-error";
+    const GENIUS_EMBED_INTERACTION_MESSAGE = "navincitron-genius-embed-interaction";
+
+    const focusSink = document.createElement("span");
+    focusSink.tabIndex = -1;
+    focusSink.setAttribute("aria-hidden", "true");
+    focusSink.style.cssText = "position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(100%);left:0;top:0;";
+    document.body.appendChild(focusSink);
 
     function setStatus(message, type = "") {
         statusElement.textContent = message;
@@ -38,11 +61,13 @@
     }
 
     function setAuthenticated(authenticated) {
+        spotifyAuthenticated = Boolean(authenticated);
         loginButton.textContent = authenticated ? "Spotify Connected" : "Login with Spotify";
         loginButton.classList.toggle("connected", authenticated);
         loginButton.title = authenticated
             ? "Reconnect or switch the Spotify account used by this page."
             : "Connect Spotify so the page can identify the currently playing song.";
+        updatePlaybackControls();
     }
 
     function clearArtwork() {
@@ -65,14 +90,102 @@
         coverFrame.classList.remove("empty");
     }
 
-    function setExternalLink(anchor, url) {
-        if (url) {
-            anchor.href = url;
-            anchor.hidden = false;
-        } else {
-            anchor.removeAttribute("href");
-            anchor.hidden = true;
+    function formatPlaybackTime(milliseconds) {
+        const safeMilliseconds = Math.max(0, Number(milliseconds) || 0);
+        const totalSeconds = Math.floor(safeMilliseconds / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function estimatedPlaybackProgress() {
+        let progressMs = playbackClock.progressMs;
+        if (playbackClock.isPlaying) {
+            progressMs += Math.max(0, Date.now() - playbackClock.sampledAt);
         }
+        return Math.min(Math.max(0, progressMs), Math.max(0, playbackClock.durationMs));
+    }
+
+    function renderPlaybackProgress() {
+        const durationMs = Math.max(0, Number(playbackClock.durationMs) || 0);
+        const progressMs = durationMs > 0 ? estimatedPlaybackProgress() : 0;
+        const percentage = durationMs > 0 ? Math.min(100, Math.max(0, (progressMs / durationMs) * 100)) : 0;
+
+        progressFill.style.width = `${percentage}%`;
+        progressCurrent.textContent = formatPlaybackTime(progressMs);
+        progressDuration.textContent = formatPlaybackTime(durationMs);
+        progressTrack.setAttribute("aria-valuenow", String(Math.round(percentage)));
+        progressTrack.setAttribute("aria-valuetext", `${formatPlaybackTime(progressMs)} of ${formatPlaybackTime(durationMs)}`);
+    }
+
+    function updatePlaybackControls() {
+        const controlsUnavailable = !spotifyAuthenticated || !hasCurrentTrack || playbackControlInProgress;
+        previousTrackButton.disabled = controlsUnavailable;
+        nextTrackButton.disabled = controlsUnavailable;
+        pauseButton.disabled = controlsUnavailable || !playbackClock.isPlaying;
+        playButton.disabled = controlsUnavailable || playbackClock.isPlaying;
+    }
+
+    function setPlaybackSnapshot(track) {
+        if (!track) {
+            hasCurrentTrack = false;
+            playbackClock = {
+                progressMs: 0,
+                durationMs: 0,
+                isPlaying: false,
+                sampledAt: Date.now(),
+            };
+        } else {
+            hasCurrentTrack = true;
+            playbackClock = {
+                progressMs: Math.max(0, Number(track.progressMs) || 0),
+                durationMs: Math.max(0, Number(track.durationMs) || 0),
+                isPlaying: Boolean(track.isPlaying),
+                sampledAt: Date.now(),
+            };
+        }
+        renderPlaybackProgress();
+        updatePlaybackControls();
+    }
+
+    function mobileAnnotationAutoScrollEnabled() {
+        return window.matchMedia("(max-width: 700px), (orientation: portrait) and (pointer: coarse)").matches;
+    }
+
+    function revealGeniusAnnotationAtTop() {
+        if (!mobileAnnotationAutoScrollEnabled() || !activeEmbedFrame || !activeEmbedFrame.isConnected) return;
+
+        const now = Date.now();
+        if (now - lastEmbedInteractionAt < 450) return;
+        lastEmbedInteractionAt = now;
+
+        window.setTimeout(() => {
+            if (!activeEmbedFrame || !activeEmbedFrame.isConnected) return;
+            const top = embedContainer.getBoundingClientRect().top + window.scrollY - 12;
+            window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+
+            // Return focus to the host page after Genius processes the click.
+            // This allows the next iframe interaction to be detected as well.
+            window.setTimeout(() => {
+                try {
+                    focusSink.focus({ preventScroll: true });
+                } catch (error) {
+                    focusSink.focus();
+                }
+            }, 500);
+        }, 140);
+    }
+
+    function queueGeniusAnnotationReveal() {
+        if (!mobileAnnotationAutoScrollEnabled()) return;
+
+        const startingScrollY = window.scrollY;
+        window.setTimeout(() => {
+            // A swipe that began over the iframe can also move focus into it.
+            // Do not jump to the annotation area while the user is scrolling.
+            if (Math.abs(window.scrollY - startingScrollY) > 18) return;
+            revealGeniusAnnotationAtTop();
+        }, 220);
     }
 
     function stopEmbedResizePolling() {
@@ -143,7 +256,7 @@
     <base target="_blank">
     <style>
         :root { color-scheme: light; }
-        html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; }
+        html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; font-size: 16px; }
         body { isolation: isolate; overflow: hidden; position: relative; }
 
         /* Genius renders the lyrics inside a cross-origin child frame. Keep
@@ -161,8 +274,15 @@
             z-index: 2147483647;
         }
 
-        iframe { background: #ffffff; border: 0; display: block; max-width: 100%; width: 100%; }
-        .rg_embed_link { background: #ffffff; box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
+        iframe {
+            background: #ffffff;
+            border: 0;
+            display: block;
+            max-width: none !important;
+            width: 93.75% !important;
+            zoom: 1.0666667 !important;
+        }
+        .rg_embed_link { background: #ffffff; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 16px; padding: 18px; }
     </style>
 </head>
 <body>
@@ -192,6 +312,20 @@
                     height
                 }, '*');
             };
+
+            const reportInteraction = () => {
+                parent.postMessage({
+                    type: '${GENIUS_EMBED_INTERACTION_MESSAGE}',
+                    songId: ${songId}
+                }, '*');
+            };
+
+            window.addEventListener('blur', () => {
+                window.setTimeout(() => {
+                    const active = document.activeElement;
+                    if (active && active.tagName === 'IFRAME') reportInteraction();
+                }, 0);
+            });
 
             window.addEventListener('load', reportHeight);
             window.setTimeout(reportHeight, 250);
@@ -260,6 +394,7 @@
         embedCard.classList.add("lyrics-hidden");
         clearArtwork();
         clearEmbed();
+        setPlaybackSnapshot(null);
         setStatus("Spotify is connected, but no song is currently playing.");
     }
 
@@ -277,17 +412,16 @@
         sourceBadge.textContent = track.isLocal
             ? (track.artworkSource === "lastfm" ? "Spotify Local File · Last.fm Artwork" : "Spotify Local File")
             : "Spotify Track";
+        setPlaybackSnapshot(track);
         const geniusArtworkFallback = track.isLocal
             ? ""
             : (geniusSong && (geniusSong.thumbnailUrl || geniusSong.imageUrl));
         setArtwork(track.coverUrl || geniusArtworkFallback, track.album || track.title);
-        setExternalLink(spotifyLink, track.spotifyUrl || "");
 
         if (!geniusSong) {
             annotationBadge.classList.add("lyrics-hidden");
             descriptionElement.textContent = "There is no description for this track";
             descriptionElement.classList.add("empty");
-            setExternalLink(geniusLink, "");
             if (trackChanged || lastGeniusSongId !== null) {
                 clearEmbed("No Genius lyrics page was matched for this track.");
             }
@@ -322,7 +456,6 @@
             descriptionElement.classList.add("empty");
         }
 
-        setExternalLink(geniusLink, geniusSong.url || "");
         renderGeniusEmbed(geniusSong);
         const playbackLabel = track.isPlaying ? "Now playing" : "Paused on";
         setStatus(`${playbackLabel}: ${track.artist} - ${track.title}`, "success");
@@ -358,6 +491,7 @@
                 songCard.classList.add("lyrics-hidden");
                 embedCard.classList.add("lyrics-hidden");
                 clearEmbed();
+                setPlaybackSnapshot(null);
                 setStatus("Spotify is not connected. Press “Login with Spotify” to continue.", "error");
                 return;
             }
@@ -388,6 +522,11 @@
         const data = event.data;
         if (!data || typeof data !== "object" || Number(data.songId) !== lastGeniusSongId) return;
 
+        if (data.type === GENIUS_EMBED_INTERACTION_MESSAGE) {
+            queueGeniusAnnotationReveal();
+            return;
+        }
+
         if (data.type === GENIUS_EMBED_HEIGHT_MESSAGE) {
             const height = Number(data.height);
             if (Number.isFinite(height) && height >= 160) {
@@ -397,9 +536,72 @@
         }
 
         if (data.type === GENIUS_EMBED_ERROR_MESSAGE) {
-            clearEmbed("The Genius embed was blocked or could not load. Use “Open on Genius” to view the lyrics page directly.");
+            clearEmbed("The Genius embed was blocked or could not load.");
         }
     });
+
+    async function sendPlaybackControl(action) {
+        if (playbackControlInProgress || !spotifyAuthenticated || !hasCurrentTrack) return;
+
+        const labels = {
+            previous: "Previous track",
+            pause: "Pause",
+            play: "Play",
+            next: "Next track",
+        };
+
+        playbackControlInProgress = true;
+        updatePlaybackControls();
+        setStatus(`${labels[action] || action} requested…`);
+
+        if (action === "pause") {
+            playbackClock.progressMs = estimatedPlaybackProgress();
+            playbackClock.isPlaying = false;
+            playbackClock.sampledAt = Date.now();
+            renderPlaybackProgress();
+        } else if (action === "play") {
+            playbackClock.isPlaying = true;
+            playbackClock.sampledAt = Date.now();
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/control/${encodeURIComponent(action)}`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (error) {
+                throw new Error(`Spotify control returned an unreadable response (${response.status}).`);
+            }
+
+            if (response.status === 401 || !data.authenticated) {
+                setAuthenticated(false);
+                throw new Error(data.error || "Spotify is not connected.");
+            }
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || `Could not ${action} Spotify playback.`);
+            }
+
+            if (action === "previous" || action === "next") {
+                lastTrackKey = "";
+                lastGeniusSongId = null;
+            }
+            setStatus(data.message || `${labels[action] || action} requested.`, "success");
+            window.setTimeout(() => fetchCurrentLyrics(false), action === "previous" || action === "next" ? 850 : 300);
+            window.setTimeout(() => fetchCurrentLyrics(false), action === "previous" || action === "next" ? 1800 : 900);
+        } catch (error) {
+            setStatus(`Spotify control unavailable: ${error.message || error}`, "error");
+            window.setTimeout(() => fetchCurrentLyrics(false), 300);
+        } finally {
+            playbackControlInProgress = false;
+            updatePlaybackControls();
+        }
+    }
 
     function schedulePolling() {
         if (pollTimer) window.clearInterval(pollTimer);
@@ -407,6 +609,19 @@
             if (!document.hidden) fetchCurrentLyrics(false);
         }, POLL_INTERVAL_MS);
     }
+
+    window.addEventListener("blur", () => {
+        window.setTimeout(() => {
+            if (activeEmbedFrame && document.activeElement === activeEmbedFrame) {
+                queueGeniusAnnotationReveal();
+            }
+        }, 0);
+    });
+
+    previousTrackButton.addEventListener("click", () => sendPlaybackControl("previous"));
+    pauseButton.addEventListener("click", () => sendPlaybackControl("pause"));
+    playButton.addEventListener("click", () => sendPlaybackControl("play"));
+    nextTrackButton.addEventListener("click", () => sendPlaybackControl("next"));
 
     loginButton.addEventListener("click", () => {
         window.location.href = `${API_BASE_URL}/login?next=${encodeURIComponent("/lyrics.html")}`;
@@ -422,6 +637,8 @@
         if (!document.hidden) fetchCurrentLyrics(false);
     });
 
+    window.setInterval(renderPlaybackProgress, 250);
+    setPlaybackSnapshot(null);
     fetchCurrentLyrics(false);
     schedulePolling();
 })();

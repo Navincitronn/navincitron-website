@@ -180,6 +180,7 @@
 
         .lyrics-description {
             color: #eeeeee;
+            font-size: 16px;
             line-height: 1.55;
             margin: 12px 0 0;
             white-space: pre-line;
@@ -190,20 +191,56 @@
             font-style: italic;
         }
 
-        .lyrics-links {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
+        .lyrics-playback {
             margin-top: 16px;
         }
 
-        .lyrics-links a {
-            color: #87CEEB;
-            font-weight: bold;
+        .lyrics-progress-time-row {
+            color: #dddddd;
+            display: flex;
+            font-size: 13px;
+            justify-content: space-between;
+            margin-bottom: 6px;
         }
 
-        .lyrics-links a[hidden] {
-            display: none;
+        .lyrics-progress-track {
+            background-color: #292929;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 999px;
+            height: 10px;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .lyrics-progress-fill {
+            background-color: #87CEEB;
+            border-radius: inherit;
+            height: 100%;
+            transition: width 0.2s linear;
+            width: 0;
+        }
+
+        .lyrics-transport-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .lyrics-transport-controls button {
+            background-color: #4f5963;
+            flex: 1 1 120px;
+            margin: 0;
+            min-width: 112px;
+        }
+
+        .lyrics-transport-controls button:hover:not(:disabled) {
+            background-color: #555555;
+        }
+
+        .lyrics-transport-controls button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
         }
 
         .lyrics-embed-card {
@@ -276,9 +313,18 @@
                 font-size: 25px;
             }
 
-            .lyrics-badges,
-            .lyrics-links {
+            .lyrics-badges {
                 justify-content: center;
+            }
+
+            .lyrics-transport-controls {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .lyrics-transport-controls button {
+                min-width: 0;
+                width: 100%;
             }
         }
     </style>
@@ -336,9 +382,29 @@
 
                     <p id="lyrics-description" class="lyrics-description empty">There is no description for this track</p>
 
-                    <div class="lyrics-links">
-                        <a id="lyrics-genius-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open on Genius</a>
-                        <a id="lyrics-spotify-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open on Spotify</a>
+                    <div id="lyrics-playback" class="lyrics-playback">
+                        <div class="lyrics-progress-time-row" aria-hidden="true">
+                            <span id="lyrics-progress-current">0:00</span>
+                            <span id="lyrics-progress-duration">0:00</span>
+                        </div>
+                        <div
+                            id="lyrics-progress-track"
+                            class="lyrics-progress-track"
+                            role="progressbar"
+                            aria-label="Song progress"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            aria-valuenow="0"
+                        >
+                            <div id="lyrics-progress-fill" class="lyrics-progress-fill"></div>
+                        </div>
+
+                        <div class="lyrics-transport-controls" aria-label="Spotify playback controls">
+                            <button id="lyrics-previous-track" type="button">Previous Track</button>
+                            <button id="lyrics-pause" type="button">Pause</button>
+                            <button id="lyrics-play" type="button">Play</button>
+                            <button id="lyrics-next-track" type="button">Next Track</button>
+                        </div>
                     </div>
                 </div>
             </article>
@@ -352,6 +418,6 @@
     </main>
 
     <footer></footer>
-    <script src="lyrics.js?v=20260712-genius-uniform-969693-v2"></script>
+    <script src="lyrics.js?v=20260712-mobile-annotation-progress-controls-v1"></script>
 </body>
 </html>
