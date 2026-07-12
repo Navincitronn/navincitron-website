@@ -37,6 +37,10 @@
     let hasCurrentTrack = false;
     let playbackControlInProgress = false;
     let lastEmbedInteractionAt = 0;
+    let annotationReturnScrollY = null;
+    let annotationScrollActive = false;
+    let annotationAutoScrollAt = 0;
+    let annotationRestoreInProgress = false;
     let playbackClock = {
         progressMs: 0,
         durationMs: 0,
@@ -152,6 +156,30 @@
         return window.matchMedia("(max-width: 700px), (orientation: portrait) and (pointer: coarse)").matches;
     }
 
+    function resetGeniusAnnotationScrollState() {
+        annotationReturnScrollY = null;
+        annotationScrollActive = false;
+        annotationAutoScrollAt = 0;
+        annotationRestoreInProgress = false;
+    }
+
+    function restoreGeniusAnnotationScroll() {
+        if (!annotationScrollActive || annotationReturnScrollY === null || annotationRestoreInProgress) return;
+
+        const returnScrollY = Math.max(0, Number(annotationReturnScrollY) || 0);
+        annotationRestoreInProgress = true;
+        annotationScrollActive = false;
+        annotationReturnScrollY = null;
+        annotationAutoScrollAt = 0;
+
+        window.setTimeout(() => {
+            window.scrollTo({ top: returnScrollY, behavior: "smooth" });
+            window.setTimeout(() => {
+                annotationRestoreInProgress = false;
+            }, 550);
+        }, 80);
+    }
+
     function revealGeniusAnnotationAtTop() {
         if (!mobileAnnotationAutoScrollEnabled() || !activeEmbedFrame || !activeEmbedFrame.isConnected) return;
 
@@ -159,13 +187,29 @@
         if (now - lastEmbedInteractionAt < 450) return;
         lastEmbedInteractionAt = now;
 
+        // After the first lyric tap, focus is deliberately returned to the host
+        // page. A later tap on Genius's close control therefore enters the child
+        // iframe again. Genius does not expose a cross-origin close event, so a
+        // later, stationary iframe interaction is the best available close
+        // signal. Swipes are filtered in queueGeniusAnnotationReveal().
+        if (annotationScrollActive) {
+            if (now - annotationAutoScrollAt < 850) return;
+            restoreGeniusAnnotationScroll();
+            return;
+        }
+
+        annotationReturnScrollY = window.scrollY;
+        annotationScrollActive = true;
+        annotationAutoScrollAt = now;
+
         window.setTimeout(() => {
-            if (!activeEmbedFrame || !activeEmbedFrame.isConnected) return;
+            if (!activeEmbedFrame || !activeEmbedFrame.isConnected || !annotationScrollActive) return;
             const top = embedContainer.getBoundingClientRect().top + window.scrollY - 12;
             window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 
             // Return focus to the host page after Genius processes the click.
-            // This allows the next iframe interaction to be detected as well.
+            // This makes a later close-button tap detectable as a new iframe
+            // focus transition.
             window.setTimeout(() => {
                 try {
                     focusSink.focus({ preventScroll: true });
@@ -182,7 +226,8 @@
         const startingScrollY = window.scrollY;
         window.setTimeout(() => {
             // A swipe that began over the iframe can also move focus into it.
-            // Do not jump to the annotation area while the user is scrolling.
+            // Do not open or close the auto-scroll state while the user is
+            // vertically scrolling.
             if (Math.abs(window.scrollY - startingScrollY) > 18) return;
             revealGeniusAnnotationAtTop();
         }, 220);
@@ -196,6 +241,7 @@
     }
 
     function clearEmbed(message = "Waiting for a currently playing song.") {
+        resetGeniusAnnotationScrollState();
         lastGeniusSongId = null;
         activeEmbedFrame = null;
         stopEmbedResizePolling();
@@ -355,6 +401,7 @@
         }
 
         stopEmbedResizePolling();
+        resetGeniusAnnotationScrollState();
         lastGeniusSongId = songId;
         embedContainer.replaceChildren();
 
@@ -609,6 +656,12 @@
             if (!document.hidden) fetchCurrentLyrics(false);
         }, POLL_INTERVAL_MS);
     }
+
+    document.addEventListener("pointerdown", (event) => {
+        if (!annotationScrollActive || annotationRestoreInProgress) return;
+        if (embedCard.contains(event.target)) return;
+        restoreGeniusAnnotationScroll();
+    }, true);
 
     window.addEventListener("blur", () => {
         window.setTimeout(() => {
