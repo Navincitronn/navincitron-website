@@ -142,10 +142,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base target="_blank">
     <style>
-        html, body { margin: 0; padding: 0; background: #e1e6eb; color: #111111; }
-        body { isolation: isolate; overflow: hidden; }
-        iframe { background: #e1e6eb; border: 0; display: block; max-width: 100%; mix-blend-mode: multiply; width: 100%; }
-        .rg_embed_link { background: #e1e6eb; box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
+        html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; }
+        body { isolation: isolate; overflow: hidden; position: relative; }
+
+        /* Genius renders the lyrics inside a cross-origin child frame. Its
+           internal white background cannot be changed directly, so this
+           non-interactive tint layer is composited over the rendered embed.
+           The multiply blend preserves black text while converting white to
+           the page's dedicated cool-gray lyrics color. */
+        body::after {
+            background: rgba(169, 184, 198, 0.35);
+            content: "";
+            inset: 0;
+            mix-blend-mode: multiply;
+            pointer-events: none;
+            position: fixed;
+            z-index: 2147483647;
+        }
+
+        iframe { background: #ffffff; border: 0; display: block; max-width: 100%; width: 100%; }
+        .rg_embed_link { background: #ffffff; box-sizing: border-box; font-family: Arial, sans-serif; padding: 18px; }
     </style>
 </head>
 <body>
