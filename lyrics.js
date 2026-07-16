@@ -35,6 +35,7 @@
     let embedResizeTimer = null;
     let spotifyAuthenticated = false;
     let hasCurrentTrack = false;
+    let hasDisplayedTrack = false;
     let playbackControlInProgress = false;
     let lastEmbedInteractionAt = 0;
     let annotationReturnScrollY = null;
@@ -123,7 +124,10 @@
     }
 
     function updatePlaybackControls() {
-        const controlsUnavailable = !spotifyAuthenticated || !hasCurrentTrack || playbackControlInProgress;
+        // Keep transport controls usable whenever the browser is authenticated.
+        // Spotify can often resume the last playback context even when
+        // current_playback() temporarily reports no active item/device.
+        const controlsUnavailable = !spotifyAuthenticated || playbackControlInProgress;
         previousTrackButton.disabled = controlsUnavailable;
         nextTrackButton.disabled = controlsUnavailable;
         pauseButton.disabled = controlsUnavailable || !playbackClock.isPlaying;
@@ -150,6 +154,42 @@
         }
         renderPlaybackProgress();
         updatePlaybackControls();
+    }
+
+    function setPlaybackIdleSnapshot(preserveLastTrack = false) {
+        const preservedProgressMs = preserveLastTrack ? estimatedPlaybackProgress() : 0;
+        const preservedDurationMs = preserveLastTrack
+            ? Math.max(0, Number(playbackClock.durationMs) || 0)
+            : 0;
+
+        hasCurrentTrack = false;
+        playbackClock = {
+            progressMs: Math.min(preservedProgressMs, preservedDurationMs || preservedProgressMs),
+            durationMs: preservedDurationMs,
+            isPlaying: false,
+            sampledAt: Date.now(),
+        };
+        renderPlaybackProgress();
+        updatePlaybackControls();
+    }
+
+    function renderEmptyPlaybackHud(authenticated) {
+        songCard.classList.remove("lyrics-hidden");
+        embedCard.classList.add("lyrics-hidden");
+        clearArtwork();
+        clearEmbed();
+        songTitle.textContent = "No song currently playing";
+        songArtist.textContent = authenticated
+            ? "Spotify is connected"
+            : "Spotify is not connected";
+        songAlbum.textContent = "";
+        sourceBadge.textContent = authenticated ? "Spotify Connected" : "Spotify Not Connected";
+        annotationBadge.classList.add("lyrics-hidden");
+        descriptionElement.textContent = authenticated
+            ? "Press Play to resume Spotify playback. The playback controls remain available while no song is active."
+            : "Log in with Spotify to identify the current song and use the playback controls.";
+        descriptionElement.classList.add("empty");
+        setPlaybackIdleSnapshot(false);
     }
 
     function mobileAnnotationAutoScrollEnabled() {
@@ -436,19 +476,40 @@
     }
 
     function displayNoTrack() {
-        lastTrackKey = "";
-        songCard.classList.add("lyrics-hidden");
-        embedCard.classList.add("lyrics-hidden");
-        clearArtwork();
-        clearEmbed();
-        setPlaybackSnapshot(null);
-        setStatus("Spotify is connected, but no song is currently playing.");
+        songCard.classList.remove("lyrics-hidden");
+
+        if (hasDisplayedTrack) {
+            // Retain the last detected song, artwork, progress, and lyrics. This
+            // keeps the playback HUD useful while Spotify reports no active item.
+            setPlaybackIdleSnapshot(true);
+            if (activeEmbedFrame || lastGeniusSongId !== null) {
+                embedCard.classList.remove("lyrics-hidden");
+            }
+            setStatus("Spotify is connected, but no song is currently playing. The last detected track remains displayed.");
+            return;
+        }
+
+        renderEmptyPlaybackHud(true);
+        setStatus("Spotify is connected, but no song is currently playing. Press Play to resume playback.");
+    }
+
+    function displayDisconnected() {
+        songCard.classList.remove("lyrics-hidden");
+
+        if (hasDisplayedTrack) {
+            setPlaybackIdleSnapshot(true);
+        } else {
+            renderEmptyPlaybackHud(false);
+        }
+
+        setStatus("Spotify is not connected. Press “Login with Spotify” to continue.", "error");
     }
 
     function displayTrack(track, geniusSong, geniusError = "", geniusErrorCode = "") {
         const trackKey = String(track.key || `${track.artist}::${track.title}`);
         const trackChanged = trackKey !== lastTrackKey;
         lastTrackKey = trackKey;
+        hasDisplayedTrack = true;
 
         songCard.classList.remove("lyrics-hidden");
         embedCard.classList.remove("lyrics-hidden");
@@ -535,11 +596,7 @@
 
             if (response.status === 401 || !data.authenticated) {
                 setAuthenticated(false);
-                songCard.classList.add("lyrics-hidden");
-                embedCard.classList.add("lyrics-hidden");
-                clearEmbed();
-                setPlaybackSnapshot(null);
-                setStatus("Spotify is not connected. Press “Login with Spotify” to continue.", "error");
+                displayDisconnected();
                 return;
             }
 
@@ -588,7 +645,7 @@
     });
 
     async function sendPlaybackControl(action) {
-        if (playbackControlInProgress || !spotifyAuthenticated || !hasCurrentTrack) return;
+        if (playbackControlInProgress || !spotifyAuthenticated) return;
 
         const labels = {
             previous: "Previous track",
@@ -691,7 +748,7 @@
     });
 
     window.setInterval(renderPlaybackProgress, 250);
-    setPlaybackSnapshot(null);
+    renderEmptyPlaybackHud(false);
     fetchCurrentLyrics(false);
     schedulePolling();
 })();

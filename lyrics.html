@@ -365,22 +365,22 @@
                 Checking Spotify connection…
             </div>
 
-            <article id="lyrics-song-card" class="lyrics-song-card lyrics-hidden" aria-live="polite">
+            <article id="lyrics-song-card" class="lyrics-song-card" aria-live="polite">
                 <div id="lyrics-cover-frame" class="lyrics-cover-frame empty">
                     <img id="lyrics-cover-image" class="lyrics-cover-image" alt="Current album artwork">
                 </div>
 
                 <div class="lyrics-song-information">
-                    <h1 id="lyrics-song-title" class="lyrics-song-title">No song detected</h1>
-                    <p id="lyrics-song-artist" class="lyrics-song-artist"></p>
+                    <h1 id="lyrics-song-title" class="lyrics-song-title">No song currently playing</h1>
+                    <p id="lyrics-song-artist" class="lyrics-song-artist">Checking Spotify connection…</p>
                     <p id="lyrics-song-album" class="lyrics-song-album"></p>
 
                     <div class="lyrics-badges">
-                        <span id="lyrics-source-badge" class="lyrics-badge">Spotify</span>
+                        <span id="lyrics-source-badge" class="lyrics-badge">Spotify Status</span>
                         <span id="lyrics-annotation-badge" class="lyrics-badge lyrics-hidden"></span>
                     </div>
 
-                    <p id="lyrics-description" class="lyrics-description empty">There is no description for this track</p>
+                    <p id="lyrics-description" class="lyrics-description empty">The playback controls remain available when Spotify is paused or inactive.</p>
 
                     <div id="lyrics-playback" class="lyrics-playback">
                         <div class="lyrics-progress-time-row" aria-hidden="true">
@@ -418,6 +418,6 @@
     </main>
 
     <footer></footer>
-    <script src="lyrics.js?v=20260712-mobile-annotation-return-v2"></script>
+    <script src="lyrics.js?v=20260716-persistent-auth-always-visible-hud-v1"></script>
 </body>
 </html>
