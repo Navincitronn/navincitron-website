@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Navincitron - Albums Ranked</title>
+    <title>Navincitron - Draft Checklist</title>
     <link rel="stylesheet" href="styles.css?v=20260717-topster-checklist-progress-v12">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
-<body data-topster-source="ranked-sheet">
+<body data-topster-source="checklist-file">
     <header>
         <div class="header-left">
             <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
@@ -30,7 +30,7 @@
         <section class="grid-builder-page">
             <div class="title-bar">
                 <br>
-                <h2 class="center">ALBUMS RANKED</h2>
+                <h2 class="center">DRAFT CHECKLIST</h2>
             </div>
             <br>
             <hr>
@@ -52,6 +52,11 @@
                     <select id="topster-range" hidden disabled>
                         <option value="0">All</option>
                     </select>
+                </div>
+                <div class="topster-draft-file-row">
+                    <label for="topster-checklist-file-input">Checklist Notepad file</label>
+                    <input type="file" id="topster-checklist-file-input" accept=".txt,text/plain">
+                    <p class="topster-source-note">Upload a Notepad .txt file with one album per line. End each line with <code>Hifiman Sundara</code>, <code>Hifiman Arya Organic</code>, or <code>Hifiman Susvara Unveiled</code>. Press <strong>Build</strong> twice, then <strong>Save Settings</strong> to publish it to <code>checklist.html</code>.</p>
                 </div>
                 <details class="topster-settings-panel" open>
                     <summary>Topster display settings</summary>
@@ -97,13 +102,6 @@
                         <div class="topster-slider-control">
                             <input type="range" id="topster-album-gap" min="0" max="100" step="1" value="4">
                         </div>
-
-                        <label for="topster-cover-overlay">Cover overlay</label>
-                        <select id="topster-cover-overlay">
-                            <option value="none" selected>Off</option>
-                            <option value="index">Show index</option>
-                            <option value="year">Show release year</option>
-                        </select>
 
                         <label for="topster-font">Font</label>
                         <select id="topster-font">

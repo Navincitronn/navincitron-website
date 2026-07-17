@@ -1538,3 +1538,128 @@ button:hover {
     padding: 8px;
     width: min(100%, 520px);
 }
+
+
+/* Topster loading status / progress */
+.topster-loading-panel {
+    background: #444;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    box-sizing: border-box;
+    margin: 20px auto;
+    max-width: 920px;
+    padding: 18px 20px;
+    text-align: center;
+    width: calc(100% - 36px);
+}
+
+.topster-loading-panel[hidden] {
+    display: none;
+}
+
+.topster-loading-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 0 0 8px;
+}
+
+.topster-loading-text {
+    color: #e2e2e2;
+    line-height: 1.4;
+    margin: 0 0 12px;
+}
+
+.topster-loading-progress {
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+    height: 14px;
+    max-width: 760px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.topster-loading-progress::-webkit-progress-bar {
+    background: #222;
+    border-radius: 999px;
+}
+
+.topster-loading-progress::-webkit-progress-value {
+    background: #1974D2;
+    border-radius: 999px;
+    transition: width 0.25s ease;
+}
+
+.topster-loading-progress::-moz-progress-bar {
+    background: #1974D2;
+    border-radius: 999px;
+}
+
+.topster-loading-percent {
+    color: #cfcfcf;
+    font-size: 13px;
+    margin: 7px 0 0;
+}
+
+.topster-loading-complete .topster-loading-progress::-webkit-progress-value {
+    background: #2d9f4a;
+}
+
+.topster-loading-complete .topster-loading-progress::-moz-progress-bar {
+    background: #2d9f4a;
+}
+
+.topster-loading-error {
+    border-color: rgba(255, 128, 128, 0.72);
+}
+
+.topster-loading-error .topster-loading-text,
+.topster-loading-error .topster-loading-percent {
+    color: #ffb0b0;
+}
+
+.topster-loading-error .topster-loading-progress::-webkit-progress-value {
+    background: #b93838;
+}
+
+.topster-loading-error .topster-loading-progress::-moz-progress-bar {
+    background: #b93838;
+}
+
+/* Headphone image overlays used by draft_checklist.html/checklist.html. */
+.topster-tile.has-checklist-overlay {
+    position: relative;
+}
+
+.topster-checklist-overlay-image {
+    box-sizing: border-box;
+    height: 100%;
+    inset: 0;
+    object-fit: contain;
+    padding: 7%;
+    pointer-events: none;
+    position: absolute;
+    width: 100%;
+    z-index: 3;
+}
+
+
+@media only screen and (max-width: 600px) {
+    .topster-loading-panel {
+        margin: 14px auto;
+        padding: 15px;
+        width: calc(100% - 20px);
+    }
+
+    .topster-loading-title {
+        font-size: 16px;
+    }
+
+    .topster-loading-text {
+        font-size: 13px;
+    }
+
+    .topster-checklist-overlay-image {
+        padding: 9%;
+    }
+}

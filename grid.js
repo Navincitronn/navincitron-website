@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260702-topster-draft-persist-v11';
+const TOPSTER_FRONTEND_VERSION = '20260717-topster-checklist-progress-v12';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -12,6 +12,13 @@ const TOPSTER_LASTFM_API_KEY = '7c87436dbff96020ebb6e3a75cb0f396';
 const MUSICBRAINZ_DELAY_MS = 1200;
 const TOPSTER_SHARED_STORE_API = '/api/topster-shared-store';
 const TOPSTER_DEFAULT_BACKEND_ORIGIN = 'https://api.navincitron.com';
+const TOPSTER_CHECKLIST_OVERLAYS = [
+    { keyword: 'Hifiman Susvara Unveiled', id: 'susvara', imageSrc: 'susvara.png', label: 'Hifiman Susvara Unveiled' },
+    { keyword: 'Hifiman Arya Organic', id: 'arya', imageSrc: 'arya.png', label: 'Hifiman Arya Organic' },
+    { keyword: 'Hifiman Sundara', id: 'sundara', imageSrc: 'sundara.png', label: 'Hifiman Sundara' }
+];
+let topsterLoadingPanel = null;
+let topsterLoadingHideTimer = null;
 let lastMusicBrainzRequestAt = 0;
 let topsterSharedStoreLoaded = false;
 let topsterSharedStoreAvailable = false;
@@ -51,6 +58,108 @@ function safeMarkTopsterPublishDirty() {
 
 
 
+function ensureTopsterLoadingPanel() {
+    if (topsterLoadingPanel && document.body.contains(topsterLoadingPanel)) {
+        return topsterLoadingPanel;
+    }
+
+    const existingPanel = document.getElementById('topster-loading-panel');
+    if (existingPanel) {
+        topsterLoadingPanel = existingPanel;
+        return existingPanel;
+    }
+
+    const section = document.querySelector('.grid-builder-page');
+    if (!section) return null;
+
+    const panel = document.createElement('div');
+    panel.className = 'topster-loading-panel';
+    panel.id = 'topster-loading-panel';
+    panel.setAttribute('role', 'status');
+    panel.setAttribute('aria-live', 'polite');
+    panel.innerHTML = `
+        <p class="topster-loading-title">Loading Topster</p>
+        <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+        <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
+        <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
+    `;
+
+    const output = document.getElementById('topster-output');
+    if (output && output.parentNode === section) {
+        section.insertBefore(panel, output);
+    } else {
+        section.appendChild(panel);
+    }
+
+    topsterLoadingPanel = panel;
+    return panel;
+}
+
+function setTopsterLoadingProgress(percent, text, options = {}) {
+    const panel = ensureTopsterLoadingPanel();
+    if (!panel) return;
+
+    window.clearTimeout(topsterLoadingHideTimer);
+    panel.hidden = false;
+    panel.classList.toggle('topster-loading-error', Boolean(options.error));
+    panel.classList.toggle('topster-loading-complete', Boolean(options.complete));
+
+    const progress = panel.querySelector('.topster-loading-progress');
+    const label = panel.querySelector('.topster-loading-text');
+    const percentLabel = panel.querySelector('.topster-loading-percent');
+    const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+
+    if (label && text) label.textContent = text;
+    if (progress) {
+        progress.value = safePercent;
+        progress.textContent = `${safePercent}%`;
+    }
+    if (percentLabel) percentLabel.textContent = `${safePercent}%`;
+}
+
+function completeTopsterLoading(text = 'Topster loaded.') {
+    setTopsterLoadingProgress(100, text, { complete: true });
+    topsterLoadingHideTimer = window.setTimeout(() => {
+        if (topsterLoadingPanel) topsterLoadingPanel.hidden = true;
+    }, 1400);
+}
+
+function failTopsterLoading(text) {
+    setTopsterLoadingProgress(100, text || 'Topster loading failed.', { error: true });
+}
+
+function isChecklistTopsterSource() {
+    return getTopsterDataSourceConfig().kind === 'checklist-file';
+}
+
+function extractChecklistOverlayMetadata(rawLine) {
+    const original = String(rawLine || '').trim();
+    const lowered = original.toLocaleLowerCase();
+
+    for (const overlay of TOPSTER_CHECKLIST_OVERLAYS) {
+        const keyword = overlay.keyword.toLocaleLowerCase();
+        if (!lowered.endsWith(keyword)) continue;
+
+        const albumLine = original.slice(0, original.length - overlay.keyword.length).trim();
+        if (!albumLine) break;
+
+        return {
+            albumLine,
+            checklistOverlay: overlay.id,
+            checklistOverlayImage: overlay.imageSrc,
+            checklistOverlayLabel: overlay.label
+        };
+    }
+
+    return {
+        albumLine: original,
+        checklistOverlay: '',
+        checklistOverlayImage: '',
+        checklistOverlayLabel: ''
+    };
+}
+
+
 
 function stripTrailingSlash(value) {
     return String(value || '').replace(/\/+$/, '');
@@ -82,6 +191,7 @@ function getTopsterStoreSourceKey() {
     const kind = getTopsterDataSourceConfig().kind;
     if (kind === 'ranked-sheet') return 'ranked';
     if (kind === 'draft-file') return 'draft';
+    if (kind === 'checklist-file') return 'checklist';
     return 'grid';
 }
 
@@ -149,6 +259,7 @@ function isTopsterEditorPage() {
     return fileName === 'grid.html'
         || fileName === 'ranked_grid.html'
         || fileName === 'draft_grid.html'
+        || fileName === 'draft_checklist.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -165,6 +276,16 @@ function buildTopsterAdminLoginUrl() {
 
 function getTopsterDataSourceConfig() {
     const sourceName = String((document.body && document.body.dataset.topsterSource) || '').trim().toLowerCase();
+
+    if (sourceName === 'checklist-file' || sourceName === 'checklist') {
+        return {
+            kind: 'checklist-file',
+            label: 'checklist notepad file',
+            readLabel: 'checklist notepad file',
+            apiPath: '/api/checklist-text',
+            fileInputId: 'topster-checklist-file-input'
+        };
+    }
 
     if (sourceName === 'draft-file' || sourceName === 'draft') {
         return {
@@ -225,7 +346,10 @@ async function initTopsterImporter(albumCards) {
     const fontSelect = document.getElementById('topster-font');
     const coverOverlaySelect = document.getElementById('topster-cover-overlay');
     const deviceProfileSelect = document.getElementById('topster-device-profile');
-    const draftFileInput = document.getElementById('topster-draft-file-input');
+    const sourceConfig = getTopsterDataSourceConfig();
+    const sourceFileInput = sourceConfig.fileInputId
+        ? document.getElementById(sourceConfig.fileInputId)
+        : null;
     const coverPicker = document.getElementById('topster-cover-picker');
     const coverPickerTitle = document.getElementById('topster-cover-picker-title');
     const coverPickerSearch = document.getElementById('topster-cover-picker-search');
@@ -241,6 +365,7 @@ async function initTopsterImporter(albumCards) {
 
     buildButton.textContent = 'Build';
     document.documentElement.dataset.topsterGridJsVersion = TOPSTER_FRONTEND_VERSION;
+    setTopsterLoadingProgress(4, 'Connecting to the saved Topster settings and cover cache...');
 
     let albumCatalog = buildAlbumCatalog(albumCards || [], window.location.href);
     let importedEntries = [];
@@ -250,6 +375,12 @@ async function initTopsterImporter(albumCards) {
     let currentSourceText = '';
     let currentSourceName = '';
     await loadTopsterSharedStore();
+    setTopsterLoadingProgress(
+        14,
+        topsterSharedStoreAvailable
+            ? 'Saved settings and cover cache received. Preparing the Topster source...'
+            : 'Shared storage is temporarily unavailable. Preparing the local Topster editor...'
+    );
     let pickerEntryIndex = null;
     let pickerLookupToken = 0;
     const topsterSourceLabel = getTopsterSourceLabel();
@@ -319,18 +450,19 @@ async function initTopsterImporter(albumCards) {
         saveSettingsButton.addEventListener('click', publishTopsterSettingsAndCovers);
     }
 
-    if (draftFileInput) {
-        draftFileInput.addEventListener('change', () => {
-            const selectedFile = draftFileInput.files && draftFileInput.files[0] ? draftFileInput.files[0] : null;
+    if (sourceFileInput) {
+        sourceFileInput.addEventListener('change', () => {
+            const selectedFile = sourceFileInput.files && sourceFileInput.files[0] ? sourceFileInput.files[0] : null;
             activeLookupToken++;
             clearTopsterPrelookupState();
             currentGridSignature = '';
             currentSourceText = '';
             currentSourceName = selectedFile ? selectedFile.name : '';
             if (selectedFile) {
-                status.textContent = `Selected ${selectedFile.name}. Press Build to read this draft file and refresh the draft Topster.`;
+                status.textContent = `Selected ${selectedFile.name}. Press Build to read this ${sourceConfig.readLabel} and refresh the Topster.`;
+                setTopsterLoadingProgress(0, `Ready to read ${selectedFile.name}. Press Build to begin.`);
             } else {
-                status.textContent = 'No draft file selected.';
+                status.textContent = `No ${sourceConfig.readLabel} selected.`;
             }
         });
     }
@@ -355,7 +487,9 @@ async function initTopsterImporter(albumCards) {
     }
 
     function getEffectiveTopsterSettings(settings = currentSettings) {
-        return normalizeTopsterSettings(settings);
+        const normalized = normalizeTopsterSettings(settings);
+        if (isChecklistTopsterSource()) normalized.coverOverlay = 'none';
+        return normalized;
     }
 
     function syncCurrentSettingsProfileToViewport() {
@@ -513,24 +647,37 @@ async function initTopsterImporter(albumCards) {
 
         if (saveSettingsButton) saveSettingsButton.disabled = true;
         const sourceKey = getTopsterStoreSourceKey();
-        const publicPageName = sourceKey === 'ranked' ? 'ranked_album_list.html' : (sourceKey === 'draft' ? 'draft_album_list.html' : 'album_list.html');
-        const sourceDisplayName = sourceKey === 'ranked' ? 'Ranked Albums' : (sourceKey === 'draft' ? 'Draft Albums' : 'Albums');
+        const publicPageName = sourceKey === 'ranked'
+            ? 'ranked_album_list.html'
+            : (sourceKey === 'draft'
+                ? 'draft_album_list.html'
+                : (sourceKey === 'checklist' ? 'checklist.html' : 'album_list.html'));
+        const sourceDisplayName = sourceKey === 'ranked'
+            ? 'Ranked Albums'
+            : (sourceKey === 'draft'
+                ? 'Draft Albums'
+                : (sourceKey === 'checklist' ? 'Checklist' : 'Albums'));
         status.textContent = `Saving ${sourceDisplayName} settings and cover selections to the shared backend...`;
+        setTopsterLoadingProgress(92, `Publishing ${sourceDisplayName} settings, source text, and cover cache...`);
 
         const sharedPayload = {
             settings: currentSettingsProfiles,
             coverCache: getPublishableCoverCache()
         };
-        if (sourceKey === 'draft') {
+        if (sourceKey === 'draft' || sourceKey === 'checklist') {
             if (!currentSourceText && !importedEntries.length) {
-                status.textContent = 'Select a draft .txt file and press Build before saving the shared draft Topster.';
+                status.textContent = sourceKey === 'checklist'
+                    ? 'Select a checklist .txt file and press Build before saving the shared checklist Topster.'
+                    : 'Select a draft .txt file and press Build before saving the shared draft Topster.';
                 if (saveSettingsButton) saveSettingsButton.disabled = false;
                 return;
             }
             const publishSourceText = currentSourceText || topsterSharedSourceText || '';
             if (publishSourceText) {
                 sharedPayload.sourceText = publishSourceText;
-                sharedPayload.sourceName = currentSourceName || topsterSharedSourceName || 'draft notepad file';
+                sharedPayload.sourceName = currentSourceName
+                    || topsterSharedSourceName
+                    || (sourceKey === 'checklist' ? 'checklist notepad file' : 'draft notepad file');
                 sharedPayload.sourceSignature = currentGridSignature || topsterSharedSourceSignature || simpleTextHash(publishSourceText);
             }
         }
@@ -541,9 +688,11 @@ async function initTopsterImporter(albumCards) {
 
         if (ok) {
             topsterHasUnsavedPublishedChanges = false;
-            status.textContent = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' ? ', source file,' : ''} and cover selections. ${publicPageName} will use these values.`;
+            status.textContent = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' || sourceKey === 'checklist' ? ', source file,' : ''} and cover selections. ${publicPageName} will use these values.`;
+            completeTopsterLoading(`Published ${sourceDisplayName}. ${publicPageName} is ready.`);
         } else {
             status.textContent = 'Shared save failed. Check that the backend is deployed, the admin session is active, and /api/topster-shared-store is reachable.';
+            failTopsterLoading(status.textContent);
         }
     }
 
@@ -565,9 +714,14 @@ async function initTopsterImporter(albumCards) {
     }
 
     if (topsterAutoLoad) {
+        setTopsterLoadingProgress(18, `Reading ${topsterSourceLabel}...`);
         window.setTimeout(() => {
             buildTopsterFromGridFile({ force: false, source: 'autoload' });
         }, 0);
+    } else if (importedEntries.length) {
+        completeTopsterLoading('Loaded the saved Topster preview.');
+    } else {
+        completeTopsterLoading('Topster editor ready.');
     }
 
     function openCoverPicker(entry, entryIndex) {
@@ -680,7 +834,7 @@ async function initTopsterImporter(albumCards) {
         window.requestAnimationFrame(syncAllTopsterSidebarHeights);
 
         status.textContent = topsterEditorPage
-            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : (getTopsterStoreSourceKey() === 'draft' ? 'draft_album_list.html' : 'album_list.html')}.`
+            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : (getTopsterStoreSourceKey() === 'draft' ? 'draft_album_list.html' : (getTopsterStoreSourceKey() === 'checklist' ? 'checklist.html' : 'album_list.html'))}.`
             : `Updated cover for ${formatEntryName(entry)}.`;
 
         closeCoverPicker();
@@ -694,13 +848,16 @@ async function initTopsterImporter(albumCards) {
         buildButton.disabled = true;
         refreshButton.disabled = true;
         status.textContent = `Reading ${topsterSourceLabel}...`;
+        setTopsterLoadingProgress(18, status.textContent);
 
         try {
             const loaded = await loadGridTextFile();
+            setTopsterLoadingProgress(25, `Read ${loaded.source || topsterSourceLabel}. Parsing album entries...`);
             if (token !== activeLookupToken) return;
 
             if (!force && importedEntries.length && currentGridSignature && loaded.signature === currentGridSignature) {
                 status.textContent = `${topsterSourceLabel} has not changed. Current Topsters grid was kept.`;
+                completeTopsterLoading(status.textContent);
                 buildButton.disabled = false;
                 refreshButton.disabled = false;
                 return;
@@ -716,16 +873,19 @@ async function initTopsterImporter(albumCards) {
         } catch (error) {
             if (token !== activeLookupToken) return;
             status.textContent = error && error.message ? error.message : `Could not read ${topsterSourceLabel}.`;
+            failTopsterLoading(status.textContent);
             buildButton.disabled = false;
             refreshButton.disabled = false;
         }
     }
 
     async function buildTopsterFromText(text, signature, source, options = {}) {
+        setTopsterLoadingProgress(30, `Parsing album entries from ${topsterSourceLabel}...`);
         const parsed = parseAlbumText(text);
 
         if (parsed.length === 0) {
             status.textContent = `${topsterSourceLabel} did not contain any album lines.`;
+            failTopsterLoading(status.textContent);
             output.hidden = true;
             buildButton.disabled = false;
             refreshButton.disabled = false;
@@ -747,6 +907,7 @@ async function initTopsterImporter(albumCards) {
         });
 
         const selectedStart = populateRangeSelect(importedEntries.length, 0);
+        setTopsterLoadingProgress(36, `Prepared ${importedEntries.length} album entries. Building the Topster layout...`);
         renderTopster(importedEntries, selectedStart, { scroll: true });
         saveCurrentTopster();
 
@@ -851,6 +1012,8 @@ async function initTopsterImporter(albumCards) {
 
         const updatePrelookupStatus = () => {
             status.textContent = `Preloading cover cache ${processedCount} of ${total}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Images will load after pressing Build again.`;
+            const progress = total ? 38 + ((processedCount / total) * 54) : 38;
+            setTopsterLoadingProgress(progress, status.textContent);
         };
 
         const workerCount = Math.min(TOPSTER_PRELOOKUP_CONCURRENCY, total);
@@ -913,7 +1076,8 @@ async function initTopsterImporter(albumCards) {
         stopButton.disabled = true;
         buildButton.disabled = false;
         refreshButton.disabled = false;
-        status.textContent = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters, then Save Settings to publish the updated draft/list cache.`;
+        status.textContent = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters, then Save Settings to publish the updated cache.`;
+        completeTopsterLoading(status.textContent);
     }
 
     async function resolveVisibleRange(startIndex = 0) {
@@ -936,6 +1100,10 @@ async function initTopsterImporter(albumCards) {
             renderTopster(importedEntries, 0, { scroll: false });
             saveCurrentTopster();
             status.textContent = `Looking up cover ${i + 1} of ${importedEntries.length}: ${formatEntryName(entry)}`;
+            const lookupProgress = importedEntries.length
+                ? 38 + (((i + 1) / importedEntries.length) * 58)
+                : 38;
+            setTopsterLoadingProgress(lookupProgress, status.textContent);
 
             try {
                 const cover = await resolveAlbumCover(entry, albumCatalog, config);
@@ -967,6 +1135,7 @@ async function initTopsterImporter(albumCards) {
             const missingCount = importedEntries.filter(entry => entry.status === 'missing').length;
             saveCurrentTopster();
             status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.${topsterEditorPage ? ' Press Save Settings to publish the updated source/settings/cache.' : ''}`;
+            completeTopsterLoading(status.textContent);
         }
     }
 
@@ -1442,7 +1611,7 @@ function normalizeTopsterSettings(settings) {
     const allowedCoverOverlays = new Set(['none', 'index', 'year']);
     const raw = settings && typeof settings === 'object' ? settings : {};
 
-    return {
+    const normalized = {
         width: clampInteger(raw.width, 1, 25, 10),
         height: clampInteger(raw.height, 1, 10, 10),
         sidebarMode: allowedSidebarModes.has(raw.sidebarMode) ? raw.sidebarMode : 'artist-title',
@@ -1451,6 +1620,9 @@ function normalizeTopsterSettings(settings) {
         font: allowedFonts.has(raw.font) ? raw.font : 'Arial',
         coverOverlay: allowedCoverOverlays.has(raw.coverOverlay) ? raw.coverOverlay : 'none'
     };
+
+    if (isChecklistTopsterSource()) normalized.coverOverlay = 'none';
+    return normalized;
 }
 
 function clampInteger(value, min, max, fallback) {
@@ -1553,7 +1725,7 @@ function clearSavedTopsterState() {
 async function loadGridTextFile() {
     const source = getTopsterDataSourceConfig();
 
-    if (source.kind === 'draft-file') {
+    if (source.kind === 'draft-file' || source.kind === 'checklist-file') {
         return loadDraftTextFile(source);
     }
 
@@ -1592,15 +1764,15 @@ async function loadDraftTextFile(source = getTopsterDataSourceConfig()) {
     }
 
     throw new Error(isTopsterEditorPage()
-        ? 'Select a Notepad .txt file, then press Build.'
-        : 'No draft Topster file has been published yet.');
+        ? `Select a Notepad .txt file for the ${source.readLabel}, then press Build.`
+        : `No ${source.readLabel} has been published yet.`);
 }
 
 function readTextFromSelectedDraftFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result || ''));
-        reader.onerror = () => reject(new Error('Could not read the selected Notepad file.'));
+        reader.onerror = () => reject(new Error('Could not read the selected Notepad .txt file.'));
         reader.readAsText(file);
     });
 }
@@ -2115,6 +2287,21 @@ function parseAlbumText(text) {
         .filter(Boolean)
         .map(line => line.replace(/^\s*\d+[.)]\s*/, '').trim())
         .map(line => {
+            const originalLine = line;
+            const checklistMetadata = isChecklistTopsterSource()
+                ? extractChecklistOverlayMetadata(line)
+                : {
+                    albumLine: line,
+                    checklistOverlay: '',
+                    checklistOverlayImage: '',
+                    checklistOverlayLabel: ''
+                };
+            line = checklistMetadata.albumLine;
+            const checklistFields = {
+                checklistOverlay: checklistMetadata.checklistOverlay,
+                checklistOverlayImage: checklistMetadata.checklistOverlayImage,
+                checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
+            };
             const artistAlbumDateMatch = line.match(artistAlbumDateLine);
             if (artistAlbumDateMatch) {
                 return {
@@ -2122,7 +2309,8 @@ function parseAlbumText(text) {
                     title: cleanAlbumTitle(artistAlbumDateMatch[2]),
                     dateText: artistAlbumDateMatch[3].trim(),
                     year: extractYear(artistAlbumDateMatch[3]),
-                    raw: line
+                    raw: originalLine,
+                    ...checklistFields
                 };
             }
 
@@ -2133,7 +2321,8 @@ function parseAlbumText(text) {
                     title: cleanAlbumTitle(albumDateMatch[1]),
                     dateText: albumDateMatch[2].trim(),
                     year: extractYear(albumDateMatch[2]),
-                    raw: line
+                    raw: originalLine,
+                    ...checklistFields
                 };
             }
 
@@ -2145,7 +2334,8 @@ function parseAlbumText(text) {
                     title: cleanAlbumTitle(artistAlbumMatch[2]),
                     dateText: '',
                     year: extractYear(cleanedLine),
-                    raw: line
+                    raw: originalLine,
+                    ...checklistFields
                 };
             }
 
@@ -2154,7 +2344,8 @@ function parseAlbumText(text) {
                 title: cleanAlbumTitle(cleanedLine),
                 dateText: '',
                 year: extractYear(cleanedLine),
-                raw: line
+                raw: originalLine,
+                    ...checklistFields
             };
         })
         .filter(entry => entry.title.length > 0);
@@ -2815,6 +3006,17 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         tile.appendChild(overlay);
     }
 
+    if (cover && cover.imageSrc && entry.checklistOverlayImage) {
+        const checklistOverlay = document.createElement('img');
+        checklistOverlay.className = `topster-checklist-overlay-image topster-checklist-overlay-${entry.checklistOverlay || 'unknown'}`;
+        checklistOverlay.src = resolveMaybeRelativeUrl(entry.checklistOverlayImage, window.location.href);
+        checklistOverlay.alt = entry.checklistOverlayLabel || 'Checklist headphone';
+        checklistOverlay.loading = 'lazy';
+        checklistOverlay.onerror = () => checklistOverlay.remove();
+        tile.classList.add('has-checklist-overlay');
+        tile.appendChild(checklistOverlay);
+    }
+
     const mobileInfo = document.createElement('span');
     mobileInfo.className = `topster-mobile-tile-info ${getTopsterMobileInfoLengthClass(label)}`;
     mobileInfo.textContent = label;
@@ -2866,5 +3068,6 @@ document.addEventListener('DOMContentLoaded', () => {
             status.textContent = `Topster initialization failed. Reload the page after clearing browser cache. Detail: ${error && error.message ? error.message : error}`;
             status.hidden = false;
         }
+        failTopsterLoading(`Topster initialization failed: ${error && error.message ? error.message : error}`);
     });
 });

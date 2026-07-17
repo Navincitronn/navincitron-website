@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Albums Ranked</title>
-    <link rel="stylesheet" href="styles.css?v=20260702-topster-draft-persist-v11">
+    <link rel="stylesheet" href="styles.css?v=20260717-topster-checklist-progress-v12">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
 <body class="album-list-page" data-topster-mode="list" data-topster-readonly="true" data-topster-autoload="true" data-topster-source="ranked-sheet">
@@ -35,6 +35,13 @@
                 <p>Below is a topsters of the albums that I have listened to and ranked from my list (I am currently in 1975). Each of these albums, I have listened to at least three times, once on headphones, once in the car, and once on vinyl (with the final listen always being on vinyl).</p>
             </div>
             <hr>
+
+            <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
+                <p class="topster-loading-title">Loading Topster</p>
+                <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+                <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
+                <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
+            </div>
 
             <div class="topster-import-panel" id="topster-import-panel" hidden>
                 <div class="topster-controls topster-file-controls">
@@ -92,6 +99,6 @@
         </section>
     </main>
 
-    <script src="topster_grid.js?v=20260702-topster-draft-persist-v11"></script>
+    <script src="topster_grid.js?v=20260717-topster-checklist-progress-v12"></script>
 </body>
 </html>
