@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260717-topster-checklist-progress-v12';
+const TOPSTER_FRONTEND_VERSION = '20260717-topster-source-isolation-v13';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -188,6 +188,17 @@ function buildTopsterApiUrl(path) {
 }
 
 function getTopsterStoreSourceKey() {
+    // The storage namespace is explicitly declared by each Topster page pair.
+    // This prevents display settings or cover caches from leaking between grid,
+    // ranked, draft, and checklist even if a page's data-source label changes.
+    const body = document.body;
+    const explicitSource = String(
+        (body && body.dataset && body.dataset.topsterStoreSource) || ''
+    ).trim().toLowerCase();
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist']);
+    if (allowedSources.has(explicitSource)) return explicitSource;
+
+    // Backward-compatible fallback for older page copies.
     const kind = getTopsterDataSourceConfig().kind;
     if (kind === 'ranked-sheet') return 'ranked';
     if (kind === 'draft-file') return 'draft';
@@ -661,6 +672,7 @@ async function initTopsterImporter(albumCards) {
         setTopsterLoadingProgress(92, `Publishing ${sourceDisplayName} settings, source text, and cover cache...`);
 
         const sharedPayload = {
+            source: sourceKey,
             settings: currentSettingsProfiles,
             coverCache: getPublishableCoverCache()
         };
@@ -1393,7 +1405,12 @@ async function loadTopsterSharedStore() {
         }
 
         const payload = await response.json();
-        if (!payload || payload.ok !== true) {
+        const requestedSource = getTopsterStoreSourceKey();
+        if (!payload || payload.ok !== true || payload.source !== requestedSource) {
+            console.error('Topster shared-store source mismatch.', {
+                requestedSource,
+                returnedSource: payload && payload.source
+            });
             topsterSharedStoreAvailable = false;
             topsterSharedStoreWritable = false;
             return;
@@ -1430,7 +1447,14 @@ async function saveTopsterSharedStoreNow(payload) {
 
         if (!response.ok) return false;
         const result = await response.json();
-        if (!result || result.ok !== true) return false;
+        const requestedSource = getTopsterStoreSourceKey();
+        if (!result || result.ok !== true || result.source !== requestedSource) {
+            console.error('Topster shared-save source mismatch.', {
+                requestedSource,
+                returnedSource: result && result.source
+            });
+            return false;
+        }
 
         if (result.coverCache && typeof result.coverCache === 'object') {
             topsterSharedCoverCache = result.coverCache;
