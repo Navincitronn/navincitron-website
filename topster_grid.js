@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260717-topster-source-isolation-v13';
+const TOPSTER_FRONTEND_VERSION = '20260720-topster-backend-wait-desktop-tooltip-v15';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -12,6 +12,10 @@ const TOPSTER_LASTFM_API_KEY = '7c87436dbff96020ebb6e3a75cb0f396';
 const MUSICBRAINZ_DELAY_MS = 1200;
 const TOPSTER_SHARED_STORE_API = '/api/topster-shared-store';
 const TOPSTER_DEFAULT_BACKEND_ORIGIN = 'https://api.navincitron.com';
+const TOPSTER_BACKEND_INITIAL_TIMEOUT_MS = 12000;
+const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
+const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
+const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_CHECKLIST_OVERLAYS = [
     { keyword: 'Hifiman Susvara Unveiled', id: 'susvara', imageSrc: 'susvara.png', label: 'Hifiman Susvara Unveiled' },
     { keyword: 'Hifiman Arya Organic', id: 'arya', imageSrc: 'arya.png', label: 'Hifiman Arya Organic' },
@@ -385,7 +389,7 @@ async function initTopsterImporter(albumCards) {
     let currentGridSignature = '';
     let currentSourceText = '';
     let currentSourceName = '';
-    await loadTopsterSharedStore();
+    await waitForTopsterSharedStore();
     setTopsterLoadingProgress(
         14,
         topsterSharedStoreAvailable
@@ -1383,11 +1387,14 @@ async function initTopsterImporter(albumCards) {
 }
 
 
-async function loadTopsterSharedStore() {
+async function loadTopsterSharedStore(options = {}) {
     topsterSharedStoreLoaded = true;
+    topsterSharedStoreAvailable = false;
+    topsterSharedStoreWritable = false;
 
+    const timeoutMs = Math.max(1000, Number(options.timeoutMs) || TOPSTER_BACKEND_RETRY_TIMEOUT_MS);
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? window.setTimeout(() => controller.abort(), 3500) : null;
+    const timeoutId = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
 
     try {
         const response = await fetch(buildTopsterSharedStoreUrl(), {
@@ -1396,13 +1403,7 @@ async function loadTopsterSharedStore() {
             signal: controller ? controller.signal : undefined
         });
 
-        if (timeoutId) window.clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            topsterSharedStoreAvailable = false;
-            topsterSharedStoreWritable = false;
-            return;
-        }
+        if (!response.ok) return false;
 
         const payload = await response.json();
         const requestedSource = getTopsterStoreSourceKey();
@@ -1411,9 +1412,7 @@ async function loadTopsterSharedStore() {
                 requestedSource,
                 returnedSource: payload && payload.source
             });
-            topsterSharedStoreAvailable = false;
-            topsterSharedStoreWritable = false;
-            return;
+            return false;
         }
 
         topsterSharedStoreAvailable = true;
@@ -1423,10 +1422,52 @@ async function loadTopsterSharedStore() {
         topsterSharedSourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
         topsterSharedSourceSignature = typeof payload.sourceSignature === 'string' ? payload.sourceSignature : '';
         topsterSharedSourceName = typeof payload.sourceName === 'string' ? payload.sourceName : '';
+        return true;
     } catch (error) {
+        return false;
+    } finally {
         if (timeoutId) window.clearTimeout(timeoutId);
-        topsterSharedStoreAvailable = false;
-        topsterSharedStoreWritable = false;
+    }
+}
+
+function shouldKeepWaitingForTopsterBackend() {
+    if (typeof window === 'undefined' || !/^https?:$/i.test(window.location.protocol)) return false;
+
+    // Production pages and pages with an explicitly configured API origin must
+    // wait for the Render service to wake. Local file/development copies retain
+    // the old immediate-fallback behavior when no backend origin is configured.
+    return Boolean(getTopsterBackendOrigin());
+}
+
+async function waitForTopsterSharedStore() {
+    let attempt = 0;
+
+    while (true) {
+        attempt += 1;
+        const attemptText = attempt === 1
+            ? 'Connecting to Render for saved Topster settings and album art...'
+            : `Render is still waking up. Connection attempt ${attempt}...`;
+        setTopsterLoadingProgress(Math.min(12, 4 + attempt), attemptText);
+
+        const connected = await loadTopsterSharedStore({
+            timeoutMs: attempt === 1
+                ? TOPSTER_BACKEND_INITIAL_TIMEOUT_MS
+                : TOPSTER_BACKEND_RETRY_TIMEOUT_MS
+        });
+        if (connected) return true;
+
+        if (!shouldKeepWaitingForTopsterBackend()) return false;
+
+        const retryDelayMs = Math.min(
+            TOPSTER_BACKEND_RETRY_MAX_DELAY_MS,
+            TOPSTER_BACKEND_RETRY_BASE_DELAY_MS + ((attempt - 1) * 500)
+        );
+        const retrySeconds = Math.max(1, Math.ceil(retryDelayMs / 1000));
+        setTopsterLoadingProgress(
+            Math.min(12, 5 + attempt),
+            `Waiting for the Render backend to activate. Retrying in ${retrySeconds} second${retrySeconds === 1 ? '' : 's'}...`
+        );
+        await delay(retryDelayMs);
     }
 }
 
@@ -3041,11 +3082,13 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         tile.appendChild(checklistOverlay);
     }
 
-    const mobileInfo = document.createElement('span');
-    mobileInfo.className = `topster-mobile-tile-info ${getTopsterMobileInfoLengthClass(label)}`;
-    mobileInfo.textContent = label;
-    mobileInfo.setAttribute('aria-hidden', 'true');
-    tile.appendChild(mobileInfo);
+    if (isTopsterTouchTooltipDevice()) {
+        const mobileInfo = document.createElement('span');
+        mobileInfo.className = `topster-mobile-tile-info ${getTopsterMobileInfoLengthClass(label)}`;
+        mobileInfo.textContent = label;
+        mobileInfo.setAttribute('aria-hidden', 'true');
+        tile.appendChild(mobileInfo);
+    }
 
     return tile;
 }
