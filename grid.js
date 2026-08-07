@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260807-rolling-stone-500-2003-v18';
+const TOPSTER_FRONTEND_VERSION = '20260807-rolling-stone-500-multi-v19';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -200,7 +200,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -209,6 +209,9 @@ function getTopsterStoreSourceKey() {
     if (kind === 'draft-file') return 'draft';
     if (kind === 'checklist-file') return 'checklist';
     if (kind === 'rolling-stone-500-albums-2003-file') return 'rolling_stone_500_albums_2003';
+    if (kind === 'rolling-stone-500-albums-2012-file') return 'rolling_stone_500_albums_2012';
+    if (kind === 'rolling-stone-500-albums-2020-file') return 'rolling_stone_500_albums_2020';
+    if (kind === 'rolling-stone-500-albums-2023-file') return 'rolling_stone_500_albums_2023';
     return 'grid';
 }
 
@@ -315,6 +318,9 @@ function isTopsterEditorPage() {
         || fileName === 'draft_grid.html'
         || fileName === 'draft_checklist.html'
         || fileName === 'rolling_stone_500_albums_2003_draft.html'
+        || fileName === 'rolling_stone_500_albums_2012_draft.html'
+        || fileName === 'rolling_stone_500_albums_2020_draft.html'
+        || fileName === 'rolling_stone_500_albums_2023_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -338,6 +344,36 @@ function getTopsterDataSourceConfig() {
             label: 'rolling_stone_500_albums_2003.txt',
             readLabel: 'rolling_stone_500_albums_2003.txt',
             fileName: 'rolling_stone_500_albums_2003.txt',
+            staticFileOnly: true
+        };
+    }
+
+    if (sourceName === 'rolling-stone-500-albums-2012-file' || sourceName === 'rolling_stone_500_albums_2012' || sourceName === 'rolling-stone-500-albums-2012') {
+        return {
+            kind: 'rolling-stone-500-albums-2012-file',
+            label: 'rolling_stone_500_albums_2012.txt',
+            readLabel: 'rolling_stone_500_albums_2012.txt',
+            fileName: 'rolling_stone_500_albums_2012.txt',
+            staticFileOnly: true
+        };
+    }
+
+    if (sourceName === 'rolling-stone-500-albums-2020-file' || sourceName === 'rolling_stone_500_albums_2020' || sourceName === 'rolling-stone-500-albums-2020') {
+        return {
+            kind: 'rolling-stone-500-albums-2020-file',
+            label: 'rolling_stone_500_albums_2020.txt',
+            readLabel: 'rolling_stone_500_albums_2020.txt',
+            fileName: 'rolling_stone_500_albums_2020.txt',
+            staticFileOnly: true
+        };
+    }
+
+    if (sourceName === 'rolling-stone-500-albums-2023-file' || sourceName === 'rolling_stone_500_albums_2023' || sourceName === 'rolling-stone-500-albums-2023') {
+        return {
+            kind: 'rolling-stone-500-albums-2023-file',
+            label: 'rolling_stone_500_albums_2023.txt',
+            readLabel: 'rolling_stone_500_albums_2023.txt',
+            fileName: 'rolling_stone_500_albums_2023.txt',
             staticFileOnly: true
         };
     }
@@ -383,6 +419,34 @@ function getTopsterDataSourceConfig() {
 
 function getTopsterSourceLabel() {
     return getTopsterDataSourceConfig().label;
+}
+
+function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
+    const pageNames = {
+        grid: 'album_list.html',
+        ranked: 'ranked_album_list.html',
+        draft: 'draft_album_list.html',
+        checklist: 'checklist.html',
+        rolling_stone_500_albums_2003: 'rolling_stone_500_albums_2003_list.html',
+        rolling_stone_500_albums_2012: 'rolling_stone_500_albums_2012_list.html',
+        rolling_stone_500_albums_2020: 'rolling_stone_500_albums_2020_list.html',
+        rolling_stone_500_albums_2023: 'rolling_stone_500_albums_2023_list.html'
+    };
+    return pageNames[sourceKey] || 'album_list.html';
+}
+
+function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
+    const names = {
+        grid: 'Albums',
+        ranked: 'Ranked Albums',
+        draft: 'Draft Albums',
+        checklist: 'Checklist',
+        rolling_stone_500_albums_2003: 'Rolling Stone 500 Albums (2003)',
+        rolling_stone_500_albums_2012: 'Rolling Stone 500 Albums (2012)',
+        rolling_stone_500_albums_2020: 'Rolling Stone 500 Albums (2020)',
+        rolling_stone_500_albums_2023: 'Rolling Stone 500 Albums (2023)'
+    };
+    return names[sourceKey] || 'Albums';
 }
 
 function getTopsterStateKey() {
@@ -712,20 +776,8 @@ async function initTopsterImporter(albumCards) {
 
         if (saveSettingsButton) saveSettingsButton.disabled = true;
         const sourceKey = getTopsterStoreSourceKey();
-        const publicPageName = sourceKey === 'ranked'
-            ? 'ranked_album_list.html'
-            : (sourceKey === 'draft'
-                ? 'draft_album_list.html'
-                : (sourceKey === 'checklist'
-                    ? 'checklist.html'
-                    : (sourceKey === 'rolling_stone_500_albums_2003' ? 'rolling_stone_500_albums_2003_list.html' : 'album_list.html')));
-        const sourceDisplayName = sourceKey === 'ranked'
-            ? 'Ranked Albums'
-            : (sourceKey === 'draft'
-                ? 'Draft Albums'
-                : (sourceKey === 'checklist'
-                    ? 'Checklist'
-                    : (sourceKey === 'rolling_stone_500_albums_2003' ? 'Rolling Stone 500 Albums (2003)' : 'Albums')));
+        const publicPageName = getTopsterPublicPageName(sourceKey);
+        const sourceDisplayName = getTopsterSourceDisplayName(sourceKey);
         status.textContent = `Saving ${sourceDisplayName} settings and cover selections to the shared backend...`;
         setTopsterLoadingProgress(92, `Publishing ${sourceDisplayName} settings, source text, and cover cache...`);
 
@@ -904,7 +956,7 @@ async function initTopsterImporter(albumCards) {
         window.requestAnimationFrame(syncAllTopsterSidebarHeights);
 
         status.textContent = topsterEditorPage
-            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : (getTopsterStoreSourceKey() === 'draft' ? 'draft_album_list.html' : (getTopsterStoreSourceKey() === 'checklist' ? 'checklist.html' : (getTopsterStoreSourceKey() === 'rolling_stone_500_albums_2003' ? 'rolling_stone_500_albums_2003_list.html' : 'album_list.html')))}.`
+            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterPublicPageName()}.`
             : `Updated cover for ${formatEntryName(entry)}.`;
 
         closeCoverPicker();
@@ -1848,7 +1900,7 @@ async function loadGridTextFile() {
         return loadDraftTextFile(source);
     }
 
-    if (source.kind === 'rolling-stone-500-albums-2003-file') {
+    if (source.staticFileOnly) {
         return loadPlainGridTextFile(source);
     }
 
@@ -2426,7 +2478,22 @@ function parseAlbumText(text) {
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
 
-            // Rolling Stone 500 (2003) source format:
+            // Rolling Stone 500 (2020) source format:
+            //   1 | Marvin Gaye | What's Going On | 1971
+            // Keep the rank as ordering metadata only; originalIndex is assigned from file order.
+            const rollingStonePipeMatch = line.match(/^\s*\d+\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*(\d{4})\s*$/);
+            if (rollingStonePipeMatch) {
+                return {
+                    artist: cleanAlbumTitle(rollingStonePipeMatch[1]),
+                    title: cleanAlbumTitle(rollingStonePipeMatch[2]),
+                    dateText: rollingStonePipeMatch[3].trim(),
+                    year: extractYear(rollingStonePipeMatch[3]),
+                    raw: originalLine,
+                    ...checklistFields
+                };
+            }
+
+            // Rolling Stone 500 (2003/2012/2023) source format:
             //   1. Sgt. Pepper's Lonely Hearts Club Band (1967) by The Beatles
             // Leading rank numbers have already been removed above. Match the final
             // parenthesized four-digit year so titles may themselves contain parentheses.

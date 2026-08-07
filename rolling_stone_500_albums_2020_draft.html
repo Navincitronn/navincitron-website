@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Navincitron - Draft Checklist</title>
-    <link rel="stylesheet" href="styles.css?v=20260717-checklist-overlay-scale-v14">
+    <title>Navincitron - Rolling Stone 500 Greatest Albums Of All Time (2020)</title>
+    <link rel="stylesheet" href="styles.css?v=20260807-rolling-stone-500-2020-v19">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
-<body data-topster-store-source="checklist" data-topster-source="checklist-file">
+<body data-topster-store-source="rolling_stone_500_albums_2020" data-topster-source="rolling-stone-500-albums-2020-file">
     <header>
         <div class="header-left">
             <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
@@ -30,7 +30,7 @@
         <section class="grid-builder-page">
             <div class="title-bar">
                 <br>
-                <h2 class="center">DRAFT CHECKLIST</h2>
+                <h2 class="center">ROLLING STONE 500 ALBUMS (2020) - DRAFT</h2>
             </div>
             <br>
             <hr>
@@ -52,10 +52,6 @@
                     <select id="topster-range" hidden disabled>
                         <option value="0">All</option>
                     </select>
-                </div>
-                <div class="topster-draft-file-row">
-                    <label for="topster-checklist-file-input">Checklist Notepad file</label>
-                    <input type="file" id="topster-checklist-file-input" accept=".txt,text/plain">
                 </div>
                 <details class="topster-settings-panel" open>
                     <summary>Topster display settings</summary>
@@ -101,6 +97,13 @@
                         <div class="topster-slider-control">
                             <input type="range" id="topster-album-gap" min="0" max="100" step="1" value="4">
                         </div>
+
+                        <label for="topster-cover-overlay">Cover overlay</label>
+                        <select id="topster-cover-overlay">
+                            <option value="none" selected>Off</option>
+                            <option value="index">Show index</option>
+                            <option value="year">Show release year</option>
+                        </select>
 
                         <label for="topster-font">Font</label>
                         <select id="topster-font">
