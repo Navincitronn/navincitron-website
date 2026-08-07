@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260807-rolling-stone-500-2003-v17';
+const TOPSTER_FRONTEND_VERSION = '20260807-rolling-stone-500-2003-v18';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -35,6 +35,7 @@ let topsterSharedSourceSignature = '';
 let topsterSharedSourceName = '';
 let topsterSharedSaveTimer = null;
 let topsterHasUnsavedPublishedChanges = false;
+let topsterPrelookupMemoryState = null;
 
 
 function markTopsterPublishDirty() {
@@ -230,34 +231,71 @@ function getTopsterPrelookupStorageKey() {
 }
 
 function loadTopsterPrelookupState() {
-    try {
-        const stored = JSON.parse(localStorage.getItem(getTopsterPrelookupStorageKey()) || 'null');
-        return stored && typeof stored === 'object' ? stored : null;
-    } catch (error) {
-        return null;
+    // The completed-first-Build flag must survive even when a very large cover cache
+    // exhausts localStorage. Keep an in-memory copy first, with sessionStorage and
+    // localStorage used only as persistence helpers.
+    if (topsterPrelookupMemoryState && typeof topsterPrelookupMemoryState === 'object') {
+        return topsterPrelookupMemoryState;
     }
+
+    const storageKey = getTopsterPrelookupStorageKey();
+    for (const storage of [window.sessionStorage, window.localStorage]) {
+        try {
+            const stored = JSON.parse(storage.getItem(storageKey) || 'null');
+            if (stored && typeof stored === 'object') {
+                topsterPrelookupMemoryState = stored;
+                return stored;
+            }
+        } catch (error) {
+            // Try the next storage mechanism.
+        }
+    }
+
+    return null;
 }
 
 function saveTopsterPrelookupState(signature, details = {}) {
     if (!signature) return;
+
+    const state = {
+        signature,
+        completedAt: new Date().toISOString(),
+        lineCount: Number(details.lineCount) || 0,
+        foundCount: Number(details.foundCount) || 0,
+        missedCount: Number(details.missedCount) || 0
+    };
+
+    // Set memory before touching Web Storage. With a 500-album cache, localStorage
+    // can be full because each cover has multiple aliases. The second Build must
+    // still see the completed prelookup immediately in the current page session.
+    topsterPrelookupMemoryState = state;
+    const serialized = JSON.stringify(state);
+    const storageKey = getTopsterPrelookupStorageKey();
+
     try {
-        localStorage.setItem(getTopsterPrelookupStorageKey(), JSON.stringify({
-            signature,
-            completedAt: new Date().toISOString(),
-            lineCount: Number(details.lineCount) || 0,
-            foundCount: Number(details.foundCount) || 0,
-            missedCount: Number(details.missedCount) || 0
-        }));
+        sessionStorage.setItem(storageKey, serialized);
     } catch (error) {
-        // Prelookup state is only a local editor hint; failing to save it should not stop rendering.
+        // The in-memory state above remains authoritative for this page session.
+    }
+
+    try {
+        localStorage.setItem(storageKey, serialized);
+    } catch (error) {
+        // Large Topster caches can exhaust localStorage. This is no longer fatal
+        // because memory/sessionStorage already preserve the two-stage Build state.
     }
 }
 
 function clearTopsterPrelookupState() {
-    try {
-        localStorage.removeItem(getTopsterPrelookupStorageKey());
-    } catch (error) {
-        // Optional local cleanup.
+    topsterPrelookupMemoryState = null;
+    const storageKey = getTopsterPrelookupStorageKey();
+
+    for (const storage of [window.sessionStorage, window.localStorage]) {
+        try {
+            storage.removeItem(storageKey);
+        } catch (error) {
+            // Optional local cleanup.
+        }
     }
 }
 
