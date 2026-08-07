@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260807-rolling-stone-500-multi-v19';
+const TOPSTER_FRONTEND_VERSION = '20260807-nme-500-v20';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -200,7 +200,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -212,6 +212,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'rolling-stone-500-albums-2012-file') return 'rolling_stone_500_albums_2012';
     if (kind === 'rolling-stone-500-albums-2020-file') return 'rolling_stone_500_albums_2020';
     if (kind === 'rolling-stone-500-albums-2023-file') return 'rolling_stone_500_albums_2023';
+    if (kind === 'nme-500-albums-file') return 'nme_500_albums';
     return 'grid';
 }
 
@@ -321,6 +322,7 @@ function isTopsterEditorPage() {
         || fileName === 'rolling_stone_500_albums_2012_draft.html'
         || fileName === 'rolling_stone_500_albums_2020_draft.html'
         || fileName === 'rolling_stone_500_albums_2023_draft.html'
+        || fileName === 'nme_500_albums_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -378,6 +380,16 @@ function getTopsterDataSourceConfig() {
         };
     }
 
+    if (sourceName === 'nme-500-albums-file' || sourceName === 'nme_500_albums' || sourceName === 'nme-500-albums') {
+        return {
+            kind: 'nme-500-albums-file',
+            label: 'nme_500_albums.txt',
+            readLabel: 'nme_500_albums.txt',
+            fileName: 'nme_500_albums.txt',
+            staticFileOnly: true
+        };
+    }
+
     if (sourceName === 'checklist-file' || sourceName === 'checklist') {
         return {
             kind: 'checklist-file',
@@ -430,7 +442,8 @@ function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_500_albums_2003: 'rolling_stone_500_albums_2003_list.html',
         rolling_stone_500_albums_2012: 'rolling_stone_500_albums_2012_list.html',
         rolling_stone_500_albums_2020: 'rolling_stone_500_albums_2020_list.html',
-        rolling_stone_500_albums_2023: 'rolling_stone_500_albums_2023_list.html'
+        rolling_stone_500_albums_2023: 'rolling_stone_500_albums_2023_list.html',
+        nme_500_albums: 'nme_500_albums_list.html'
     };
     return pageNames[sourceKey] || 'album_list.html';
 }
@@ -441,10 +454,11 @@ function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
         ranked: 'Ranked Albums',
         draft: 'Draft Albums',
         checklist: 'Checklist',
-        rolling_stone_500_albums_2003: 'Rolling Stone 500 Albums (2003)',
-        rolling_stone_500_albums_2012: 'Rolling Stone 500 Albums (2012)',
-        rolling_stone_500_albums_2020: 'Rolling Stone 500 Albums (2020)',
-        rolling_stone_500_albums_2023: 'Rolling Stone 500 Albums (2023)'
+        rolling_stone_500_albums_2003: "Rolling Stone's 500 Greatest Albums Of All Time (2003)",
+        rolling_stone_500_albums_2012: "Rolling Stone's 500 Greatest Albums Of All Time (2012)",
+        rolling_stone_500_albums_2020: "Rolling Stone's 500 Greatest Albums Of All Time (2020)",
+        rolling_stone_500_albums_2023: "Rolling Stone's 500 Greatest Albums Of All Time (2023)",
+        nme_500_albums: "NME's 500 Greatest Albums Of All Time"
     };
     return names[sourceKey] || 'Albums';
 }
@@ -2477,6 +2491,22 @@ function parseAlbumText(text) {
                 checklistOverlayImage: checklistMetadata.checklistOverlayImage,
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
+
+            // NME's 500 Greatest Albums Of All Time source format:
+            //   1 - The Smiths - The Queen Is Dead
+            // Preserve everything after the second separator as the album title so
+            // punctuation and additional hyphens inside titles remain usable.
+            const nmeRankArtistAlbumMatch = line.match(/^\s*\d+\s+-\s+(.+?)\s+-\s+(.+)$/);
+            if (nmeRankArtistAlbumMatch) {
+                return {
+                    artist: cleanAlbumTitle(nmeRankArtistAlbumMatch[1]),
+                    title: cleanAlbumTitle(nmeRankArtistAlbumMatch[2]),
+                    dateText: '',
+                    year: null,
+                    raw: originalLine,
+                    ...checklistFields
+                };
+            }
 
             // Rolling Stone 500 (2020) source format:
             //   1 | Marvin Gaye | What's Going On | 1971
