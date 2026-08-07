@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260720-topster-backend-wait-desktop-tooltip-v15';
+const TOPSTER_FRONTEND_VERSION = '20260807-rolling-stone-500-2003-v17';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -199,7 +199,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -207,6 +207,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'ranked-sheet') return 'ranked';
     if (kind === 'draft-file') return 'draft';
     if (kind === 'checklist-file') return 'checklist';
+    if (kind === 'rolling-stone-500-albums-2003-file') return 'rolling_stone_500_albums_2003';
     return 'grid';
 }
 
@@ -275,6 +276,7 @@ function isTopsterEditorPage() {
         || fileName === 'ranked_grid.html'
         || fileName === 'draft_grid.html'
         || fileName === 'draft_checklist.html'
+        || fileName === 'rolling_stone_500_albums_2003_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -291,6 +293,16 @@ function buildTopsterAdminLoginUrl() {
 
 function getTopsterDataSourceConfig() {
     const sourceName = String((document.body && document.body.dataset.topsterSource) || '').trim().toLowerCase();
+
+    if (sourceName === 'rolling-stone-500-albums-2003-file' || sourceName === 'rolling_stone_500_albums_2003' || sourceName === 'rolling-stone-500-albums-2003') {
+        return {
+            kind: 'rolling-stone-500-albums-2003-file',
+            label: 'rolling_stone_500_albums_2003.txt',
+            readLabel: 'rolling_stone_500_albums_2003.txt',
+            fileName: 'rolling_stone_500_albums_2003.txt',
+            staticFileOnly: true
+        };
+    }
 
     if (sourceName === 'checklist-file' || sourceName === 'checklist') {
         return {
@@ -666,12 +678,16 @@ async function initTopsterImporter(albumCards) {
             ? 'ranked_album_list.html'
             : (sourceKey === 'draft'
                 ? 'draft_album_list.html'
-                : (sourceKey === 'checklist' ? 'checklist.html' : 'album_list.html'));
+                : (sourceKey === 'checklist'
+                    ? 'checklist.html'
+                    : (sourceKey === 'rolling_stone_500_albums_2003' ? 'rolling_stone_500_albums_2003_list.html' : 'album_list.html')));
         const sourceDisplayName = sourceKey === 'ranked'
             ? 'Ranked Albums'
             : (sourceKey === 'draft'
                 ? 'Draft Albums'
-                : (sourceKey === 'checklist' ? 'Checklist' : 'Albums'));
+                : (sourceKey === 'checklist'
+                    ? 'Checklist'
+                    : (sourceKey === 'rolling_stone_500_albums_2003' ? 'Rolling Stone 500 Albums (2003)' : 'Albums')));
         status.textContent = `Saving ${sourceDisplayName} settings and cover selections to the shared backend...`;
         setTopsterLoadingProgress(92, `Publishing ${sourceDisplayName} settings, source text, and cover cache...`);
 
@@ -850,7 +866,7 @@ async function initTopsterImporter(albumCards) {
         window.requestAnimationFrame(syncAllTopsterSidebarHeights);
 
         status.textContent = topsterEditorPage
-            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : (getTopsterStoreSourceKey() === 'draft' ? 'draft_album_list.html' : (getTopsterStoreSourceKey() === 'checklist' ? 'checklist.html' : 'album_list.html'))}.`
+            ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterStoreSourceKey() === 'ranked' ? 'ranked_album_list.html' : (getTopsterStoreSourceKey() === 'draft' ? 'draft_album_list.html' : (getTopsterStoreSourceKey() === 'checklist' ? 'checklist.html' : (getTopsterStoreSourceKey() === 'rolling_stone_500_albums_2003' ? 'rolling_stone_500_albums_2003_list.html' : 'album_list.html')))}.`
             : `Updated cover for ${formatEntryName(entry)}.`;
 
         closeCoverPicker();
@@ -1794,6 +1810,10 @@ async function loadGridTextFile() {
         return loadDraftTextFile(source);
     }
 
+    if (source.kind === 'rolling-stone-500-albums-2003-file') {
+        return loadPlainGridTextFile(source);
+    }
+
     const apiResult = await tryLoadGridTextFromApi(source);
     if (apiResult) return apiResult;
 
@@ -1849,12 +1869,12 @@ async function loadPlainGridTextFile(source = getTopsterDataSourceConfig()) {
 
     const response = await fetch(gridUrl.href, { cache: 'no-store' });
     if (!response.ok) {
-        throw new Error(`${fileName} was not found next to grid.html.`);
+        throw new Error(`${fileName} was not found next to this Topster page.`);
     }
 
     const text = await response.text();
     if (looksLikeHtmlDocument(text)) {
-        throw new Error(`${fileName} was not found. Create it in the same navincitron-website folder as grid.html.`);
+        throw new Error(`${fileName} was not found. Put it in the same navincitron-website folder as this Topster page.`);
     }
 
     return {
@@ -2367,6 +2387,23 @@ function parseAlbumText(text) {
                 checklistOverlayImage: checklistMetadata.checklistOverlayImage,
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
+
+            // Rolling Stone 500 (2003) source format:
+            //   1. Sgt. Pepper's Lonely Hearts Club Band (1967) by The Beatles
+            // Leading rank numbers have already been removed above. Match the final
+            // parenthesized four-digit year so titles may themselves contain parentheses.
+            const titleYearByArtistMatch = line.match(/^(.+?)\s*\(\s*(\d{4})\s*\)\s+by\s+(.+)$/i);
+            if (titleYearByArtistMatch) {
+                return {
+                    artist: cleanAlbumTitle(titleYearByArtistMatch[3]),
+                    title: cleanAlbumTitle(titleYearByArtistMatch[1]),
+                    dateText: titleYearByArtistMatch[2].trim(),
+                    year: extractYear(titleYearByArtistMatch[2]),
+                    raw: originalLine,
+                    ...checklistFields
+                };
+            }
+
             const artistAlbumDateMatch = line.match(artistAlbumDateLine);
             if (artistAlbumDateMatch) {
                 return {
