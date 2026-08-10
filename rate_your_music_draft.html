@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - RateYourMusic&#39;s Top Albums Of All Time - Draft</title>
-    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v22">
+    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v23">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
     <style>
         .rym-subtitle {
@@ -81,6 +81,23 @@
         .rym-config-readonly-grid dt { font-weight: bold; }
         .rym-config-readonly-grid dd { margin: 0; }
         .rym-chart-source-line { margin: 12px 0 0; }
+
+        .rym-page-link-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px 10px;
+            margin: 10px 0 2px;
+        }
+        .rym-page-link-grid a {
+            display: inline-block;
+            padding: 5px 8px;
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 6px;
+        }
+        .rym-selected-pages-status {
+            margin: 8px 0 0;
+            color: #ddd;
+        }
         @media only screen and (max-width: 768px) {
             .rym-config-grid,
             .rym-config-readonly-grid {
@@ -159,16 +176,20 @@
 
                 <div class="rym-import-box">
                     <strong>RateYourMusic snapshot import</strong>
-                    <p>Open the configured chart, save each RYM result page in your browser as <strong>Webpage, HTML Only</strong>, then select the saved HTML page(s) below. Build reads the chart entries and uses the exact RYM thumbnail URL when it is present in the saved page.</p>
+                    <p>Choose how many chart pages belong to this snapshot, then use the generated page links to open those RYM pages. Select all saved HTML result pages at once below; Build combines them into one ranked Topster, keeps each RYM release-page link, and defaults to the RYM thumbnail when one is present.</p>
                     <div class="rym-import-actions">
-                        <label for="rym-chart-page">Chart page</label>
-                        <input type="number" id="rym-chart-page" min="1" step="1" value="1" data-rym-config-control="true">
-                        <button type="button" id="rym-open-chart-button" class="secondary-button">Open configured RYM chart</button>
+                        <label for="rym-page-count">Chart pages to import</label>
+                        <input type="number" id="rym-page-count" min="1" max="100" step="1" value="25" data-rym-config-control="true">
+                        <label for="rym-max-entries">Maximum releases</label>
+                        <input type="number" id="rym-max-entries" min="1" max="5000" step="1" value="1000" data-rym-config-control="true">
+                        <button type="button" id="rym-open-chart-button" class="secondary-button">Open page 1</button>
                     </div>
-                    <p class="rym-chart-url"><a id="rym-chart-url-preview" href="https://rateyourmusic.com/charts/" target="_blank" rel="noopener noreferrer">https://rateyourmusic.com/charts/</a></p>
-                    <label for="rym-chart-html-input">Saved RateYourMusic chart HTML</label>
+                    <p class="rym-chart-url">Page 1: <a id="rym-chart-url-preview" href="https://rateyourmusic.com/charts/" target="_blank" rel="noopener noreferrer">https://rateyourmusic.com/charts/</a></p>
+                    <div id="rym-page-links" class="rym-page-link-grid" aria-label="Configured RateYourMusic chart pages"></div>
+                    <label for="rym-chart-html-input">Saved RateYourMusic chart HTML pages</label>
                     <input type="file" id="rym-chart-html-input" accept=".html,.htm,text/html" multiple>
-                    <p>For charts longer than one RYM page, save and select all required result pages at the same time. The number-of-ratings min/max filter is applied locally after import.</p>
+                    <p id="rym-selected-page-count" class="rym-selected-pages-status">Selected pages: 0 / 25</p>
+                    <p>The file picker accepts all pages in one selection. The number-of-ratings min/max filter and the maximum-release limit are applied after the selected pages are combined.</p>
                 </div>
 
                 <details class="topster-settings-panel" open>
@@ -234,13 +255,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v22';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v23';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260810-rate-your-music-v22"></script>
+    <script src="topster_grid.js?v=20260810-rate-your-music-v23"></script>
 </body>
 </html>

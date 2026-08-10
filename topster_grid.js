@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v22';
+const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v23';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -1062,6 +1062,13 @@ async function initTopsterImporter(albumCards) {
     async function buildTopsterFromText(text, signature, source, options = {}) {
         setTopsterLoadingProgress(30, `Parsing album entries from ${topsterSourceLabel}...`);
         const parsed = parseAlbumText(text);
+        if (sourceConfig.kind === 'rate-your-music-chart') {
+            const metadata = parseRateYourMusicMetadata(text);
+            const releaseLinks = metadata && Array.isArray(metadata.releaseLinks) ? metadata.releaseLinks : [];
+            parsed.forEach((entry, index) => {
+                entry.releaseHref = typeof releaseLinks[index] === 'string' ? releaseLinks[index] : '';
+            });
+        }
 
         if (parsed.length === 0) {
             status.textContent = `${topsterSourceLabel} did not contain any album lines.`;
@@ -2008,7 +2015,9 @@ function normalizeRateYourMusicChartConfig(value = {}) {
         soundtrackMode: normalizeRateYourMusicMode(raw.soundtrackMode),
         ratingsMin: optionalRatingCount(raw.ratingsMin),
         ratingsMax: optionalRatingCount(raw.ratingsMax),
-        popularityWeighting: clampInteger(raw.popularityWeighting, 1, 5, 3)
+        popularityWeighting: clampInteger(raw.popularityWeighting, 1, 5, 3),
+        pageCount: clampInteger(raw.pageCount, 1, 100, 25),
+        maxEntries: clampInteger(raw.maxEntries, 1, 5000, 1000)
     };
 }
 
@@ -2075,7 +2084,9 @@ function readRateYourMusicChartConfigFromControls() {
         soundtrackMode: value('rym-soundtrack-mode'),
         ratingsMin: value('rym-ratings-min') === '' ? null : value('rym-ratings-min'),
         ratingsMax: value('rym-ratings-max') === '' ? null : value('rym-ratings-max'),
-        popularityWeighting: value('rym-popularity-weighting')
+        popularityWeighting: value('rym-popularity-weighting'),
+        pageCount: value('rym-page-count'),
+        maxEntries: value('rym-max-entries')
     });
 }
 
@@ -2097,6 +2108,8 @@ function setRateYourMusicControls(configValue) {
     setValue('rym-ratings-min', config.ratingsMin === null ? '' : config.ratingsMin);
     setValue('rym-ratings-max', config.ratingsMax === null ? '' : config.ratingsMax);
     setValue('rym-popularity-weighting', config.popularityWeighting);
+    setValue('rym-page-count', config.pageCount);
+    setValue('rym-max-entries', config.maxEntries);
 
     RATE_YOUR_MUSIC_RELEASE_TYPES.forEach(item => {
         const input = document.getElementById(`rym-release-${item.value}`);
@@ -2122,11 +2135,34 @@ function updateRateYourMusicPeriodControls() {
 function updateRateYourMusicChartUrlPreview() {
     const preview = document.getElementById('rym-chart-url-preview');
     if (!preview) return;
-    const pageInput = document.getElementById('rym-chart-page');
-    const page = pageInput ? Math.max(1, Number(pageInput.value) || 1) : 1;
-    const url = buildRateYourMusicChartUrl(readRateYourMusicChartConfigFromControls(), page);
+    const config = readRateYourMusicChartConfigFromControls();
+    const url = buildRateYourMusicChartUrl(config, 1);
     preview.href = url;
     preview.textContent = url;
+
+    const pageLinks = document.getElementById('rym-page-links');
+    if (pageLinks) {
+        pageLinks.innerHTML = '';
+        for (let page = 1; page <= config.pageCount; page += 1) {
+            const link = document.createElement('a');
+            link.href = buildRateYourMusicChartUrl(config, page);
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = `Page ${page}`;
+            pageLinks.appendChild(link);
+        }
+    }
+
+    updateRateYourMusicSelectedPageCount();
+}
+
+function updateRateYourMusicSelectedPageCount() {
+    const status = document.getElementById('rym-selected-page-count');
+    if (!status) return;
+    const input = document.getElementById('rym-chart-html-input');
+    const selected = input && input.files ? input.files.length : 0;
+    const config = readRateYourMusicChartConfigFromControls();
+    status.textContent = `Selected pages: ${selected} / ${config.pageCount}`;
 }
 
 function parseRateYourMusicMetadata(text) {
@@ -2208,8 +2244,10 @@ function renderRateYourMusicSnapshotSummary(text = topsterSharedSourceText) {
         ['Soundtracks and scores', rateYourMusicModeLabel(config.soundtrackMode)],
         ['Number of ratings (min / max)', ratingsText],
         ['Popularity weighting', String(config.popularityWeighting)],
+        ['Chart pages requested', String(config.pageCount)],
+        ['Maximum releases', String(config.maxEntries)],
         ['Imported chart entries', String(metadata.entryCount || 0)],
-        ['Saved RYM pages', String(metadata.sourcePageCount || 0)]
+        ['Imported RYM pages', String(metadata.sourcePageCount || 0)]
     ];
 
     const dl = document.createElement('dl');
@@ -2251,7 +2289,7 @@ function initializeRateYourMusicUi(sharedText = topsterSharedSourceText) {
     if (metadata && metadata.configuration) {
         setRateYourMusicControls(metadata.configuration);
     } else {
-        setRateYourMusicControls({ chartType: 'top', releaseTypes: ['album'], periodMode: 'all-time', popularityWeighting: 3 });
+        setRateYourMusicControls({ chartType: 'top', releaseTypes: ['album'], periodMode: 'all-time', popularityWeighting: 3, pageCount: 25, maxEntries: 1000 });
     }
 
     const controls = document.querySelectorAll('[data-rym-config-control="true"]');
@@ -2281,11 +2319,18 @@ function initializeRateYourMusicUi(sharedText = topsterSharedSourceText) {
     const openButton = document.getElementById('rym-open-chart-button');
     if (openButton) {
         openButton.addEventListener('click', () => {
-            const pageInput = document.getElementById('rym-chart-page');
-            const page = pageInput ? Math.max(1, Number(pageInput.value) || 1) : 1;
-            window.open(buildRateYourMusicChartUrl(readRateYourMusicChartConfigFromControls(), page), '_blank', 'noopener,noreferrer');
+            window.open(buildRateYourMusicChartUrl(readRateYourMusicChartConfigFromControls(), 1), '_blank', 'noopener,noreferrer');
         });
     }
+
+    const htmlInput = document.getElementById('rym-chart-html-input');
+    if (htmlInput) {
+        htmlInput.addEventListener('change', () => {
+            updateRateYourMusicSelectedPageCount();
+            safeMarkTopsterPublishDirty();
+        });
+    }
+
     updateRateYourMusicPeriodControls();
     updateRateYourMusicChartUrlPreview();
 }
@@ -2354,7 +2399,7 @@ function findRateYourMusicChartCard(anchor) {
     return anchor.parentElement || anchor;
 }
 
-function parseRateYourMusicChartHtml(htmlText, sourceName = '') {
+function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex = 0) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(String(htmlText || ''), 'text/html');
     const releaseAnchors = Array.from(doc.querySelectorAll('a[href*="/release/"]'));
@@ -2413,7 +2458,7 @@ function parseRateYourMusicChartHtml(htmlText, sourceName = '') {
         const ratingCount = parseRateYourMusicRatingCount(card);
         const positionElement = card.querySelector('[class*="chart_position"], [class*="position"], [class*="rank"]');
         const positionMatch = positionElement ? String(positionElement.textContent || '').match(/\d+/) : null;
-        const rank = positionMatch ? Number(positionMatch[0]) : entries.length + 1;
+        const rank = positionMatch ? Number(positionMatch[0]) : ((Number(sourcePageIndex) || 0) * 100000) + entries.length + 1;
 
         if (!artist || !title) return;
         seen.add(href);
@@ -2454,9 +2499,38 @@ async function readRateYourMusicHtmlFile(file) {
     return { name: file.name || 'RateYourMusic chart.html', text };
 }
 
+function getRateYourMusicPageNumberFromFileName(name) {
+    const text = String(name || '');
+    const patterns = [
+        /(?:page|pg)[\s._-]*(\d+)/i,
+        /[\s._-]\((\d+)\)(?=\.[^.]+$)/i,
+        /[\s._-](\d+)(?=\.[^.]+$)/i
+    ];
+    for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+            const page = Number(match[1]);
+            if (Number.isFinite(page) && page >= 1) return page;
+        }
+    }
+    return null;
+}
+
+function sortRateYourMusicHtmlFiles(files) {
+    return Array.from(files || [])
+        .map((file, index) => ({ file, index, page: getRateYourMusicPageNumberFromFileName(file && file.name) }))
+        .sort((a, b) => {
+            if (a.page !== null && b.page !== null && a.page !== b.page) return a.page - b.page;
+            if (a.page !== null && b.page === null) return -1;
+            if (a.page === null && b.page !== null) return 1;
+            return a.index - b.index;
+        })
+        .map(item => item.file);
+}
+
 async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig()) {
     const input = source.fileInputId ? document.getElementById(source.fileInputId) : null;
-    const files = input && input.files ? Array.from(input.files) : [];
+    const files = input && input.files ? sortRateYourMusicHtmlFiles(input.files) : [];
 
     if (!files.length) {
         if (topsterSharedSourceText) {
@@ -2468,7 +2542,7 @@ async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig(
             };
         }
         throw new Error(isTopsterEditorPage()
-            ? 'Open the configured RateYourMusic chart, save the chart page as HTML, select the saved HTML file(s), then press Build.'
+            ? 'Open the configured RateYourMusic page links, save the required chart pages as HTML, select all of them at once, then press Build.'
             : 'No RateYourMusic chart snapshot has been published yet.');
     }
 
@@ -2483,7 +2557,7 @@ async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig(
     setTopsterLoadingProgress(20, `Reading ${files.length} saved RateYourMusic chart page${files.length === 1 ? '' : 's'}...`);
     const pages = await Promise.all(files.map(readRateYourMusicHtmlFile));
     const parsed = [];
-    pages.forEach(page => parsed.push(...parseRateYourMusicChartHtml(page.text, page.name)));
+    pages.forEach((page, pageIndex) => parsed.push(...parseRateYourMusicChartHtml(page.text, page.name, pageIndex)));
 
     const unique = [];
     const seen = new Set();
@@ -2509,35 +2583,39 @@ async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig(
 
     if (!filtered.length) {
         if (!unique.length) {
-            throw new Error('No RateYourMusic chart entries could be read from the selected HTML. Save the actual chart result page as “Webpage, HTML Only” and try again.');
+            throw new Error('No RateYourMusic chart entries could be read from the selected HTML pages. Make sure the selected files are actual RYM chart result pages.');
         }
         throw new Error('The selected RateYourMusic pages were parsed, but no entries remained after the number-of-ratings filter.');
     }
 
-    filtered.sort((a, b) => (Number(a.rank) || 999999) - (Number(b.rank) || 999999));
-    seedRateYourMusicCovers(filtered);
+    filtered.sort((a, b) => (Number(a.rank) || 999999999) - (Number(b.rank) || 999999999));
+    const limited = filtered.slice(0, config.maxEntries);
+    seedRateYourMusicCovers(limited);
 
     const metadata = {
-        version: 1,
+        version: 2,
         updatedAt: new Date().toISOString(),
         updateCadence: 'Weekly',
         chartUrl: buildRateYourMusicChartUrl(config, 1),
         configuration: config,
+        requestedPageCount: config.pageCount,
         sourcePageCount: pages.length,
         sourceFiles: pages.map(page => page.name),
         parsedEntryCount: unique.length,
-        entryCount: filtered.length,
-        rymThumbnailCount: filtered.filter(entry => entry.imageSrc).length,
-        unknownRatingsExcluded
+        filteredEntryCount: filtered.length,
+        entryCount: limited.length,
+        rymThumbnailCount: limited.filter(entry => entry.imageSrc).length,
+        unknownRatingsExcluded,
+        releaseLinks: limited.map(entry => entry.href || '')
     };
-    const lines = filtered.map(entry => `${entry.artist} - ${entry.title}${entry.year ? ` (${entry.year})` : ''}`);
+    const lines = limited.map(entry => `${entry.artist} - ${entry.title}${entry.year ? ` (${entry.year})` : ''}`);
     const text = `# RYM_CONFIG ${JSON.stringify(metadata)}\n${lines.join('\n')}`;
     renderRateYourMusicSnapshotSummary(text);
 
     return {
         text,
         signature: simpleTextHash(text),
-        source: `RateYourMusic chart snapshot (${pages.length} saved page${pages.length === 1 ? '' : 's'})`
+        source: `RateYourMusic chart snapshot (${pages.length} imported page${pages.length === 1 ? '' : 's'}, ${limited.length} release${limited.length === 1 ? '' : 's'})`
     };
 }
 
@@ -3862,7 +3940,10 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     } else {
         tile.title = label;
         tile.setAttribute('aria-label', label);
-        tile.addEventListener('click', showMobileInfo);
+        tile.addEventListener('click', event => {
+            if (event.target && event.target.closest && event.target.closest('.topster-rym-release-link')) return;
+            showMobileInfo(event);
+        });
     }
 
     if (cover && cover.imageSrc) {
@@ -3878,7 +3959,20 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
             tile.classList.remove('has-cover-overlay');
             tile.appendChild(placeholder);
         };
-        tile.appendChild(img);
+
+        const rymReleaseHref = !onSelectCover && isRateYourMusicTopsterSource()
+            ? String(entry.releaseHref || '').trim()
+            : '';
+        if (rymReleaseHref && /^https:\/\/(?:www\.)?rateyourmusic\.com\/release\//i.test(rymReleaseHref)) {
+            const releaseLink = document.createElement('a');
+            releaseLink.className = 'topster-rym-release-link';
+            releaseLink.href = rymReleaseHref;
+            releaseLink.setAttribute('aria-label', `${label}. Open RateYourMusic release page.`);
+            releaseLink.appendChild(img);
+            tile.appendChild(releaseLink);
+        } else {
+            tile.appendChild(img);
+        }
     } else {
         const placeholder = document.createElement('div');
         placeholder.className = 'topster-tile-placeholder';
