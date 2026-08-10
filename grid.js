@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v25';
+const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v26';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -1996,11 +1996,6 @@ function normalizeRateYourMusicChartConfig(value = {}) {
     if (!/^\d{4}s$/.test(decade)) decade = `${Math.floor(currentYear / 10) * 10}s`;
     const rangeStart = clampInteger(raw.rangeStart, 1900, currentYear + 1, Math.max(1900, currentYear - 10));
     const rangeEnd = clampInteger(raw.rangeEnd, 1900, currentYear + 1, currentYear);
-    const optionalRatingCount = rawValue => {
-        if (rawValue === null || rawValue === undefined || rawValue === '') return null;
-        const number = Number(rawValue);
-        return Number.isFinite(number) && number >= 0 ? Math.floor(number) : null;
-    };
 
     return {
         chartType: chartTypes.has(raw.chartType) ? raw.chartType : 'top',
@@ -2013,11 +2008,8 @@ function normalizeRateYourMusicChartConfig(value = {}) {
         liveMode: normalizeRateYourMusicMode(raw.liveMode),
         archivalMode: normalizeRateYourMusicMode(raw.archivalMode),
         soundtrackMode: normalizeRateYourMusicMode(raw.soundtrackMode),
-        ratingsMin: optionalRatingCount(raw.ratingsMin),
-        ratingsMax: optionalRatingCount(raw.ratingsMax),
         popularityWeighting: clampInteger(raw.popularityWeighting, 1, 5, 3),
-        pageCount: clampInteger(raw.pageCount, 1, 100, 25),
-        maxEntries: clampInteger(raw.maxEntries, 1, 5000, 1000)
+        pageCount: clampInteger(raw.pageCount, 1, 100, 25)
     };
 }
 
@@ -2091,11 +2083,8 @@ function readRateYourMusicChartConfigFromControls() {
         liveMode: value('rym-live-mode'),
         archivalMode: value('rym-archival-mode'),
         soundtrackMode: value('rym-soundtrack-mode'),
-        ratingsMin: value('rym-ratings-min') === '' ? null : value('rym-ratings-min'),
-        ratingsMax: value('rym-ratings-max') === '' ? null : value('rym-ratings-max'),
         popularityWeighting: value('rym-popularity-weighting'),
-        pageCount: value('rym-page-count'),
-        maxEntries: value('rym-max-entries')
+        pageCount: value('rym-page-count')
     });
 }
 
@@ -2114,11 +2103,8 @@ function setRateYourMusicControls(configValue) {
     setValue('rym-live-mode', config.liveMode);
     setValue('rym-archival-mode', config.archivalMode);
     setValue('rym-soundtrack-mode', config.soundtrackMode);
-    setValue('rym-ratings-min', config.ratingsMin === null ? '' : config.ratingsMin);
-    setValue('rym-ratings-max', config.ratingsMax === null ? '' : config.ratingsMax);
     setValue('rym-popularity-weighting', config.popularityWeighting);
     setValue('rym-page-count', config.pageCount);
-    setValue('rym-max-entries', config.maxEntries);
 
     RATE_YOUR_MUSIC_RELEASE_TYPES.forEach(item => {
         const input = document.getElementById(`rym-release-${item.value}`);
@@ -2253,9 +2239,6 @@ function renderRateYourMusicSnapshotSummary(text = topsterSharedSourceText) {
     }
 
     const config = normalizeRateYourMusicChartConfig(metadata.configuration || {});
-    const ratingsText = config.ratingsMin === null && config.ratingsMax === null
-        ? 'Any'
-        : `${config.ratingsMin === null ? 'No minimum' : config.ratingsMin.toLocaleString()} / ${config.ratingsMax === null ? 'No maximum' : config.ratingsMax.toLocaleString()}`;
     const rows = [
         ['Chart', rateYourMusicChartTypeLabel(config.chartType)],
         ['Release types', config.releaseTypes.map(rateYourMusicReleaseTypeLabel).join(', ')],
@@ -2263,10 +2246,8 @@ function renderRateYourMusicSnapshotSummary(text = topsterSharedSourceText) {
         ['Live releases', rateYourMusicModeLabel(config.liveMode)],
         ['Archival releases', rateYourMusicModeLabel(config.archivalMode)],
         ['Soundtracks and scores', rateYourMusicModeLabel(config.soundtrackMode)],
-        ['Number of ratings (min / max, applied after import)', ratingsText],
         ['Popularity weighting', String(config.popularityWeighting)],
         ['Chart pages requested', String(config.pageCount)],
-        ['Maximum releases', String(config.maxEntries)],
         ['Imported chart entries', String(metadata.entryCount || 0)],
         ['Imported RYM pages', String(metadata.sourcePageCount || 0)]
     ];
@@ -2310,7 +2291,7 @@ function initializeRateYourMusicUi(sharedText = topsterSharedSourceText) {
     if (metadata && metadata.configuration) {
         setRateYourMusicControls(metadata.configuration);
     } else {
-        setRateYourMusicControls({ chartType: 'top', releaseTypes: ['album'], periodMode: 'all-time', popularityWeighting: 3, pageCount: 25, maxEntries: 1000 });
+        setRateYourMusicControls({ chartType: 'top', releaseTypes: ['album'], periodMode: 'all-time', popularityWeighting: 3, pageCount: 25 });
     }
 
     const controls = document.querySelectorAll('[data-rym-config-control="true"]');
@@ -2463,17 +2444,49 @@ function findRateYourMusicChartCard(anchor) {
     return anchor.parentElement || anchor;
 }
 
-function parseRateYourMusicRecordedYear(container, title = '', href = '') {
-    if (!container) return null;
 
-    const candidateElements = Array.from(container.querySelectorAll(
-        '[class*="recorded" i], [data-testid*="recorded" i], [title*="recorded" i], [aria-label*="recorded" i]'
-    ));
+const RATE_YOUR_MUSIC_RECORDED_YEAR_OVERRIDES = Object.freeze({
+    '/release/album/led-zeppelin/how-the-west-was-won/': 1972,
+    '/release/album/prince-and-the-revolution/prince-and-the-revolution-live/': 1985,
+    '/release/album/bruce-springsteen-and-the-e-street-band/hammersmith-odeon-london-75/': 1975,
+    '/release/album/boris/performing-flood/': 2012,
+    '/release/album/townes-van-zandt/live-at-the-old-quarter-houston-texas/': 1973
+});
+
+function getRateYourMusicRecordedYearOverride(href) {
+    if (!href) return null;
+    try {
+        const pathname = new URL(href, 'https://rateyourmusic.com/').pathname.toLowerCase();
+        return RATE_YOUR_MUSIC_RECORDED_YEAR_OVERRIDES[pathname] || null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function parseRateYourMusicTwoDigitHistoricalYear(raw) {
+    const text = String(raw || '');
+    const match = text.match(/(?:^|[^0-9])['’](\d{2})(?:[^0-9]|$)/);
+    if (!match) return null;
+    const yy = Number(match[1]);
+    if (!Number.isFinite(yy)) return null;
+    const currentTwoDigit = new Date().getFullYear() % 100;
+    return yy <= currentTwoDigit ? 2000 + yy : 1900 + yy;
+}
+
+function parseRateYourMusicRecordedYear(container, title = '', href = '', releaseType = '') {
+    if (!container) return getRateYourMusicRecordedYearOverride(href);
 
     const extractYear = raw => {
         const match = String(raw || '').match(/\b((?:18|19|20)\d{2})\b/);
         return match ? Number(match[1]) : null;
     };
+
+    const override = getRateYourMusicRecordedYearOverride(href);
+    if (override) return override;
+
+    const candidateElements = Array.from(container.querySelectorAll(
+        '[class*="recorded" i], [data-testid*="recorded" i], [title*="recorded" i], [aria-label*="recorded" i]'
+    ));
 
     for (const element of candidateElements) {
         const combined = `${element.textContent || ''} ${element.getAttribute('title') || ''} ${element.getAttribute('aria-label') || ''}`;
@@ -2482,21 +2495,29 @@ function parseRateYourMusicRecordedYear(container, title = '', href = '') {
     }
 
     const cardText = String(container.textContent || '').replace(/\s+/g, ' ').trim();
-    const recordedLabel = cardText.match(/\bRecorded\b[\s:,-]*([\s\S]{0,100}?)(?=\b(?:Released|RYM Rating|Ratings?|Reviews?|Genres?|Descriptors?|Language|$))/i);
+    const recordedLabel = cardText.match(/\bRecorded\b[\s:,-]*([\s\S]{0,140}?)(?=\b(?:Released|RYM Rating|Ratings?|Reviews?|Genres?|Descriptors?|Language|$))/i);
     if (recordedLabel) {
         const year = extractYear(recordedLabel[1]);
         if (year) return year;
+        const twoDigit = parseRateYourMusicTwoDigitHistoricalYear(recordedLabel[1]);
+        if (twoDigit) return twoDigit;
     }
 
-    // Some archival/live chart cards emphasize the historical year in the
-    // title instead of exposing a dedicated Recorded field. Only use this
-    // fallback when the card itself identifies the release as live/archival.
-    if (/\b(?:Live|Archival)\b/i.test(cardText)) {
+    // Historical live/archival titles frequently carry the performance year.
+    const isHistoricalRelease = /\b(?:live|archival)\b/i.test(`${releaseType} ${cardText}`);
+    if (isHistoricalRelease) {
         const titleYear = extractYear(title);
         if (titleYear) return titleYear;
 
-        const hrefYear = extractYear(String(href || '').replace(/[-_/]+/g, ' '));
+        const titleTwoDigit = parseRateYourMusicTwoDigitHistoricalYear(title);
+        if (titleTwoDigit) return titleTwoDigit;
+
+        const hrefText = decodeURIComponent(String(href || '')).replace(/[-_/]+/g, ' ');
+        const hrefYear = extractYear(hrefText);
         if (hrefYear) return hrefYear;
+
+        const hrefTwoDigit = parseRateYourMusicTwoDigitHistoricalYear(hrefText);
+        if (hrefTwoDigit) return hrefTwoDigit;
     }
 
     return null;
@@ -2513,67 +2534,96 @@ function parseRateYourMusicReleasedYear(container) {
 function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex = 0) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(String(htmlText || ''), 'text/html');
-    const releaseAnchors = Array.from(doc.querySelectorAll('a[href*="/release/"]'));
-    const seen = new Set();
     const entries = [];
+    const seen = new Set();
 
-    releaseAnchors.forEach(anchor => {
-        const rawHref = anchor.getAttribute('href') || '';
-        let href = '';
+    const chartItems = Array.from(doc.querySelectorAll('.page_charts_section_charts_item'));
+
+    const normalizeHref = rawHref => {
         try {
-            href = new URL(rawHref, 'https://rateyourmusic.com/').href;
+            const url = new URL(rawHref || '', 'https://rateyourmusic.com/');
+            url.hash = '';
+            url.search = '';
+            return url.href;
         } catch (error) {
-            return;
+            return '';
         }
-        if (!/rateyourmusic\.com\/release\//i.test(href) || seen.has(href)) return;
+    };
 
-        const card = findRateYourMusicChartCard(anchor);
-        if (!card) return;
-        const matchingLinks = Array.from(card.querySelectorAll('a[href*="/release/"]')).filter(link => {
-            try {
-                return new URL(link.getAttribute('href') || '', 'https://rateyourmusic.com/').href === href;
-            } catch (error) {
-                return false;
-            }
-        });
+    const textOf = (container, selector) => {
+        const element = container ? container.querySelector(selector) : null;
+        return element ? String(element.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    };
 
-        const titleCandidates = matchingLinks
-            .map(link => (link.textContent || '').replace(/\s+/g, ' ').trim())
-            .filter(Boolean)
-            .sort((a, b) => b.length - a.length);
-        const imageElements = [];
-        matchingLinks.forEach(link => imageElements.push(...Array.from(link.querySelectorAll('img, source, [style*="background-image"]'))));
-        if (!imageElements.length) imageElements.push(...Array.from(card.querySelectorAll('img, source, [style*="background-image"]')));
-        let imageSrc = '';
+    const getImageFromContainer = container => {
+        if (!container) return '';
+        const imageElements = Array.from(container.querySelectorAll('img, source, [style*="background-image"]'));
         for (const imageElement of imageElements) {
-            imageSrc = getRateYourMusicImageUrl(imageElement);
-            if (imageSrc) break;
+            const imageSrc = getRateYourMusicImageUrl(imageElement);
+            if (imageSrc) return imageSrc;
         }
+        return '';
+    };
 
-        let title = titleCandidates[0] || '';
+    const pushChartItem = (card, itemIndex) => {
+        const releaseAnchor = card.querySelector(
+            '.page_charts_section_charts_item_title a[href*="/release/"], .release a[href*="/release/"], a[href*="/release/"]'
+        );
+        if (!releaseAnchor) return;
+
+        const href = normalizeHref(releaseAnchor.getAttribute('href'));
+        if (!href || !/rateyourmusic\.com\/release\//i.test(href) || seen.has(href)) return;
+
+        let title = textOf(card, '.page_charts_section_charts_item_title a .ui_name_locale_original')
+            || textOf(card, '.page_charts_section_charts_item_title a')
+            || textOf(card, '.release a')
+            || String(releaseAnchor.textContent || '').replace(/\s+/g, ' ').trim();
+
         if (!title) {
-            const image = imageElements.find(item => item.tagName && item.tagName.toLowerCase() === 'img');
+            const image = card.querySelector('img[alt]');
             title = image ? String(image.getAttribute('alt') || '').trim() : '';
         }
-        title = title.replace(/^\s*\d+[.)]?\s*/, '').trim();
 
-        const artistLinks = Array.from(card.querySelectorAll('a[href*="/artist/"]'));
-        const artist = artistLinks
-            .map(link => (link.textContent || '').replace(/\s+/g, ' ').trim())
-            .find(Boolean) || '';
+        // Only strip an actual "1. " / "1) " rank prefix. Never strip a pure
+        // numeric title such as Prince's "1999", Wire's "154", or Ichiko Aoba's "0".
+        title = title.replace(/^\s*\d+[.)]\s+/, '').trim();
 
-        const releasedYear = parseRateYourMusicReleasedYear(card);
-        const recordedYear = parseRateYourMusicRecordedYear(card, title, href);
-        // For RYM Topsters, "Show release year" intentionally means the year
-        // the performance/material was recorded when RYM exposes that metadata.
-        // Standard studio releases fall back to their normal release year.
-        const year = recordedYear || releasedYear;
-        const ratingCount = parseRateYourMusicRatingCount(card);
-        const positionElement = card.querySelector('[class*="chart_position"], [class*="position"], [class*="rank"]');
-        const positionMatch = positionElement ? String(positionElement.textContent || '').match(/\d+/) : null;
-        const rank = positionMatch ? Number(positionMatch[0]) : ((Number(sourcePageIndex) || 0) * 100000) + entries.length + 1;
+        let artist = textOf(card, '.page_charts_section_charts_item_credited_links_primary a.artist')
+            || textOf(card, '.artist a')
+            || textOf(card, 'a[href*="/artist/"]');
+
+        if (!artist) {
+            artist = textOf(card, '.page_charts_section_charts_item_credited_links_primary')
+                || textOf(card, '.artist');
+        }
+
+        // RYM often renders Various Artists as non-clickable text rather than an
+        // /artist/ link, which previously caused those chart entries to be skipped.
+        if (!artist && /\/release\/[^/]+\/various-artists\//i.test(new URL(href).pathname)) {
+            artist = 'Various Artists';
+        }
 
         if (!artist || !title) return;
+
+        const releaseType = textOf(card, '.page_charts_section_charts_item_release_type');
+        const releasedYear = parseRateYourMusicReleasedYear(card);
+        const recordedYear = parseRateYourMusicRecordedYear(card, title, href, releaseType);
+
+        // The saved RYM chart itself exposes the release date, not a reliable
+        // Recorded field. When a historical live/archival item has no recoverable
+        // Recorded year, do not substitute the later release year into the overlay.
+        const isHistoricalRelease = /\b(?:live|archival)\b/i.test(`${releaseType} ${card.textContent || ''}`);
+        const year = recordedYear || (isHistoricalRelease ? null : releasedYear);
+
+        const rankText = textOf(card, '.page_charts_section_charts_item_number > div:first-child')
+            || textOf(card, '[class*="chart_position"], [class*="position"], [class*="rank"]');
+        const rankMatch = rankText.match(/\d+/);
+        const rank = rankMatch
+            ? Number(rankMatch[0])
+            : ((Number(sourcePageIndex) || 0) * 100) + itemIndex + 1;
+
+        const imageSrc = getImageFromContainer(releaseAnchor) || getImageFromContainer(card);
+
         seen.add(href);
         entries.push({
             rank,
@@ -2582,7 +2632,62 @@ function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex 
             year,
             recordedYear,
             releasedYear,
-            ratingCount,
+            releaseType,
+            ratingCount: null,
+            imageSrc,
+            href,
+            sourceName
+        });
+    };
+
+    if (chartItems.length) {
+        chartItems.forEach((card, itemIndex) => pushChartItem(card, itemIndex));
+        return entries;
+    }
+
+    // Fallback for older/simplified saved RYM markup that does not use the
+    // current page_charts_section_charts_item container.
+    const releaseAnchors = Array.from(doc.querySelectorAll('a[href*="/release/"]'));
+    releaseAnchors.forEach((anchor, itemIndex) => {
+        const href = normalizeHref(anchor.getAttribute('href'));
+        if (!href || !/rateyourmusic\.com\/release\//i.test(href) || seen.has(href)) return;
+
+        const card = findRateYourMusicChartCard(anchor);
+        if (!card) return;
+
+        let title = String(anchor.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!title) {
+            const image = card.querySelector('img[alt]');
+            title = image ? String(image.getAttribute('alt') || '').trim() : '';
+        }
+        title = title.replace(/^\s*\d+[.)]\s+/, '').trim();
+
+        let artist = Array.from(card.querySelectorAll('a[href*="/artist/"]'))
+            .map(link => String(link.textContent || '').replace(/\s+/g, ' ').trim())
+            .find(Boolean) || '';
+
+        if (!artist && /\/release\/[^/]+\/various-artists\//i.test(new URL(href).pathname)) {
+            artist = 'Various Artists';
+        }
+        if (!artist || !title) return;
+
+        const releaseType = textOf(card, '.page_charts_section_charts_item_release_type');
+        const releasedYear = parseRateYourMusicReleasedYear(card);
+        const recordedYear = parseRateYourMusicRecordedYear(card, title, href, releaseType);
+        const isHistoricalRelease = /\b(?:live|archival)\b/i.test(`${releaseType} ${card.textContent || ''}`);
+        const year = recordedYear || (isHistoricalRelease ? null : releasedYear);
+        const imageSrc = getImageFromContainer(anchor) || getImageFromContainer(card);
+
+        seen.add(href);
+        entries.push({
+            rank: ((Number(sourcePageIndex) || 0) * 100) + itemIndex + 1,
+            artist: cleanAlbumTitle(artist),
+            title: cleanAlbumTitle(title),
+            year,
+            recordedYear,
+            releasedYear,
+            releaseType,
+            ratingCount: null,
             imageSrc,
             href,
             sourceName
@@ -2591,7 +2696,6 @@ function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex 
 
     return entries;
 }
-
 function seedRateYourMusicCovers(entries) {
     entries.forEach(entry => {
         if (!entry || !entry.imageSrc) return;
@@ -2688,10 +2792,6 @@ async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig(
     if (!config.releaseTypes.length) {
         throw new Error('Select at least one RateYourMusic release type.');
     }
-    if (config.ratingsMin !== null && config.ratingsMax !== null && config.ratingsMin > config.ratingsMax) {
-        throw new Error('Number of ratings minimum cannot be greater than the maximum.');
-    }
-
     setTopsterLoadingProgress(20, `Reading ${files.length} saved RateYourMusic chart page${files.length === 1 ? '' : 's'}...`);
     const pages = await Promise.all(files.map(readRateYourMusicHtmlFile));
     const parsed = [];
@@ -2706,32 +2806,15 @@ async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig(
         unique.push(entry);
     });
 
-    let unknownRatingsExcluded = 0;
-    const ratingsFilterActive = config.ratingsMin !== null || config.ratingsMax !== null;
-    const filtered = unique.filter(entry => {
-        if (!ratingsFilterActive) return true;
-        if (!Number.isFinite(entry.ratingCount)) {
-            unknownRatingsExcluded += 1;
-            return false;
-        }
-        if (config.ratingsMin !== null && entry.ratingCount < config.ratingsMin) return false;
-        if (config.ratingsMax !== null && entry.ratingCount > config.ratingsMax) return false;
-        return true;
-    });
-
-    if (!filtered.length) {
-        if (!unique.length) {
-            throw new Error('No RateYourMusic chart entries could be read from the selected HTML pages. Make sure the selected files are actual RYM chart result pages.');
-        }
-        throw new Error('The selected RateYourMusic pages were parsed, but no entries remained after the number-of-ratings filter.');
+    if (!unique.length) {
+        throw new Error('No RateYourMusic chart entries could be read from the selected HTML pages. Make sure the selected files are actual RYM chart result pages.');
     }
 
-    filtered.sort((a, b) => (Number(a.rank) || 999999999) - (Number(b.rank) || 999999999));
-    const limited = filtered.slice(0, config.maxEntries);
-    seedRateYourMusicCovers(limited);
+    unique.sort((a, b) => (Number(a.rank) || 999999999) - (Number(b.rank) || 999999999));
+    seedRateYourMusicCovers(unique);
 
     const metadata = {
-        version: 2,
+        version: 3,
         updatedAt: new Date().toISOString(),
         updateCadence: 'Weekly',
         chartUrl: buildRateYourMusicChartUrl(config, 1),
@@ -2740,21 +2823,19 @@ async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig(
         sourcePageCount: pages.length,
         sourceFiles: pages.map(page => page.name),
         parsedEntryCount: unique.length,
-        filteredEntryCount: filtered.length,
-        entryCount: limited.length,
-        rymThumbnailCount: limited.filter(entry => entry.imageSrc).length,
-        recordedYearCount: limited.filter(entry => Number.isFinite(entry.recordedYear)).length,
-        unknownRatingsExcluded,
-        releaseLinks: limited.map(entry => entry.href || '')
+        entryCount: unique.length,
+        rymThumbnailCount: unique.filter(entry => entry.imageSrc).length,
+        recordedYearCount: unique.filter(entry => Number.isFinite(entry.recordedYear)).length,
+        releaseLinks: unique.map(entry => entry.href || '')
     };
-    const lines = limited.map(entry => `${entry.artist} - ${entry.title}${entry.year ? ` (${entry.year})` : ''}`);
+    const lines = unique.map(entry => `${entry.artist} - ${entry.title}${entry.year ? ` (${entry.year})` : ''}`);
     const text = `# RYM_CONFIG ${JSON.stringify(metadata)}\n${lines.join('\n')}`;
     renderRateYourMusicSnapshotSummary(text);
 
     return {
         text,
         signature: simpleTextHash(text),
-        source: `RateYourMusic chart snapshot (${pages.length} imported page${pages.length === 1 ? '' : 's'}, ${limited.length} release${limited.length === 1 ? '' : 's'})`
+        source: `RateYourMusic chart snapshot (${pages.length} imported page${pages.length === 1 ? '' : 's'}, ${unique.length} release${unique.length === 1 ? '' : 's'})`
     };
 }
 

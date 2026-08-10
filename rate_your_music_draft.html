@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - RateYourMusic&#39;s Top Albums Of All Time - Draft</title>
-    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v25">
+    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v26">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
     <style>
         .rym-subtitle {
@@ -98,12 +98,7 @@
             margin: 8px 0 0;
             color: #ddd;
         }
-        .rym-control-note {
-            margin: 6px 0 0;
-            color: #ccc;
-            font-size: 0.9em;
-        }
-        @media only screen and (max-width: 768px) {
+@media only screen and (max-width: 768px) {
             .rym-config-grid,
             .rym-config-readonly-grid {
                 grid-template-columns: 1fr;
@@ -170,11 +165,7 @@
                         <label for="rym-live-mode">Live releases</label><select id="rym-live-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
                         <label for="rym-archival-mode">Archival releases</label><select id="rym-archival-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
                         <label for="rym-soundtrack-mode">Soundtracks and scores</label><select id="rym-soundtrack-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
-
-                        <div class="rym-group-label">Number of ratings (min / max) — local import filter</div>
-                        <div class="rym-period-fields"><input type="number" id="rym-ratings-min" min="0" step="1" placeholder="No minimum" data-rym-config-control="true" aria-label="Minimum number of ratings"><input type="number" id="rym-ratings-max" min="0" step="1" placeholder="No maximum" data-rym-config-control="true" aria-label="Maximum number of ratings"></div><p class="rym-control-note">Applied by Navincitron after the selected RYM HTML pages are imported; this filter is not encoded into the generated RateYourMusic chart URL.</p>
-
-                        <label for="rym-popularity-weighting">Popularity weighting</label>
+<label for="rym-popularity-weighting">Popularity weighting</label>
                         <select id="rym-popularity-weighting" data-rym-config-control="true"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select>
                     </div>
                 </details>
@@ -185,16 +176,14 @@
                     <div class="rym-import-actions">
                         <label for="rym-page-count">Chart pages to import</label>
                         <input type="number" id="rym-page-count" min="1" max="100" step="1" value="25" data-rym-config-control="true">
-                        <label for="rym-max-entries">Maximum releases</label>
-                        <input type="number" id="rym-max-entries" min="1" max="5000" step="1" value="1000" data-rym-config-control="true">
-                        <button type="button" id="rym-open-chart-button" class="secondary-button">Open page 1</button>
+<button type="button" id="rym-open-chart-button" class="secondary-button">Open page 1</button>
                     </div>
                     <p class="rym-chart-url">Page 1: <a id="rym-chart-url-preview" href="https://rateyourmusic.com/charts/" target="_blank" rel="noopener noreferrer">https://rateyourmusic.com/charts/</a></p>
                     <div id="rym-page-links" class="rym-page-link-grid" aria-label="Configured RateYourMusic chart pages"></div>
                     <label for="rym-chart-html-input">Saved RateYourMusic chart HTML pages</label>
                     <input type="file" id="rym-chart-html-input" accept=".html,.htm,text/html" multiple>
                     <p id="rym-selected-page-count" class="rym-selected-pages-status">Selected pages: 0 / 25</p>
-                    <p>The file picker accepts all pages in one selection. Files named like “Custom chart_ Best albums of all time - Rate Your Music”, “...Rate Your Music2”, “...Rate Your Music3”, etc. are loaded as page 1, page 2, page 3, and so on. The number-of-ratings min/max filter and the maximum-release limit are applied after the selected pages are combined.</p>
+                    <p>The file picker accepts all pages in one selection. Files named like “Custom chart_ Best albums of all time - Rate Your Music”, “...Rate Your Music2”, “...Rate Your Music3”, etc. are loaded as page 1, page 2, page 3, and so on. All parsed releases from the selected pages are kept in chart order.</p>
                 </div>
 
                 <details class="topster-settings-panel" open>
@@ -260,13 +249,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v25';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v26';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260810-rate-your-music-v25"></script>
+    <script src="topster_grid.js?v=20260810-rate-your-music-v26"></script>
 </body>
 </html>
