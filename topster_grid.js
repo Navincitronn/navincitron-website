@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v23';
+const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v24';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -2047,13 +2047,22 @@ function buildRateYourMusicChartUrl(rawConfig, page = 1) {
     });
 
     const segments = [];
-    if (Number(page) > 1) segments.push(String(Math.max(1, Math.floor(Number(page)))));
     ['separate', 'deweight', 'include', 'only'].forEach(mode => {
         if (!modeBuckets[mode].length) return;
         const token = mode === 'include' ? 'incl' : mode;
         segments.push(`${token}:${modeBuckets[mode].join(',')}`);
     });
-    segments.push(`pop:${config.popularityWeighting}`);
+
+    const normalizedPage = Math.max(1, Math.floor(Number(page) || 1));
+
+    // RYM pagination must come after the inclusion/deweighting filters.
+    // Page 1 accepts the popularity-weighting segment, but including pop:X on
+    // later page URLs can cause RYM to return an Internal Server Error.
+    if (normalizedPage > 1) {
+        segments.push(String(normalizedPage));
+    } else {
+        segments.push(`pop:${config.popularityWeighting}`);
+    }
 
     return `${RATE_YOUR_MUSIC_CHART_BASE}${config.chartType}/${releaseTypes}/${period}/${segments.join('/')}/`;
 }
@@ -2204,10 +2213,19 @@ function formatRateYourMusicPeriod(config) {
     return 'All-time';
 }
 
-function formatRateYourMusicTimestamp(value) {
+function formatRateYourMusicTimestamp(value, dateOnly = false) {
     if (!value) return 'Not published yet';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
+
+    if (dateOnly) {
+        return date.toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric'
+        });
+    }
+
     return date.toLocaleString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
     });
@@ -2218,8 +2236,11 @@ function renderRateYourMusicSnapshotSummary(text = topsterSharedSourceText) {
     const metadata = parseRateYourMusicMetadata(text);
     const subtitle = document.getElementById('rym-last-updated');
     if (subtitle) {
+        const publicReadOnlyList = document.body
+            && document.body.dataset
+            && document.body.dataset.topsterReadonly === 'true';
         subtitle.textContent = metadata && metadata.updatedAt
-            ? `Last snapshot: ${formatRateYourMusicTimestamp(metadata.updatedAt)}`
+            ? `Last snapshot: ${formatRateYourMusicTimestamp(metadata.updatedAt, publicReadOnlyList)}`
             : 'Last snapshot: Not published yet';
     }
 
