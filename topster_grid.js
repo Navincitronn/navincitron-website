@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v26';
+const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v27';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -2446,11 +2446,35 @@ function findRateYourMusicChartCard(anchor) {
 
 
 const RATE_YOUR_MUSIC_RECORDED_YEAR_OVERRIDES = Object.freeze({
+    // Previously reported corrections.
     '/release/album/led-zeppelin/how-the-west-was-won/': 1972,
     '/release/album/prince-and-the-revolution/prince-and-the-revolution-live/': 1985,
     '/release/album/bruce-springsteen-and-the-e-street-band/hammersmith-odeon-london-75/': 1975,
     '/release/album/boris/performing-flood/': 2012,
-    '/release/album/townes-van-zandt/live-at-the-old-quarter-houston-texas/': 1973
+    '/release/album/townes-van-zandt/live-at-the-old-quarter-houston-texas/': 1973,
+
+    // RYM chart HTML does not carry the full Recorded field from the individual
+    // release page. These corrections preserve the RYM-style recorded year for
+    // releases where the chart card alone cannot supply it.
+    '/release/album/fishmans/98_12_28-男達の別れ/': 1998,
+    '/release/album/swans/swans-are-dead/': 1995,
+    '/release/album/nirvana/mtv-unplugged-in-new-york/': 1993,
+    '/release/album/juan-gabriel/en-el-palacio-de-bellas-artes/': 1990,
+    '/release/album/swans/live-rope/': 2023,
+    '/release/album/ween/live-in-chicago/': 2003,
+    '/release/album/lcd-soundsystem/the-long-goodbye-lcd-soundsystem-live-at-madison-square-garden/': 2011,
+    '/release/album/john-coltrane/the-olatunji-concert-the-last-live-recording/': 1967,
+    '/release/album/talking-heads/the-name-of-this-band-is-talking-heads/': 1977,
+    '/release/album/portishead/roseland-nyc-live/': 1997,
+    '/release/album/파란노을/after-the-night/': 2023,
+    '/release/album/boris-with-merzbow/rock-dream/': 2006,
+    '/release/album/miles-davis/dark-magus/': 1974,
+    '/release/album/adrianne-lenker/live-at-revolution-hall/': 2024,
+    '/release/album/alice-in-chains/mtv-unplugged/': 1996,
+    '/release/album/vangelis/blade-runner/': 1981,
+    '/release/album/the-velvet-underground/the-complete-matrix-tapes/': 1969,
+    '/release/album/electric-masada/at-the-mountains-of-madness/': 2004,
+    '/release/album/johnny-cash/at-folsom-prison/': 1968
 });
 
 function getRateYourMusicRecordedYearOverride(href) {
@@ -2471,6 +2495,24 @@ function parseRateYourMusicTwoDigitHistoricalYear(raw) {
     if (!Number.isFinite(yy)) return null;
     const currentTwoDigit = new Date().getFullYear() % 100;
     return yy <= currentTwoDigit ? 2000 + yy : 1900 + yy;
+}
+
+function parseRateYourMusicHistoricalDateYear(raw) {
+    const text = decodeURIComponent(String(raw || '')).replace(/[–—]/g, '-');
+
+    // Date-like forms used in release titles/slugs: 98.12.28, 98_12_28, 98-12-28.
+    // The year is interpreted using the same rolling-century rule as apostrophe years.
+    const shortDate = text.match(/(?:^|[^0-9])(\d{2})[._-](?:0?[1-9]|1[0-2])[._-](?:0?[1-9]|[12]\d|3[01])(?:[^0-9]|$)/);
+    if (shortDate) {
+        const yy = Number(shortDate[1]);
+        const currentTwoDigit = new Date().getFullYear() % 100;
+        if (Number.isFinite(yy)) return yy <= currentTwoDigit ? 2000 + yy : 1900 + yy;
+    }
+
+    const fullYear = text.match(/\b((?:18|19|20)\d{2})\b/);
+    if (fullYear) return Number(fullYear[1]);
+
+    return parseRateYourMusicTwoDigitHistoricalYear(text);
 }
 
 function parseRateYourMusicRecordedYear(container, title = '', href = '', releaseType = '') {
@@ -2506,18 +2548,11 @@ function parseRateYourMusicRecordedYear(container, title = '', href = '', releas
     // Historical live/archival titles frequently carry the performance year.
     const isHistoricalRelease = /\b(?:live|archival)\b/i.test(`${releaseType} ${cardText}`);
     if (isHistoricalRelease) {
-        const titleYear = extractYear(title);
-        if (titleYear) return titleYear;
+        const titleHistoricalYear = parseRateYourMusicHistoricalDateYear(title);
+        if (titleHistoricalYear) return titleHistoricalYear;
 
-        const titleTwoDigit = parseRateYourMusicTwoDigitHistoricalYear(title);
-        if (titleTwoDigit) return titleTwoDigit;
-
-        const hrefText = decodeURIComponent(String(href || '')).replace(/[-_/]+/g, ' ');
-        const hrefYear = extractYear(hrefText);
-        if (hrefYear) return hrefYear;
-
-        const hrefTwoDigit = parseRateYourMusicTwoDigitHistoricalYear(hrefText);
-        if (hrefTwoDigit) return hrefTwoDigit;
+        const hrefHistoricalYear = parseRateYourMusicHistoricalDateYear(href);
+        if (hrefHistoricalYear) return hrefHistoricalYear;
     }
 
     return null;
@@ -2613,6 +2648,10 @@ function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex 
         // Recorded field. When a historical live/archival item has no recoverable
         // Recorded year, do not substitute the later release year into the overlay.
         const isHistoricalRelease = /\b(?:live|archival)\b/i.test(`${releaseType} ${card.textContent || ''}`);
+        // Historical releases must use Recorded rather than the later Released date.
+        // If the chart card lacks Recorded metadata, the URL/title heuristics and
+        // recorded-year override table above are used before leaving the year blank.
+        // Historical releases must use Recorded rather than the later Released date.
         const year = recordedYear || (isHistoricalRelease ? null : releasedYear);
 
         const rankText = textOf(card, '.page_charts_section_charts_item_number > div:first-child')
