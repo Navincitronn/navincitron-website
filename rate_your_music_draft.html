@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - RateYourMusic&#39;s Top Albums Of All Time - Draft</title>
-    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v24">
+    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v25">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
     <style>
         .rym-subtitle {
@@ -98,6 +98,11 @@
             margin: 8px 0 0;
             color: #ddd;
         }
+        .rym-control-note {
+            margin: 6px 0 0;
+            color: #ccc;
+            font-size: 0.9em;
+        }
         @media only screen and (max-width: 768px) {
             .rym-config-grid,
             .rym-config-readonly-grid {
@@ -121,7 +126,7 @@
     <main>
         <section class="grid-builder-page">
             <div class="title-bar"><br><h2 class="center">RATEYOURMUSIC&#39;S TOP ALBUMS OF ALL TIME - DRAFT</h2></div>
-            <p class="rym-subtitle"><strong>Updated weekly</strong> &bull; <span id="rym-last-updated">Last snapshot: Not published yet</span></p>
+            <p class="rym-subtitle"><strong>Updated weekly</strong> &bull; <span id="rym-last-updated">Last updated: Not published yet</span></p>
             <hr>
             <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
                 <p class="topster-loading-title">Loading Topster</p>
@@ -166,8 +171,8 @@
                         <label for="rym-archival-mode">Archival releases</label><select id="rym-archival-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
                         <label for="rym-soundtrack-mode">Soundtracks and scores</label><select id="rym-soundtrack-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
 
-                        <div class="rym-group-label">Number of ratings (min / max)</div>
-                        <div class="rym-period-fields"><input type="number" id="rym-ratings-min" min="0" step="1" placeholder="No minimum" data-rym-config-control="true" aria-label="Minimum number of ratings"><input type="number" id="rym-ratings-max" min="0" step="1" placeholder="No maximum" data-rym-config-control="true" aria-label="Maximum number of ratings"></div>
+                        <div class="rym-group-label">Number of ratings (min / max) — local import filter</div>
+                        <div class="rym-period-fields"><input type="number" id="rym-ratings-min" min="0" step="1" placeholder="No minimum" data-rym-config-control="true" aria-label="Minimum number of ratings"><input type="number" id="rym-ratings-max" min="0" step="1" placeholder="No maximum" data-rym-config-control="true" aria-label="Maximum number of ratings"></div><p class="rym-control-note">Applied by Navincitron after the selected RYM HTML pages are imported; this filter is not encoded into the generated RateYourMusic chart URL.</p>
 
                         <label for="rym-popularity-weighting">Popularity weighting</label>
                         <select id="rym-popularity-weighting" data-rym-config-control="true"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select>
@@ -189,7 +194,7 @@
                     <label for="rym-chart-html-input">Saved RateYourMusic chart HTML pages</label>
                     <input type="file" id="rym-chart-html-input" accept=".html,.htm,text/html" multiple>
                     <p id="rym-selected-page-count" class="rym-selected-pages-status">Selected pages: 0 / 25</p>
-                    <p>The file picker accepts all pages in one selection. The number-of-ratings min/max filter and the maximum-release limit are applied after the selected pages are combined.</p>
+                    <p>The file picker accepts all pages in one selection. Files named like “Custom chart_ Best albums of all time - Rate Your Music”, “...Rate Your Music2”, “...Rate Your Music3”, etc. are loaded as page 1, page 2, page 3, and so on. The number-of-ratings min/max filter and the maximum-release limit are applied after the selected pages are combined.</p>
                 </div>
 
                 <details class="topster-settings-panel" open>
@@ -255,13 +260,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v24';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v25';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260810-rate-your-music-v24"></script>
+    <script src="topster_grid.js?v=20260810-rate-your-music-v25"></script>
 </body>
 </html>

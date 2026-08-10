@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v24';
+const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v25';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -2240,8 +2240,8 @@ function renderRateYourMusicSnapshotSummary(text = topsterSharedSourceText) {
             && document.body.dataset
             && document.body.dataset.topsterReadonly === 'true';
         subtitle.textContent = metadata && metadata.updatedAt
-            ? `Last snapshot: ${formatRateYourMusicTimestamp(metadata.updatedAt, publicReadOnlyList)}`
-            : 'Last snapshot: Not published yet';
+            ? `Last updated: ${formatRateYourMusicTimestamp(metadata.updatedAt, publicReadOnlyList)}`
+            : 'Last updated: Not published yet';
     }
 
     const summary = document.getElementById('rym-config-summary');
@@ -2263,7 +2263,7 @@ function renderRateYourMusicSnapshotSummary(text = topsterSharedSourceText) {
         ['Live releases', rateYourMusicModeLabel(config.liveMode)],
         ['Archival releases', rateYourMusicModeLabel(config.archivalMode)],
         ['Soundtracks and scores', rateYourMusicModeLabel(config.soundtrackMode)],
-        ['Number of ratings (min / max)', ratingsText],
+        ['Number of ratings (min / max, applied after import)', ratingsText],
         ['Popularity weighting', String(config.popularityWeighting)],
         ['Chart pages requested', String(config.pageCount)],
         ['Maximum releases', String(config.maxEntries)],
@@ -2389,22 +2389,65 @@ function getRateYourMusicImageUrl(element) {
     return '';
 }
 
+function parseRateYourMusicCompactCount(rawValue, suffix = '') {
+    const raw = String(rawValue || '').trim();
+    if (!raw) return null;
+
+    const multiplierSuffix = String(suffix || '').trim().toLowerCase();
+    let numberText = raw.replace(/\s+/g, '');
+
+    // Commas are thousands separators. A period is retained so values such as
+    // 12.4k can be interpreted as 12,400.
+    numberText = numberText.replace(/,/g, '');
+    const value = Number(numberText);
+    if (!Number.isFinite(value)) return null;
+
+    let multiplier = 1;
+    if (multiplierSuffix === 'k') multiplier = 1_000;
+    if (multiplierSuffix === 'm') multiplier = 1_000_000;
+
+    return Math.round(value * multiplier);
+}
+
 function parseRateYourMusicRatingCount(container) {
     if (!container) return null;
-    const focused = Array.from(container.querySelectorAll('[class*="rating_count"], [class*="ratings_count"], [class*="chart_stats"], [title*="rating" i], [aria-label*="rating" i]'));
+
+    const parseText = rawText => {
+        const text = String(rawText || '').replace(/\u00a0/g, ' ');
+
+        // Support both "12.4k ratings" and "Ratings 12.4k".
+        const afterNumber = text.match(/([\d,.]+)\s*([kKmM]?)\s*(?:ratings?|votes?)\b/i);
+        if (afterNumber) {
+            const value = parseRateYourMusicCompactCount(afterNumber[1], afterNumber[2]);
+            if (Number.isFinite(value)) return value;
+        }
+
+        const afterLabel = text.match(/(?:ratings?|votes?)\s*[:\-]?\s*([\d,.]+)\s*([kKmM]?)/i);
+        if (afterLabel) {
+            const value = parseRateYourMusicCompactCount(afterLabel[1], afterLabel[2]);
+            if (Number.isFinite(value)) return value;
+        }
+
+        return null;
+    };
+
+    const focused = Array.from(container.querySelectorAll(
+        '[class*="rating_count"], [class*="ratings_count"], [class*="chart_stats"], [title*="rating" i], [aria-label*="rating" i]'
+    ));
+
     for (const element of focused) {
         const combined = `${element.textContent || ''} ${element.getAttribute('title') || ''} ${element.getAttribute('aria-label') || ''}`;
-        const match = combined.match(/([\d,.]+)\s*(?:ratings?|votes?)\b/i) || combined.match(/^\s*([\d,.]+)\s*$/);
-        if (match) {
-            const value = Number(match[1].replace(/[,.]/g, ''));
+        const labeledValue = parseText(combined);
+        if (Number.isFinite(labeledValue)) return labeledValue;
+
+        const compactOnly = combined.match(/^\s*([\d,.]+)\s*([kKmM]?)\s*$/);
+        if (compactOnly) {
+            const value = parseRateYourMusicCompactCount(compactOnly[1], compactOnly[2]);
             if (Number.isFinite(value)) return value;
         }
     }
-    const text = container.textContent || '';
-    const match = text.match(/([\d,.]+)\s+(?:ratings?|votes?)\b/i);
-    if (!match) return null;
-    const value = Number(match[1].replace(/[,.]/g, ''));
-    return Number.isFinite(value) ? value : null;
+
+    return parseText(container.textContent || '');
 }
 
 function findRateYourMusicChartCard(anchor) {
@@ -2418,6 +2461,53 @@ function findRateYourMusicChartCard(anchor) {
         if (hasArtist && hasImage && uniqueReleaseHrefs.size <= 4) return node;
     }
     return anchor.parentElement || anchor;
+}
+
+function parseRateYourMusicRecordedYear(container, title = '', href = '') {
+    if (!container) return null;
+
+    const candidateElements = Array.from(container.querySelectorAll(
+        '[class*="recorded" i], [data-testid*="recorded" i], [title*="recorded" i], [aria-label*="recorded" i]'
+    ));
+
+    const extractYear = raw => {
+        const match = String(raw || '').match(/\b((?:18|19|20)\d{2})\b/);
+        return match ? Number(match[1]) : null;
+    };
+
+    for (const element of candidateElements) {
+        const combined = `${element.textContent || ''} ${element.getAttribute('title') || ''} ${element.getAttribute('aria-label') || ''}`;
+        const year = extractYear(combined);
+        if (year) return year;
+    }
+
+    const cardText = String(container.textContent || '').replace(/\s+/g, ' ').trim();
+    const recordedLabel = cardText.match(/\bRecorded\b[\s:,-]*([\s\S]{0,100}?)(?=\b(?:Released|RYM Rating|Ratings?|Reviews?|Genres?|Descriptors?|Language|$))/i);
+    if (recordedLabel) {
+        const year = extractYear(recordedLabel[1]);
+        if (year) return year;
+    }
+
+    // Some archival/live chart cards emphasize the historical year in the
+    // title instead of exposing a dedicated Recorded field. Only use this
+    // fallback when the card itself identifies the release as live/archival.
+    if (/\b(?:Live|Archival)\b/i.test(cardText)) {
+        const titleYear = extractYear(title);
+        if (titleYear) return titleYear;
+
+        const hrefYear = extractYear(String(href || '').replace(/[-_/]+/g, ' '));
+        if (hrefYear) return hrefYear;
+    }
+
+    return null;
+}
+
+function parseRateYourMusicReleasedYear(container) {
+    if (!container) return null;
+    const dateElement = container.querySelector('[class*="release_date"], [class*="chart_date"], time, [class*="date"]');
+    const dateText = `${dateElement ? dateElement.textContent || '' : ''} ${container.textContent || ''}`;
+    const yearMatch = dateText.match(/\b((?:18|19|20)\d{2})\b/);
+    return yearMatch ? Number(yearMatch[1]) : null;
 }
 
 function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex = 0) {
@@ -2472,10 +2562,12 @@ function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex 
             .map(link => (link.textContent || '').replace(/\s+/g, ' ').trim())
             .find(Boolean) || '';
 
-        const dateElement = card.querySelector('[class*="release_date"], [class*="chart_date"], time, [class*="date"]');
-        const dateText = `${dateElement ? dateElement.textContent || '' : ''} ${card.textContent || ''}`;
-        const yearMatch = dateText.match(/\b((?:18|19|20)\d{2})\b/);
-        const year = yearMatch ? Number(yearMatch[1]) : null;
+        const releasedYear = parseRateYourMusicReleasedYear(card);
+        const recordedYear = parseRateYourMusicRecordedYear(card, title, href);
+        // For RYM Topsters, "Show release year" intentionally means the year
+        // the performance/material was recorded when RYM exposes that metadata.
+        // Standard studio releases fall back to their normal release year.
+        const year = recordedYear || releasedYear;
         const ratingCount = parseRateYourMusicRatingCount(card);
         const positionElement = card.querySelector('[class*="chart_position"], [class*="position"], [class*="rank"]');
         const positionMatch = positionElement ? String(positionElement.textContent || '').match(/\d+/) : null;
@@ -2488,6 +2580,8 @@ function parseRateYourMusicChartHtml(htmlText, sourceName = '', sourcePageIndex 
             artist: cleanAlbumTitle(artist),
             title: cleanAlbumTitle(title),
             year,
+            recordedYear,
+            releasedYear,
             ratingCount,
             imageSrc,
             href,
@@ -2521,11 +2615,25 @@ async function readRateYourMusicHtmlFile(file) {
 }
 
 function getRateYourMusicPageNumberFromFileName(name) {
-    const text = String(name || '');
+    const text = String(name || '').trim();
+
+    // Chrome/Firefox saves RYM chart pages with names such as:
+    // "Custom chart_ Best albums of all time - Rate Your Music.html"
+    // "Custom chart_ Best albums of all time - Rate Your Music2.html"
+    // "Custom chart_ Best albums of all time - Rate Your Music25.html"
+    // Treat the unsuffixed file as page 1 and trailing digits as the page.
+    const rymChartName = text.match(/(?:^|.*\s-\s)Rate Your Music\s*(\d*)\s*(?=\.(?:html?|xhtml)$|$)/i);
+    if (rymChartName) {
+        const page = rymChartName[1] ? Number(rymChartName[1]) : 1;
+        if (Number.isFinite(page) && page >= 1) return page;
+    }
+
+    // Secondary fallbacks for manually renamed files.
     const patterns = [
         /(?:page|pg)[\s._-]*(\d+)/i,
         /[\s._-]\((\d+)\)(?=\.[^.]+$)/i,
-        /[\s._-](\d+)(?=\.[^.]+$)/i
+        /[\s._-](\d+)(?=\.[^.]+$)/i,
+        /(\d+)(?=\.[^.]+$)/i
     ];
     for (const pattern of patterns) {
         const match = text.match(pattern);
@@ -2534,16 +2642,25 @@ function getRateYourMusicPageNumberFromFileName(name) {
             if (Number.isFinite(page) && page >= 1) return page;
         }
     }
+
     return null;
 }
 
 function sortRateYourMusicHtmlFiles(files) {
     return Array.from(files || [])
-        .map((file, index) => ({ file, index, page: getRateYourMusicPageNumberFromFileName(file && file.name) }))
+        .map((file, index) => ({
+            file,
+            index,
+            page: getRateYourMusicPageNumberFromFileName(file && file.name),
+            name: String(file && file.name || '')
+        }))
         .sort((a, b) => {
             if (a.page !== null && b.page !== null && a.page !== b.page) return a.page - b.page;
             if (a.page !== null && b.page === null) return -1;
             if (a.page === null && b.page !== null) return 1;
+
+            const byName = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+            if (byName !== 0) return byName;
             return a.index - b.index;
         })
         .map(item => item.file);
@@ -2626,6 +2743,7 @@ async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig(
         filteredEntryCount: filtered.length,
         entryCount: limited.length,
         rymThumbnailCount: limited.filter(entry => entry.imageSrc).length,
+        recordedYearCount: limited.filter(entry => Number.isFinite(entry.recordedYear)).length,
         unknownRatingsExcluded,
         releaseLinks: limited.map(entry => entry.href || '')
     };
