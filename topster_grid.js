@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260807-nme-500-v20';
+const TOPSTER_FRONTEND_VERSION = '20260810-1001-albums-v21';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -200,7 +200,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -213,6 +213,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'rolling-stone-500-albums-2020-file') return 'rolling_stone_500_albums_2020';
     if (kind === 'rolling-stone-500-albums-2023-file') return 'rolling_stone_500_albums_2023';
     if (kind === 'nme-500-albums-file') return 'nme_500_albums';
+    if (kind === '1001-albums-you-must-hear-before-you-die-file') return '1001_albums_you_must_hear_before_you_die';
     return 'grid';
 }
 
@@ -323,6 +324,7 @@ function isTopsterEditorPage() {
         || fileName === 'rolling_stone_500_albums_2020_draft.html'
         || fileName === 'rolling_stone_500_albums_2023_draft.html'
         || fileName === 'nme_500_albums_draft.html'
+        || fileName === '1001_albums_you_must_hear_before_you_die_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -376,6 +378,16 @@ function getTopsterDataSourceConfig() {
             label: 'rolling_stone_500_albums_2023.txt',
             readLabel: 'rolling_stone_500_albums_2023.txt',
             fileName: 'rolling_stone_500_albums_2023.txt',
+            staticFileOnly: true
+        };
+    }
+
+    if (sourceName === '1001-albums-you-must-hear-before-you-die-file' || sourceName === '1001_albums_you_must_hear_before_you_die' || sourceName === '1001-albums-you-must-hear-before-you-die') {
+        return {
+            kind: '1001-albums-you-must-hear-before-you-die-file',
+            label: '1001_albums_you_must_hear_before_you_die.txt',
+            readLabel: '1001_albums_you_must_hear_before_you_die.txt',
+            fileName: '1001_albums_you_must_hear_before_you_die.txt',
             staticFileOnly: true
         };
     }
@@ -443,7 +455,8 @@ function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_500_albums_2012: 'rolling_stone_500_albums_2012_list.html',
         rolling_stone_500_albums_2020: 'rolling_stone_500_albums_2020_list.html',
         rolling_stone_500_albums_2023: 'rolling_stone_500_albums_2023_list.html',
-        nme_500_albums: 'nme_500_albums_list.html'
+        nme_500_albums: 'nme_500_albums_list.html',
+        '1001_albums_you_must_hear_before_you_die': '1001_albums_you_must_hear_before_you_die_list.html'
     };
     return pageNames[sourceKey] || 'album_list.html';
 }
@@ -458,7 +471,8 @@ function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_500_albums_2012: "Rolling Stone's 500 Greatest Albums Of All Time (2012)",
         rolling_stone_500_albums_2020: "Rolling Stone's 500 Greatest Albums Of All Time (2020)",
         rolling_stone_500_albums_2023: "Rolling Stone's 500 Greatest Albums Of All Time (2023)",
-        nme_500_albums: "NME's 500 Greatest Albums Of All Time"
+        nme_500_albums: "NME's 500 Greatest Albums Of All Time",
+        '1001_albums_you_must_hear_before_you_die': '1001 Albums You Must Hear Before You Die (All Editions)'
     };
     return names[sourceKey] || 'Albums';
 }
@@ -2491,6 +2505,26 @@ function parseAlbumText(text) {
                 checklistOverlayImage: checklistMetadata.checklistOverlayImage,
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
+
+            // 1001 Albums You Must Hear Before You Die (All Editions) source format:
+            //   1. Frank Sinatra - In the Wee Small Hours (1955)
+            //   12. Miles Davis - Birth of the Cool (1957 [Compilation])
+            // The leading numeric index is removed above. For this source, accept
+            // optional bracketed metadata after the four-digit year while keeping
+            // the metadata out of the album title used for cover lookup.
+            if (getTopsterDataSourceConfig().kind === '1001-albums-you-must-hear-before-you-die-file') {
+                const mustHearMatch = line.match(/^(.+?)\s+-\s+(.+?)\s*\(\s*(\d{4})(?:\s+\[[^\]]+\])?\s*\)\s*$/);
+                if (mustHearMatch) {
+                    return {
+                        artist: cleanAlbumTitle(mustHearMatch[1]),
+                        title: cleanAlbumTitle(mustHearMatch[2]),
+                        dateText: mustHearMatch[3].trim(),
+                        year: extractYear(mustHearMatch[3]),
+                        raw: originalLine,
+                        ...checklistFields
+                    };
+                }
+            }
 
             // NME's 500 Greatest Albums Of All Time source format:
             //   1 - The Smiths - The Queen Is Dead
