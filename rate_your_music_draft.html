@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - RateYourMusic&#39;s Top Albums Of All Time - Draft</title>
+    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v22">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+    <style>
+        .rym-subtitle {
+            margin: 8px auto 18px;
+            text-align: center;
+            color: #ddd;
+        }
+        .rym-config-panel {
+            margin: 18px 0;
+        }
+        .rym-config-grid {
+            display: grid;
+            grid-template-columns: minmax(190px, 0.7fr) minmax(240px, 1.3fr);
+            gap: 12px 18px;
+            align-items: center;
+        }
+        .rym-config-grid > label,
+        .rym-config-grid > .rym-group-label {
+            font-weight: bold;
+        }
+        .rym-config-grid select,
+        .rym-config-grid input[type="number"] {
+            box-sizing: border-box;
+            width: 100%;
+            padding: 7px;
+        }
+        .rym-release-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 7px 12px;
+        }
+        .rym-release-types label {
+            font-weight: normal;
+        }
+        .rym-period-fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(110px, 1fr));
+            gap: 8px;
+        }
+        .rym-import-box {
+            margin: 14px 0 18px;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 8px;
+        }
+        .rym-import-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .rym-import-actions input[type="number"] {
+            width: 90px;
+            padding: 7px;
+        }
+        .rym-chart-url {
+            overflow-wrap: anywhere;
+            font-size: 13px;
+        }
+        .rym-config-summary {
+            max-width: 900px;
+            margin: 14px auto 22px;
+            padding: 12px 16px;
+            border: 1px solid rgba(255,255,255,.2);
+            border-radius: 8px;
+        }
+        .rym-config-readonly-grid {
+            display: grid;
+            grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr);
+            gap: 7px 18px;
+            margin: 0;
+        }
+        .rym-config-readonly-grid dt { font-weight: bold; }
+        .rym-config-readonly-grid dd { margin: 0; }
+        .rym-chart-source-line { margin: 12px 0 0; }
+        @media only screen and (max-width: 768px) {
+            .rym-config-grid,
+            .rym-config-readonly-grid {
+                grid-template-columns: 1fr;
+            }
+            .rym-config-readonly-grid dd { margin-bottom: 8px; }
+        }
+    </style>
+</head>
+<body data-topster-store-source="rate_your_music" data-topster-source="rate-your-music-chart">
+    <header>
+        <div class="header-left"><img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" /><div class="brand"><h1>NAVINCITRON</h1><br><p>proper music isolation</p></div></div>
+        <nav class="topnav">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="album_list.html">List</a>
+            <a href="ranked_album_list.html">Rank</a>
+        </nav>
+    </header>
+    <main>
+        <section class="grid-builder-page">
+            <div class="title-bar"><br><h2 class="center">RATEYOURMUSIC&#39;S TOP ALBUMS OF ALL TIME - DRAFT</h2></div>
+            <p class="rym-subtitle"><strong>Updated weekly</strong> &bull; <span id="rym-last-updated">Last snapshot: Not published yet</span></p>
+            <hr>
+            <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
+                <p class="topster-loading-title">Loading Topster</p>
+                <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+                <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
+                <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
+            </div>
+            <div class="topster-import-panel" id="topster-import-panel">
+                <div class="topster-controls topster-file-controls">
+                    <button type="button" id="topster-build-button">Build</button>
+                    <button type="button" id="topster-refresh-button" class="secondary-button">Refresh</button>
+                    <button type="button" id="topster-stop-button" class="danger-button" disabled>Stop Lookup</button>
+                    <button type="button" id="topster-clear-button" class="secondary-button">Clear</button>
+                    <button type="button" id="topster-save-settings-button" class="secondary-button">Save Settings</button>
+                    <select id="topster-range" hidden disabled><option value="0">All</option></select>
+                </div>
+
+                <details class="topster-settings-panel rym-config-panel" open>
+                    <summary>RateYourMusic chart configuration</summary>
+                    <div class="rym-config-grid">
+                        <label for="rym-chart-type">Chart</label>
+                        <select id="rym-chart-type" data-rym-config-control="true">
+                            <option value="top" selected>Top</option><option value="popular">Popular</option><option value="esoteric">Esoteric</option><option value="diverse">Diverse</option>
+                        </select>
+
+                        <div class="rym-group-label">Release types</div>
+                        <div class="rym-release-types"><label><input type="checkbox" id="rym-release-album" data-rym-config-control="true" checked> Albums</label><label><input type="checkbox" id="rym-release-ep" data-rym-config-control="true"> EP</label><label><input type="checkbox" id="rym-release-mixtape" data-rym-config-control="true"> Mixtape</label><label><input type="checkbox" id="rym-release-djmix" data-rym-config-control="true"> DJ Mix</label><label><input type="checkbox" id="rym-release-single" data-rym-config-control="true"> Single</label><label><input type="checkbox" id="rym-release-comp" data-rym-config-control="true"> Compilation</label><label><input type="checkbox" id="rym-release-video" data-rym-config-control="true"> Video</label><label><input type="checkbox" id="rym-release-unauth" data-rym-config-control="true"> Unauthorized</label></div>
+
+                        <label for="rym-period-mode">Time period</label>
+                        <select id="rym-period-mode" data-rym-config-control="true">
+                            <option value="all-time" selected>All-time</option><option value="year">Specific year</option><option value="decade">Decade</option><option value="range">Year range</option>
+                        </select>
+
+                        <div class="rym-group-label">Period value</div>
+                        <div>
+                            <div id="rym-year-group" hidden><input type="number" id="rym-year" min="1900" max="2100" value="2026" data-rym-config-control="true" aria-label="Specific year"></div>
+                            <div id="rym-decade-group" hidden><select id="rym-decade" data-rym-config-control="true" aria-label="Decade"><option value="1900s">1900s</option><option value="1910s">1910s</option><option value="1920s">1920s</option><option value="1930s">1930s</option><option value="1940s">1940s</option><option value="1950s">1950s</option><option value="1960s">1960s</option><option value="1970s">1970s</option><option value="1980s">1980s</option><option value="1990s">1990s</option><option value="2000s">2000s</option><option value="2010s">2010s</option><option value="2020s">2020s</option></select></div>
+                            <div class="rym-period-fields" id="rym-range-group" hidden><input type="number" id="rym-range-start" min="1900" max="2100" value="2016" data-rym-config-control="true" aria-label="Year range start"><input type="number" id="rym-range-end" min="1900" max="2100" value="2026" data-rym-config-control="true" aria-label="Year range end"></div>
+                        </div>
+
+                        <label for="rym-live-mode">Live releases</label><select id="rym-live-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
+                        <label for="rym-archival-mode">Archival releases</label><select id="rym-archival-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
+                        <label for="rym-soundtrack-mode">Soundtracks and scores</label><select id="rym-soundtrack-mode" data-rym-config-control="true"><option value="auto">Auto</option><option value="separate">Separate</option><option value="deweight">Include deweighted</option><option value="include">Include</option><option value="only">Only</option></select>
+
+                        <div class="rym-group-label">Number of ratings (min / max)</div>
+                        <div class="rym-period-fields"><input type="number" id="rym-ratings-min" min="0" step="1" placeholder="No minimum" data-rym-config-control="true" aria-label="Minimum number of ratings"><input type="number" id="rym-ratings-max" min="0" step="1" placeholder="No maximum" data-rym-config-control="true" aria-label="Maximum number of ratings"></div>
+
+                        <label for="rym-popularity-weighting">Popularity weighting</label>
+                        <select id="rym-popularity-weighting" data-rym-config-control="true"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select>
+                    </div>
+                </details>
+
+                <div class="rym-import-box">
+                    <strong>RateYourMusic snapshot import</strong>
+                    <p>Open the configured chart, save each RYM result page in your browser as <strong>Webpage, HTML Only</strong>, then select the saved HTML page(s) below. Build reads the chart entries and uses the exact RYM thumbnail URL when it is present in the saved page.</p>
+                    <div class="rym-import-actions">
+                        <label for="rym-chart-page">Chart page</label>
+                        <input type="number" id="rym-chart-page" min="1" step="1" value="1" data-rym-config-control="true">
+                        <button type="button" id="rym-open-chart-button" class="secondary-button">Open configured RYM chart</button>
+                    </div>
+                    <p class="rym-chart-url"><a id="rym-chart-url-preview" href="https://rateyourmusic.com/charts/" target="_blank" rel="noopener noreferrer">https://rateyourmusic.com/charts/</a></p>
+                    <label for="rym-chart-html-input">Saved RateYourMusic chart HTML</label>
+                    <input type="file" id="rym-chart-html-input" accept=".html,.htm,text/html" multiple>
+                    <p>For charts longer than one RYM page, save and select all required result pages at the same time. The number-of-ratings min/max filter is applied locally after import.</p>
+                </div>
+
+                <details class="topster-settings-panel" open>
+                    <summary>Topster display settings</summary>
+                    <div class="topster-settings-grid">
+                        <label for="topster-device-profile">Configure device</label>
+                        <select id="topster-device-profile">
+                            <option value="desktop" selected>Desktop</option>
+                            <option value="mobile">Mobile / Tablet</option>
+                        </select>
+
+                        <label for="topster-width">Width <span class="topster-slider-value" id="topster-width-value">10</span></label>
+                        <div class="topster-slider-control"><input type="range" id="topster-width" min="1" max="25" step="1" value="10"></div>
+
+                        <label for="topster-height">Height <span class="topster-slider-value" id="topster-height-value">10</span></label>
+                        <div class="topster-slider-control"><input type="range" id="topster-height" min="1" max="10" step="1" value="10"></div>
+
+                        <label for="topster-sidebar-mode">Sidebar text</label>
+                        <select id="topster-sidebar-mode">
+                            <option value="artist-title" selected>Show Artist - Album</option>
+                            <option value="title-only">Show Album only</option>
+                            <option value="hidden">Hide sidebar</option>
+                        </select>
+
+                        <label for="topster-round-corners">Round corners</label>
+                        <select id="topster-round-corners">
+                            <option value="0" selected>0 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="6">6 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="24">24 px</option>
+                        </select>
+
+                        <label for="topster-album-gap">Album cover gap <span class="topster-slider-value" id="topster-album-gap-value">4 px</span></label>
+                        <div class="topster-slider-control"><input type="range" id="topster-album-gap" min="0" max="100" step="1" value="4"></div>
+
+                        <label for="topster-cover-overlay">Cover overlay</label>
+                        <select id="topster-cover-overlay"><option value="none" selected>Off</option><option value="index">Show index</option><option value="year">Show release year</option></select>
+
+                        <label for="topster-font">Font</label>
+                        <select id="topster-font">
+                            <option value="Arial" selected>Arial</option><option value="Verdana">Verdana</option><option value="Helvetica Neue">Helvetica Neue</option><option value="Sans-serif">Sans-serif</option><option value="Monospace">Monospace</option><option value="Open Sans">Open Sans</option><option value="Helvetica">Helvetica</option><option value="Georgia">Georgia</option><option value="Tahoma">Tahoma</option><option value="Calibri">Calibri</option>
+                        </select>
+                    </div>
+                </details>
+                <p class="topster-status" id="topster-status"></p>
+            </div>
+            <div class="topster-output" id="topster-output" hidden><div class="topster-pages" id="topster-pages"></div></div>
+            <div class="topster-cache-actions" id="topster-cache-actions"><button type="button" id="topster-cache-clear-button" class="danger-button">Clear Cover Cache</button></div>
+        </section>
+
+            <div class="topster-cover-picker" id="topster-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="topster-cover-picker-title">
+                <div class="topster-cover-picker-card">
+                    <div class="topster-cover-picker-header">
+                        <h3 id="topster-cover-picker-title">Select album cover</h3>
+                        <button type="button" id="topster-cover-picker-close" class="secondary-button">Close</button>
+                    </div>
+                    <div class="topster-cover-picker-controls">
+                        <label for="topster-cover-picker-link">Image Link</label>
+                        <input type="url" id="topster-cover-picker-link" placeholder="Paste an image URL, then select Use Image Link">
+                        <button type="button" id="topster-cover-picker-link-button" class="secondary-button">Use Image Link</button>
+                        <button type="button" id="topster-cover-picker-search">Refresh Results</button>
+                    </div>
+                    <p class="topster-cover-picker-status" id="topster-cover-picker-status"></p>
+                    <div class="topster-cover-picker-results" id="topster-cover-picker-results"></div>
+                </div>
+            </div>
+    </main>
+    <script>
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v22';
+        function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
+        (function () {
+            function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
+            document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
+        })();
+    </script>
+    <script src="topster_grid.js?v=20260810-rate-your-music-v22"></script>
+</body>
+</html>

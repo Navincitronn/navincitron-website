@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260810-1001-albums-v21';
+const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v22';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -200,7 +200,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -214,6 +214,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'rolling-stone-500-albums-2023-file') return 'rolling_stone_500_albums_2023';
     if (kind === 'nme-500-albums-file') return 'nme_500_albums';
     if (kind === '1001-albums-you-must-hear-before-you-die-file') return '1001_albums_you_must_hear_before_you_die';
+    if (kind === 'rate-your-music-chart') return 'rate_your_music';
     return 'grid';
 }
 
@@ -325,6 +326,7 @@ function isTopsterEditorPage() {
         || fileName === 'rolling_stone_500_albums_2023_draft.html'
         || fileName === 'nme_500_albums_draft.html'
         || fileName === '1001_albums_you_must_hear_before_you_die_draft.html'
+        || fileName === 'rate_your_music_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -402,6 +404,15 @@ function getTopsterDataSourceConfig() {
         };
     }
 
+    if (sourceName === 'rate-your-music-chart' || sourceName === 'rate_your_music' || sourceName === 'rate-your-music') {
+        return {
+            kind: 'rate-your-music-chart',
+            label: 'RateYourMusic chart snapshot',
+            readLabel: 'saved RateYourMusic chart HTML',
+            fileInputId: 'rym-chart-html-input'
+        };
+    }
+
     if (sourceName === 'checklist-file' || sourceName === 'checklist') {
         return {
             kind: 'checklist-file',
@@ -456,7 +467,8 @@ function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_500_albums_2020: 'rolling_stone_500_albums_2020_list.html',
         rolling_stone_500_albums_2023: 'rolling_stone_500_albums_2023_list.html',
         nme_500_albums: 'nme_500_albums_list.html',
-        '1001_albums_you_must_hear_before_you_die': '1001_albums_you_must_hear_before_you_die_list.html'
+        '1001_albums_you_must_hear_before_you_die': '1001_albums_you_must_hear_before_you_die_list.html',
+        rate_your_music: 'rate_your_music_list.html'
     };
     return pageNames[sourceKey] || 'album_list.html';
 }
@@ -472,7 +484,8 @@ function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_500_albums_2020: "Rolling Stone's 500 Greatest Albums Of All Time (2020)",
         rolling_stone_500_albums_2023: "Rolling Stone's 500 Greatest Albums Of All Time (2023)",
         nme_500_albums: "NME's 500 Greatest Albums Of All Time",
-        '1001_albums_you_must_hear_before_you_die': '1001 Albums You Must Hear Before You Die (All Editions)'
+        '1001_albums_you_must_hear_before_you_die': '1001 Albums You Must Hear Before You Die (All Editions)',
+        rate_your_music: "RateYourMusic's Top Albums Of All Time"
     };
     return names[sourceKey] || 'Albums';
 }
@@ -532,6 +545,9 @@ async function initTopsterImporter(albumCards) {
     let currentSourceText = '';
     let currentSourceName = '';
     await waitForTopsterSharedStore();
+    if (sourceConfig.kind === 'rate-your-music-chart') {
+        initializeRateYourMusicUi(topsterSharedSourceText);
+    }
     setTopsterLoadingProgress(
         14,
         topsterSharedStoreAvailable
@@ -609,15 +625,19 @@ async function initTopsterImporter(albumCards) {
 
     if (sourceFileInput) {
         sourceFileInput.addEventListener('change', () => {
-            const selectedFile = sourceFileInput.files && sourceFileInput.files[0] ? sourceFileInput.files[0] : null;
+            const selectedFiles = sourceFileInput.files ? Array.from(sourceFileInput.files) : [];
+            const selectedFile = selectedFiles.length ? selectedFiles[0] : null;
             activeLookupToken++;
             clearTopsterPrelookupState();
             currentGridSignature = '';
             currentSourceText = '';
             currentSourceName = selectedFile ? selectedFile.name : '';
             if (selectedFile) {
-                status.textContent = `Selected ${selectedFile.name}. Press Build to read this ${sourceConfig.readLabel} and refresh the Topster.`;
-                setTopsterLoadingProgress(0, `Ready to read ${selectedFile.name}. Press Build to begin.`);
+                const selectedLabel = sourceConfig.kind === 'rate-your-music-chart' && selectedFiles.length > 1
+                    ? `${selectedFiles.length} saved RateYourMusic pages`
+                    : selectedFile.name;
+                status.textContent = `Selected ${selectedLabel}. Press Build to read this ${sourceConfig.readLabel} and refresh the Topster.`;
+                setTopsterLoadingProgress(0, `Ready to read ${selectedLabel}. Press Build to begin.`);
             } else {
                 status.textContent = `No ${sourceConfig.readLabel} selected.`;
             }
@@ -814,11 +834,13 @@ async function initTopsterImporter(albumCards) {
             settings: currentSettingsProfiles,
             coverCache: getPublishableCoverCache()
         };
-        if (sourceKey === 'draft' || sourceKey === 'checklist') {
+        if (sourceKey === 'draft' || sourceKey === 'checklist' || sourceKey === 'rate_your_music') {
             if (!currentSourceText && !importedEntries.length) {
                 status.textContent = sourceKey === 'checklist'
                     ? 'Select a checklist .txt file and press Build before saving the shared checklist Topster.'
-                    : 'Select a draft .txt file and press Build before saving the shared draft Topster.';
+                    : sourceKey === 'rate_your_music'
+                        ? 'Select one or more saved RateYourMusic chart HTML files and press Build before publishing the chart snapshot.'
+                        : 'Select a draft .txt file and press Build before saving the shared draft Topster.';
                 if (saveSettingsButton) saveSettingsButton.disabled = false;
                 return;
             }
@@ -827,7 +849,11 @@ async function initTopsterImporter(albumCards) {
                 sharedPayload.sourceText = publishSourceText;
                 sharedPayload.sourceName = currentSourceName
                     || topsterSharedSourceName
-                    || (sourceKey === 'checklist' ? 'checklist notepad file' : 'draft notepad file');
+                    || (sourceKey === 'checklist'
+                        ? 'checklist notepad file'
+                        : sourceKey === 'rate_your_music'
+                            ? 'RateYourMusic chart snapshot'
+                            : 'draft notepad file');
                 sharedPayload.sourceSignature = currentGridSignature || topsterSharedSourceSignature || simpleTextHash(publishSourceText);
             }
         }
@@ -838,7 +864,7 @@ async function initTopsterImporter(albumCards) {
 
         if (ok) {
             topsterHasUnsavedPublishedChanges = false;
-            status.textContent = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' || sourceKey === 'checklist' ? ', source file,' : ''} and cover selections. ${publicPageName} will use these values.`;
+            status.textContent = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' || sourceKey === 'checklist' || sourceKey === 'rate_your_music' ? ', source snapshot,' : ''} and cover selections. ${publicPageName} will use these values.`;
             completeTopsterLoading(`Published ${sourceDisplayName}. ${publicPageName} is ready.`);
         } else {
             status.textContent = 'Shared save failed. Check that the backend is deployed, the admin session is active, and /api/topster-shared-store is reachable.';
@@ -1015,10 +1041,14 @@ async function initTopsterImporter(albumCards) {
 
             const prelookupOnly = topsterEditorPage
                 && source === 'build'
+                && sourceConfig.kind !== 'rate-your-music-chart'
                 && !topsterPrelookupIsComplete(loaded.signature);
 
             currentSourceText = loaded.text || '';
             currentSourceName = loaded.source || topsterSourceLabel;
+            if (sourceConfig.kind === 'rate-your-music-chart') {
+                renderRateYourMusicSnapshotSummary(currentSourceText);
+            }
             await buildTopsterFromText(loaded.text, loaded.signature, source, { prelookupOnly });
         } catch (error) {
             if (token !== activeLookupToken) return;
@@ -1556,6 +1586,7 @@ async function loadTopsterSharedStore(options = {}) {
         topsterSharedSourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
         topsterSharedSourceSignature = typeof payload.sourceSignature === 'string' ? payload.sourceSignature : '';
         topsterSharedSourceName = typeof payload.sourceName === 'string' ? payload.sourceName : '';
+        if (isRateYourMusicTopsterSource()) renderRateYourMusicSnapshotSummary(topsterSharedSourceText);
         return true;
     } catch (error) {
         return false;
@@ -1650,6 +1681,7 @@ async function saveTopsterSharedStoreNow(payload) {
         if (typeof result.sourceName === 'string') {
             topsterSharedSourceName = result.sourceName;
         }
+        if (isRateYourMusicTopsterSource()) renderRateYourMusicSnapshotSummary(topsterSharedSourceText);
         return true;
     } catch (error) {
         return false;
@@ -1921,8 +1953,600 @@ function clearSavedTopsterState() {
     }
 }
 
+const RATE_YOUR_MUSIC_CHART_BASE = 'https://rateyourmusic.com/charts/';
+const RATE_YOUR_MUSIC_RELEASE_TYPES = [
+    { value: 'album', label: 'Albums' },
+    { value: 'ep', label: 'EP' },
+    { value: 'mixtape', label: 'Mixtape' },
+    { value: 'djmix', label: 'DJ Mix' },
+    { value: 'single', label: 'Single' },
+    { value: 'comp', label: 'Compilation' },
+    { value: 'video', label: 'Video' },
+    { value: 'unauth', label: 'Unauthorized' }
+];
+
+function isRateYourMusicTopsterSource() {
+    return getTopsterDataSourceConfig().kind === 'rate-your-music-chart';
+}
+
+function normalizeRateYourMusicMode(value) {
+    const allowed = new Set(['auto', 'separate', 'deweight', 'include', 'only']);
+    return allowed.has(value) ? value : 'auto';
+}
+
+function normalizeRateYourMusicChartConfig(value = {}) {
+    const raw = value && typeof value === 'object' ? value : {};
+    const chartTypes = new Set(['top', 'popular', 'esoteric', 'diverse']);
+    const periodModes = new Set(['all-time', 'year', 'decade', 'range']);
+    const allowedReleaseTypes = new Set(RATE_YOUR_MUSIC_RELEASE_TYPES.map(item => item.value));
+    const releaseTypes = Array.isArray(raw.releaseTypes)
+        ? raw.releaseTypes.filter(item => allowedReleaseTypes.has(item))
+        : ['album'];
+    const normalizedTypes = releaseTypes.length ? Array.from(new Set(releaseTypes)) : ['album'];
+    const currentYear = new Date().getFullYear();
+    const year = clampInteger(raw.year, 1900, currentYear + 1, currentYear);
+    let decade = String(raw.decade || `${Math.floor(currentYear / 10) * 10}s`).trim();
+    if (!/^\d{4}s$/.test(decade)) decade = `${Math.floor(currentYear / 10) * 10}s`;
+    const rangeStart = clampInteger(raw.rangeStart, 1900, currentYear + 1, Math.max(1900, currentYear - 10));
+    const rangeEnd = clampInteger(raw.rangeEnd, 1900, currentYear + 1, currentYear);
+    const optionalRatingCount = rawValue => {
+        if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+        const number = Number(rawValue);
+        return Number.isFinite(number) && number >= 0 ? Math.floor(number) : null;
+    };
+
+    return {
+        chartType: chartTypes.has(raw.chartType) ? raw.chartType : 'top',
+        releaseTypes: normalizedTypes,
+        periodMode: periodModes.has(raw.periodMode) ? raw.periodMode : 'all-time',
+        year,
+        decade,
+        rangeStart: Math.min(rangeStart, rangeEnd),
+        rangeEnd: Math.max(rangeStart, rangeEnd),
+        liveMode: normalizeRateYourMusicMode(raw.liveMode),
+        archivalMode: normalizeRateYourMusicMode(raw.archivalMode),
+        soundtrackMode: normalizeRateYourMusicMode(raw.soundtrackMode),
+        ratingsMin: optionalRatingCount(raw.ratingsMin),
+        ratingsMax: optionalRatingCount(raw.ratingsMax),
+        popularityWeighting: clampInteger(raw.popularityWeighting, 1, 5, 3)
+    };
+}
+
+function getRateYourMusicPeriodValue(config) {
+    if (config.periodMode === 'year') return String(config.year);
+    if (config.periodMode === 'decade') return config.decade;
+    if (config.periodMode === 'range') return `${config.rangeStart}-${config.rangeEnd}`;
+    return 'all-time';
+}
+
+function buildRateYourMusicChartUrl(rawConfig, page = 1) {
+    const config = normalizeRateYourMusicChartConfig(rawConfig);
+    const releaseTypes = config.releaseTypes.join(',');
+    const period = getRateYourMusicPeriodValue(config);
+    const modeBuckets = {
+        separate: [],
+        deweight: [],
+        include: [],
+        only: []
+    };
+    [
+        ['live', config.liveMode],
+        ['archival', config.archivalMode],
+        ['soundtrack', config.soundtrackMode]
+    ].forEach(([name, mode]) => {
+        if (mode !== 'auto' && modeBuckets[mode]) modeBuckets[mode].push(name);
+    });
+
+    const segments = [];
+    if (Number(page) > 1) segments.push(String(Math.max(1, Math.floor(Number(page)))));
+    ['separate', 'deweight', 'include', 'only'].forEach(mode => {
+        if (!modeBuckets[mode].length) return;
+        const token = mode === 'include' ? 'incl' : mode;
+        segments.push(`${token}:${modeBuckets[mode].join(',')}`);
+    });
+    segments.push(`pop:${config.popularityWeighting}`);
+
+    return `${RATE_YOUR_MUSIC_CHART_BASE}${config.chartType}/${releaseTypes}/${period}/${segments.join('/')}/`;
+}
+
+function readRateYourMusicChartConfigFromControls() {
+    const releaseTypes = RATE_YOUR_MUSIC_RELEASE_TYPES
+        .filter(item => {
+            const input = document.getElementById(`rym-release-${item.value}`);
+            return Boolean(input && input.checked);
+        })
+        .map(item => item.value);
+
+    const value = id => {
+        const element = document.getElementById(id);
+        return element ? element.value : '';
+    };
+
+    return normalizeRateYourMusicChartConfig({
+        chartType: value('rym-chart-type'),
+        releaseTypes,
+        periodMode: value('rym-period-mode'),
+        year: value('rym-year'),
+        decade: value('rym-decade'),
+        rangeStart: value('rym-range-start'),
+        rangeEnd: value('rym-range-end'),
+        liveMode: value('rym-live-mode'),
+        archivalMode: value('rym-archival-mode'),
+        soundtrackMode: value('rym-soundtrack-mode'),
+        ratingsMin: value('rym-ratings-min') === '' ? null : value('rym-ratings-min'),
+        ratingsMax: value('rym-ratings-max') === '' ? null : value('rym-ratings-max'),
+        popularityWeighting: value('rym-popularity-weighting')
+    });
+}
+
+function setRateYourMusicControls(configValue) {
+    const config = normalizeRateYourMusicChartConfig(configValue);
+    const setValue = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.value = value;
+    };
+    setValue('rym-chart-type', config.chartType);
+    setValue('rym-period-mode', config.periodMode);
+    setValue('rym-year', config.year);
+    setValue('rym-decade', config.decade);
+    setValue('rym-range-start', config.rangeStart);
+    setValue('rym-range-end', config.rangeEnd);
+    setValue('rym-live-mode', config.liveMode);
+    setValue('rym-archival-mode', config.archivalMode);
+    setValue('rym-soundtrack-mode', config.soundtrackMode);
+    setValue('rym-ratings-min', config.ratingsMin === null ? '' : config.ratingsMin);
+    setValue('rym-ratings-max', config.ratingsMax === null ? '' : config.ratingsMax);
+    setValue('rym-popularity-weighting', config.popularityWeighting);
+
+    RATE_YOUR_MUSIC_RELEASE_TYPES.forEach(item => {
+        const input = document.getElementById(`rym-release-${item.value}`);
+        if (input) input.checked = config.releaseTypes.includes(item.value);
+    });
+    updateRateYourMusicPeriodControls();
+    updateRateYourMusicChartUrlPreview();
+}
+
+function updateRateYourMusicPeriodControls() {
+    const modeElement = document.getElementById('rym-period-mode');
+    const mode = modeElement ? modeElement.value : 'all-time';
+    const groups = {
+        year: document.getElementById('rym-year-group'),
+        decade: document.getElementById('rym-decade-group'),
+        range: document.getElementById('rym-range-group')
+    };
+    Object.entries(groups).forEach(([name, element]) => {
+        if (element) element.hidden = mode !== name;
+    });
+}
+
+function updateRateYourMusicChartUrlPreview() {
+    const preview = document.getElementById('rym-chart-url-preview');
+    if (!preview) return;
+    const pageInput = document.getElementById('rym-chart-page');
+    const page = pageInput ? Math.max(1, Number(pageInput.value) || 1) : 1;
+    const url = buildRateYourMusicChartUrl(readRateYourMusicChartConfigFromControls(), page);
+    preview.href = url;
+    preview.textContent = url;
+}
+
+function parseRateYourMusicMetadata(text) {
+    const line = String(text || '').split(/\r?\n/).find(item => item.startsWith('# RYM_CONFIG '));
+    if (!line) return null;
+    try {
+        const parsed = JSON.parse(line.slice('# RYM_CONFIG '.length));
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function rateYourMusicModeLabel(value) {
+    const labels = {
+        auto: 'Auto',
+        separate: 'Separate',
+        deweight: 'Include deweighted',
+        include: 'Include',
+        only: 'Only'
+    };
+    return labels[value] || 'Auto';
+}
+
+function rateYourMusicChartTypeLabel(value) {
+    const labels = { top: 'Top', popular: 'Popular', esoteric: 'Esoteric', diverse: 'Diverse' };
+    return labels[value] || 'Top';
+}
+
+function rateYourMusicReleaseTypeLabel(value) {
+    const match = RATE_YOUR_MUSIC_RELEASE_TYPES.find(item => item.value === value);
+    return match ? match.label : value;
+}
+
+function formatRateYourMusicPeriod(config) {
+    if (config.periodMode === 'year') return String(config.year);
+    if (config.periodMode === 'decade') return config.decade;
+    if (config.periodMode === 'range') return `${config.rangeStart}–${config.rangeEnd}`;
+    return 'All-time';
+}
+
+function formatRateYourMusicTimestamp(value) {
+    if (!value) return 'Not published yet';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+}
+
+function renderRateYourMusicSnapshotSummary(text = topsterSharedSourceText) {
+    if (!isRateYourMusicTopsterSource()) return;
+    const metadata = parseRateYourMusicMetadata(text);
+    const subtitle = document.getElementById('rym-last-updated');
+    if (subtitle) {
+        subtitle.textContent = metadata && metadata.updatedAt
+            ? `Last snapshot: ${formatRateYourMusicTimestamp(metadata.updatedAt)}`
+            : 'Last snapshot: Not published yet';
+    }
+
+    const summary = document.getElementById('rym-config-summary');
+    if (!summary) return;
+    summary.innerHTML = '';
+    if (!metadata) {
+        summary.textContent = 'No published RateYourMusic chart snapshot is available yet.';
+        return;
+    }
+
+    const config = normalizeRateYourMusicChartConfig(metadata.configuration || {});
+    const ratingsText = config.ratingsMin === null && config.ratingsMax === null
+        ? 'Any'
+        : `${config.ratingsMin === null ? 'No minimum' : config.ratingsMin.toLocaleString()} / ${config.ratingsMax === null ? 'No maximum' : config.ratingsMax.toLocaleString()}`;
+    const rows = [
+        ['Chart', rateYourMusicChartTypeLabel(config.chartType)],
+        ['Release types', config.releaseTypes.map(rateYourMusicReleaseTypeLabel).join(', ')],
+        ['Period', formatRateYourMusicPeriod(config)],
+        ['Live releases', rateYourMusicModeLabel(config.liveMode)],
+        ['Archival releases', rateYourMusicModeLabel(config.archivalMode)],
+        ['Soundtracks and scores', rateYourMusicModeLabel(config.soundtrackMode)],
+        ['Number of ratings (min / max)', ratingsText],
+        ['Popularity weighting', String(config.popularityWeighting)],
+        ['Imported chart entries', String(metadata.entryCount || 0)],
+        ['Saved RYM pages', String(metadata.sourcePageCount || 0)]
+    ];
+
+    const dl = document.createElement('dl');
+    dl.className = 'rym-config-readonly-grid';
+    rows.forEach(([label, value]) => {
+        const dt = document.createElement('dt');
+        dt.textContent = label;
+        const dd = document.createElement('dd');
+        dd.textContent = value;
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+    });
+    summary.appendChild(dl);
+
+    if (metadata.chartUrl) {
+        const sourceLine = document.createElement('p');
+        sourceLine.className = 'rym-chart-source-line';
+        sourceLine.append('Configured chart: ');
+        const link = document.createElement('a');
+        link.href = metadata.chartUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Open on RateYourMusic';
+        sourceLine.appendChild(link);
+        summary.appendChild(sourceLine);
+    }
+}
+
+function initializeRateYourMusicUi(sharedText = topsterSharedSourceText) {
+    if (!isRateYourMusicTopsterSource()) return;
+    renderRateYourMusicSnapshotSummary(sharedText);
+
+    const chartType = document.getElementById('rym-chart-type');
+    if (!chartType) return;
+    if (chartType.dataset.rymInitialized === 'true') return;
+    chartType.dataset.rymInitialized = 'true';
+
+    const metadata = parseRateYourMusicMetadata(sharedText);
+    if (metadata && metadata.configuration) {
+        setRateYourMusicControls(metadata.configuration);
+    } else {
+        setRateYourMusicControls({ chartType: 'top', releaseTypes: ['album'], periodMode: 'all-time', popularityWeighting: 3 });
+    }
+
+    const controls = document.querySelectorAll('[data-rym-config-control="true"]');
+    controls.forEach(element => {
+        const eventName = element.type === 'number' ? 'input' : 'change';
+        element.addEventListener(eventName, () => {
+            if (element.type === 'checkbox' && element.id.startsWith('rym-release-')) {
+                const anyReleaseChecked = RATE_YOUR_MUSIC_RELEASE_TYPES.some(item => {
+                    const input = document.getElementById(`rym-release-${item.value}`);
+                    return Boolean(input && input.checked);
+                });
+                if (!anyReleaseChecked) element.checked = true;
+            }
+            updateRateYourMusicPeriodControls();
+            updateRateYourMusicChartUrlPreview();
+            safeMarkTopsterPublishDirty();
+        });
+        if (eventName !== 'change') {
+            element.addEventListener('change', () => {
+                updateRateYourMusicPeriodControls();
+                updateRateYourMusicChartUrlPreview();
+                safeMarkTopsterPublishDirty();
+            });
+        }
+    });
+
+    const openButton = document.getElementById('rym-open-chart-button');
+    if (openButton) {
+        openButton.addEventListener('click', () => {
+            const pageInput = document.getElementById('rym-chart-page');
+            const page = pageInput ? Math.max(1, Number(pageInput.value) || 1) : 1;
+            window.open(buildRateYourMusicChartUrl(readRateYourMusicChartConfigFromControls(), page), '_blank', 'noopener,noreferrer');
+        });
+    }
+    updateRateYourMusicPeriodControls();
+    updateRateYourMusicChartUrlPreview();
+}
+
+function getRateYourMusicImageUrl(element) {
+    if (!element) return '';
+    const candidates = [
+        element.getAttribute && element.getAttribute('data-src'),
+        element.getAttribute && element.getAttribute('data-original'),
+        element.getAttribute && element.getAttribute('data-lazy-src'),
+        element.getAttribute && element.getAttribute('src')
+    ].filter(Boolean);
+    const srcset = element.getAttribute && element.getAttribute('srcset');
+    if (srcset) {
+        srcset.split(',').forEach(part => {
+            const value = part.trim().split(/\s+/)[0];
+            if (value) candidates.push(value);
+        });
+    }
+    const style = element.getAttribute && element.getAttribute('style');
+    if (style) {
+        const styleMatch = style.match(/background-image\s*:\s*url\(["']?([^"')]+)["']?\)/i);
+        if (styleMatch) candidates.push(styleMatch[1]);
+    }
+
+    for (const candidate of candidates) {
+        if (!candidate || /^data:/i.test(candidate) || /placeholder/i.test(candidate)) continue;
+        try {
+            const value = candidate.startsWith('//') ? `https:${candidate}` : new URL(candidate, 'https://rateyourmusic.com/').href;
+            if (/^https?:/i.test(value)) return value;
+        } catch (error) {
+            // Try the next candidate.
+        }
+    }
+    return '';
+}
+
+function parseRateYourMusicRatingCount(container) {
+    if (!container) return null;
+    const focused = Array.from(container.querySelectorAll('[class*="rating_count"], [class*="ratings_count"], [class*="chart_stats"], [title*="rating" i], [aria-label*="rating" i]'));
+    for (const element of focused) {
+        const combined = `${element.textContent || ''} ${element.getAttribute('title') || ''} ${element.getAttribute('aria-label') || ''}`;
+        const match = combined.match(/([\d,.]+)\s*(?:ratings?|votes?)\b/i) || combined.match(/^\s*([\d,.]+)\s*$/);
+        if (match) {
+            const value = Number(match[1].replace(/[,.]/g, ''));
+            if (Number.isFinite(value)) return value;
+        }
+    }
+    const text = container.textContent || '';
+    const match = text.match(/([\d,.]+)\s+(?:ratings?|votes?)\b/i);
+    if (!match) return null;
+    const value = Number(match[1].replace(/[,.]/g, ''));
+    return Number.isFinite(value) ? value : null;
+}
+
+function findRateYourMusicChartCard(anchor) {
+    let node = anchor;
+    for (let depth = 0; node && depth < 10; depth += 1, node = node.parentElement) {
+        if (!node.querySelectorAll) continue;
+        const releaseLinks = Array.from(node.querySelectorAll('a[href*="/release/"]'));
+        const uniqueReleaseHrefs = new Set(releaseLinks.map(item => item.getAttribute('href')).filter(Boolean));
+        const hasArtist = Boolean(node.querySelector('a[href*="/artist/"]'));
+        const hasImage = Boolean(node.querySelector('img, source, [style*="background-image"]'));
+        if (hasArtist && hasImage && uniqueReleaseHrefs.size <= 4) return node;
+    }
+    return anchor.parentElement || anchor;
+}
+
+function parseRateYourMusicChartHtml(htmlText, sourceName = '') {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(htmlText || ''), 'text/html');
+    const releaseAnchors = Array.from(doc.querySelectorAll('a[href*="/release/"]'));
+    const seen = new Set();
+    const entries = [];
+
+    releaseAnchors.forEach(anchor => {
+        const rawHref = anchor.getAttribute('href') || '';
+        let href = '';
+        try {
+            href = new URL(rawHref, 'https://rateyourmusic.com/').href;
+        } catch (error) {
+            return;
+        }
+        if (!/rateyourmusic\.com\/release\//i.test(href) || seen.has(href)) return;
+
+        const card = findRateYourMusicChartCard(anchor);
+        if (!card) return;
+        const matchingLinks = Array.from(card.querySelectorAll('a[href*="/release/"]')).filter(link => {
+            try {
+                return new URL(link.getAttribute('href') || '', 'https://rateyourmusic.com/').href === href;
+            } catch (error) {
+                return false;
+            }
+        });
+
+        const titleCandidates = matchingLinks
+            .map(link => (link.textContent || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .sort((a, b) => b.length - a.length);
+        const imageElements = [];
+        matchingLinks.forEach(link => imageElements.push(...Array.from(link.querySelectorAll('img, source, [style*="background-image"]'))));
+        if (!imageElements.length) imageElements.push(...Array.from(card.querySelectorAll('img, source, [style*="background-image"]')));
+        let imageSrc = '';
+        for (const imageElement of imageElements) {
+            imageSrc = getRateYourMusicImageUrl(imageElement);
+            if (imageSrc) break;
+        }
+
+        let title = titleCandidates[0] || '';
+        if (!title) {
+            const image = imageElements.find(item => item.tagName && item.tagName.toLowerCase() === 'img');
+            title = image ? String(image.getAttribute('alt') || '').trim() : '';
+        }
+        title = title.replace(/^\s*\d+[.)]?\s*/, '').trim();
+
+        const artistLinks = Array.from(card.querySelectorAll('a[href*="/artist/"]'));
+        const artist = artistLinks
+            .map(link => (link.textContent || '').replace(/\s+/g, ' ').trim())
+            .find(Boolean) || '';
+
+        const dateElement = card.querySelector('[class*="release_date"], [class*="chart_date"], time, [class*="date"]');
+        const dateText = `${dateElement ? dateElement.textContent || '' : ''} ${card.textContent || ''}`;
+        const yearMatch = dateText.match(/\b((?:18|19|20)\d{2})\b/);
+        const year = yearMatch ? Number(yearMatch[1]) : null;
+        const ratingCount = parseRateYourMusicRatingCount(card);
+        const positionElement = card.querySelector('[class*="chart_position"], [class*="position"], [class*="rank"]');
+        const positionMatch = positionElement ? String(positionElement.textContent || '').match(/\d+/) : null;
+        const rank = positionMatch ? Number(positionMatch[0]) : entries.length + 1;
+
+        if (!artist || !title) return;
+        seen.add(href);
+        entries.push({
+            rank,
+            artist: cleanAlbumTitle(artist),
+            title: cleanAlbumTitle(title),
+            year,
+            ratingCount,
+            imageSrc,
+            href,
+            sourceName
+        });
+    });
+
+    return entries;
+}
+
+function seedRateYourMusicCovers(entries) {
+    entries.forEach(entry => {
+        if (!entry || !entry.imageSrc) return;
+        const cacheEntry = { artist: entry.artist, title: entry.title, year: entry.year || '' };
+        const existing = getPreferredCachedCover(cacheEntry);
+        if (existing && existing.selectedManually) return;
+        setCachedCover(buildCoverCacheKey(cacheEntry), {
+            title: entry.title,
+            artist: entry.artist,
+            imageSrc: entry.imageSrc,
+            href: entry.href || '',
+            source: 'RateYourMusic thumbnail',
+            selectedManually: false
+        });
+    });
+}
+
+async function readRateYourMusicHtmlFile(file) {
+    const text = await readTextFromSelectedDraftFile(file);
+    return { name: file.name || 'RateYourMusic chart.html', text };
+}
+
+async function loadRateYourMusicChartSource(source = getTopsterDataSourceConfig()) {
+    const input = source.fileInputId ? document.getElementById(source.fileInputId) : null;
+    const files = input && input.files ? Array.from(input.files) : [];
+
+    if (!files.length) {
+        if (topsterSharedSourceText) {
+            renderRateYourMusicSnapshotSummary(topsterSharedSourceText);
+            return {
+                text: topsterSharedSourceText,
+                signature: topsterSharedSourceSignature || simpleTextHash(topsterSharedSourceText),
+                source: topsterSharedSourceName || source.label
+            };
+        }
+        throw new Error(isTopsterEditorPage()
+            ? 'Open the configured RateYourMusic chart, save the chart page as HTML, select the saved HTML file(s), then press Build.'
+            : 'No RateYourMusic chart snapshot has been published yet.');
+    }
+
+    const config = readRateYourMusicChartConfigFromControls();
+    if (!config.releaseTypes.length) {
+        throw new Error('Select at least one RateYourMusic release type.');
+    }
+    if (config.ratingsMin !== null && config.ratingsMax !== null && config.ratingsMin > config.ratingsMax) {
+        throw new Error('Number of ratings minimum cannot be greater than the maximum.');
+    }
+
+    setTopsterLoadingProgress(20, `Reading ${files.length} saved RateYourMusic chart page${files.length === 1 ? '' : 's'}...`);
+    const pages = await Promise.all(files.map(readRateYourMusicHtmlFile));
+    const parsed = [];
+    pages.forEach(page => parsed.push(...parseRateYourMusicChartHtml(page.text, page.name)));
+
+    const unique = [];
+    const seen = new Set();
+    parsed.forEach(entry => {
+        const key = entry.href || `${normalizeAlbumTitle(entry.artist)}|${normalizeAlbumTitle(entry.title)}|${entry.year || ''}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        unique.push(entry);
+    });
+
+    let unknownRatingsExcluded = 0;
+    const ratingsFilterActive = config.ratingsMin !== null || config.ratingsMax !== null;
+    const filtered = unique.filter(entry => {
+        if (!ratingsFilterActive) return true;
+        if (!Number.isFinite(entry.ratingCount)) {
+            unknownRatingsExcluded += 1;
+            return false;
+        }
+        if (config.ratingsMin !== null && entry.ratingCount < config.ratingsMin) return false;
+        if (config.ratingsMax !== null && entry.ratingCount > config.ratingsMax) return false;
+        return true;
+    });
+
+    if (!filtered.length) {
+        if (!unique.length) {
+            throw new Error('No RateYourMusic chart entries could be read from the selected HTML. Save the actual chart result page as “Webpage, HTML Only” and try again.');
+        }
+        throw new Error('The selected RateYourMusic pages were parsed, but no entries remained after the number-of-ratings filter.');
+    }
+
+    filtered.sort((a, b) => (Number(a.rank) || 999999) - (Number(b.rank) || 999999));
+    seedRateYourMusicCovers(filtered);
+
+    const metadata = {
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        updateCadence: 'Weekly',
+        chartUrl: buildRateYourMusicChartUrl(config, 1),
+        configuration: config,
+        sourcePageCount: pages.length,
+        sourceFiles: pages.map(page => page.name),
+        parsedEntryCount: unique.length,
+        entryCount: filtered.length,
+        rymThumbnailCount: filtered.filter(entry => entry.imageSrc).length,
+        unknownRatingsExcluded
+    };
+    const lines = filtered.map(entry => `${entry.artist} - ${entry.title}${entry.year ? ` (${entry.year})` : ''}`);
+    const text = `# RYM_CONFIG ${JSON.stringify(metadata)}\n${lines.join('\n')}`;
+    renderRateYourMusicSnapshotSummary(text);
+
+    return {
+        text,
+        signature: simpleTextHash(text),
+        source: `RateYourMusic chart snapshot (${pages.length} saved page${pages.length === 1 ? '' : 's'})`
+    };
+}
+
 async function loadGridTextFile() {
     const source = getTopsterDataSourceConfig();
+
+    if (source.kind === 'rate-your-music-chart') {
+        return loadRateYourMusicChartSource(source);
+    }
 
     if (source.kind === 'draft-file' || source.kind === 'checklist-file') {
         return loadDraftTextFile(source);
@@ -2487,7 +3111,7 @@ function parseAlbumText(text) {
     return String(text || '')
         .split(/\r?\n/)
         .map(line => line.trim())
-        .filter(Boolean)
+        .filter(line => Boolean(line) && !line.startsWith('#'))
         .map(line => line.replace(/^\s*\d+[.)]\s*/, '').trim())
         .map(line => {
             const originalLine = line;

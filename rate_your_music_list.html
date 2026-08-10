@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - RateYourMusic&#39;s Top Albums Of All Time</title>
+    <link rel="stylesheet" href="styles.css?v=20260810-rate-your-music-v22">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+    <style>
+        .rym-subtitle {
+            margin: 8px auto 18px;
+            text-align: center;
+            color: #ddd;
+        }
+        .rym-config-panel {
+            margin: 18px 0;
+        }
+        .rym-config-grid {
+            display: grid;
+            grid-template-columns: minmax(190px, 0.7fr) minmax(240px, 1.3fr);
+            gap: 12px 18px;
+            align-items: center;
+        }
+        .rym-config-grid > label,
+        .rym-config-grid > .rym-group-label {
+            font-weight: bold;
+        }
+        .rym-config-grid select,
+        .rym-config-grid input[type="number"] {
+            box-sizing: border-box;
+            width: 100%;
+            padding: 7px;
+        }
+        .rym-release-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 7px 12px;
+        }
+        .rym-release-types label {
+            font-weight: normal;
+        }
+        .rym-period-fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(110px, 1fr));
+            gap: 8px;
+        }
+        .rym-import-box {
+            margin: 14px 0 18px;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 8px;
+        }
+        .rym-import-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .rym-import-actions input[type="number"] {
+            width: 90px;
+            padding: 7px;
+        }
+        .rym-chart-url {
+            overflow-wrap: anywhere;
+            font-size: 13px;
+        }
+        .rym-config-summary {
+            max-width: 900px;
+            margin: 14px auto 22px;
+            padding: 12px 16px;
+            border: 1px solid rgba(255,255,255,.2);
+            border-radius: 8px;
+        }
+        .rym-config-readonly-grid {
+            display: grid;
+            grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr);
+            gap: 7px 18px;
+            margin: 0;
+        }
+        .rym-config-readonly-grid dt { font-weight: bold; }
+        .rym-config-readonly-grid dd { margin: 0; }
+        .rym-chart-source-line { margin: 12px 0 0; }
+        @media only screen and (max-width: 768px) {
+            .rym-config-grid,
+            .rym-config-readonly-grid {
+                grid-template-columns: 1fr;
+            }
+            .rym-config-readonly-grid dd { margin-bottom: 8px; }
+        }
+    </style>
+</head>
+<body data-topster-store-source="rate_your_music" class="album-list-page" data-topster-mode="list" data-topster-readonly="true" data-topster-autoload="true" data-topster-source="rate-your-music-chart">
+    <header>
+        <div class="header-left"><img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" /><div class="brand"><h1>NAVINCITRON</h1><br><p>proper music isolation</p></div></div>
+        <nav class="topnav">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="album_list.html">List</a>
+            <a href="ranked_album_list.html">Rank</a>
+        </nav>
+    </header>
+    <main>
+        <section class="grid-builder-page">
+            <div class="title-bar"><br><h2 class="center">RATEYOURMUSIC&#39;S TOP ALBUMS OF ALL TIME</h2></div>
+            <p class="rym-subtitle"><strong>Updated weekly</strong> &bull; <span id="rym-last-updated">Last snapshot: Not published yet</span></p>
+            <div id="rym-config-summary" class="rym-config-summary">Loading published chart configuration...</div>
+            <hr>
+            <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
+                <p class="topster-loading-title">Loading Topster</p>
+                <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+                <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
+                <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
+            </div>
+            <div class="topster-import-panel" id="topster-import-panel" hidden>
+                <div class="topster-controls topster-file-controls">
+                    <button type="button" id="topster-build-button">Build</button><button type="button" id="topster-refresh-button" class="secondary-button">Refresh</button><button type="button" id="topster-stop-button" class="danger-button" disabled>Stop Lookup</button><button type="button" id="topster-clear-button" class="secondary-button">Clear</button><button type="button" id="topster-cache-clear-button" class="danger-button">Clear Cover Cache</button><select id="topster-range" disabled><option value="0">All</option></select>
+                </div>
+                <input type="range" id="topster-width" min="1" max="25" step="1" value="10"><span id="topster-width-value">10</span>
+                <input type="range" id="topster-height" min="1" max="10" step="1" value="10"><span id="topster-height-value">10</span>
+                <select id="topster-sidebar-mode"><option value="artist-title" selected>Show Artist - Album</option><option value="title-only">Show Album only</option><option value="hidden">Hide sidebar</option></select>
+                <select id="topster-round-corners"><option value="0" selected>0 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="6">6 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="24">24 px</option></select>
+                <input type="range" id="topster-album-gap" min="0" max="100" step="1" value="4"><span id="topster-album-gap-value">4 px</span>
+                <select id="topster-font"><option value="Arial" selected>Arial</option><option value="Verdana">Verdana</option><option value="Helvetica Neue">Helvetica Neue</option><option value="Sans-serif">Sans-serif</option><option value="Monospace">Monospace</option><option value="Open Sans">Open Sans</option><option value="Helvetica">Helvetica</option><option value="Georgia">Georgia</option><option value="Tahoma">Tahoma</option><option value="Calibri">Calibri</option></select>
+                <p class="topster-status" id="topster-status" hidden></p>
+            </div>
+            <div class="topster-output" id="topster-output" hidden><div class="topster-pages" id="topster-pages"></div></div>
+        </section>
+    </main>
+    <script src="topster_grid.js?v=20260810-rate-your-music-v22"></script>
+</body>
+</html>
