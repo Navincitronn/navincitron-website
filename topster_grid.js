@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260812-rolling-stone-singers-2023-v28';
+const TOPSTER_FRONTEND_VERSION = '20260812-rolling-stone-singers-2023-v29';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -2032,7 +2032,10 @@ const ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES = Object.freeze({
     'iu': 'IU_(singer)',
     'brandy': 'Brandy_Norwood',
     'robert smith': 'Robert_Smith_(musician)',
-    'bobby blue bland': 'Bobby_Bland'
+    'bobby blue bland': 'Bobby_Bland',
+    'prince': 'Prince_(musician)',
+    'sylvester': 'Sylvester_(singer)',
+    'usher': 'Usher_(musician)'
 });
 
 function getRollingStoneSingerWikipediaUrl(name) {
