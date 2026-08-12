@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v27';
+const TOPSTER_FRONTEND_VERSION = '20260812-rolling-stone-singers-2023-v28';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -200,7 +200,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music', 'rolling_stone_greatest_singers_of_all_time_2023']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -215,6 +215,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'nme-500-albums-file') return 'nme_500_albums';
     if (kind === '1001-albums-you-must-hear-before-you-die-file') return '1001_albums_you_must_hear_before_you_die';
     if (kind === 'rate-your-music-chart') return 'rate_your_music';
+    if (kind === 'rolling-stone-greatest-singers-of-all-time-2023-file') return 'rolling_stone_greatest_singers_of_all_time_2023';
     return 'grid';
 }
 
@@ -327,6 +328,7 @@ function isTopsterEditorPage() {
         || fileName === 'nme_500_albums_draft.html'
         || fileName === '1001_albums_you_must_hear_before_you_die_draft.html'
         || fileName === 'rate_your_music_draft.html'
+        || fileName === 'rolling_stone_greatest_singers_of_all_time_2023_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -413,6 +415,16 @@ function getTopsterDataSourceConfig() {
         };
     }
 
+    if (sourceName === 'rolling-stone-greatest-singers-of-all-time-2023-file' || sourceName === 'rolling_stone_greatest_singers_of_all_time_2023' || sourceName === 'rolling-stone-greatest-singers-2023') {
+        return {
+            kind: 'rolling-stone-greatest-singers-of-all-time-2023-file',
+            label: 'rolling_stone_greatest_singers_of_all_time_2023.txt',
+            readLabel: 'rolling_stone_greatest_singers_of_all_time_2023.txt',
+            fileName: 'rolling_stone_greatest_singers_of_all_time_2023.txt',
+            staticFileOnly: true
+        };
+    }
+
     if (sourceName === 'checklist-file' || sourceName === 'checklist') {
         return {
             kind: 'checklist-file',
@@ -468,7 +480,8 @@ function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_500_albums_2023: 'rolling_stone_500_albums_2023_list.html',
         nme_500_albums: 'nme_500_albums_list.html',
         '1001_albums_you_must_hear_before_you_die': '1001_albums_you_must_hear_before_you_die_list.html',
-        rate_your_music: 'rate_your_music_list.html'
+        rate_your_music: 'rate_your_music_list.html',
+        rolling_stone_greatest_singers_of_all_time_2023: 'rolling_stone_greatest_singers_of_all_time_2023_list.html'
     };
     return pageNames[sourceKey] || 'album_list.html';
 }
@@ -485,7 +498,8 @@ function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_500_albums_2023: "Rolling Stone's 500 Greatest Albums Of All Time (2023)",
         nme_500_albums: "NME's 500 Greatest Albums Of All Time",
         '1001_albums_you_must_hear_before_you_die': '1001 Albums You Must Hear Before You Die (All Editions)',
-        rate_your_music: "RateYourMusic's Top Albums Of All Time"
+        rate_your_music: "RateYourMusic's Top Albums Of All Time",
+        rolling_stone_greatest_singers_of_all_time_2023: "Rolling Stone's 200 Greatest Singers of All Time (2023)"
     };
     return names[sourceKey] || 'Albums';
 }
@@ -525,6 +539,7 @@ async function initTopsterImporter(albumCards) {
     const coverPickerSearch = document.getElementById('topster-cover-picker-search');
     const coverPickerLink = document.getElementById('topster-cover-picker-link');
     const coverPickerLinkButton = document.getElementById('topster-cover-picker-link-button');
+    const coverPickerResetDefault = document.getElementById('topster-cover-picker-reset-default');
     const coverPickerClose = document.getElementById('topster-cover-picker-close');
     const coverPickerStatus = document.getElementById('topster-cover-picker-status');
     const coverPickerResults = document.getElementById('topster-cover-picker-results');
@@ -878,6 +893,9 @@ async function initTopsterImporter(albumCards) {
         coverPickerClose.addEventListener('click', closeCoverPicker);
         coverPickerSearch.addEventListener('click', loadCoverPickerResults);
         coverPickerLinkButton.addEventListener('click', useManualImageLink);
+        if (coverPickerResetDefault) {
+            coverPickerResetDefault.addEventListener('click', resetRollingStoneSingerImageToDefault);
+        }
         coverPickerLink.addEventListener('keydown', event => {
             if (event.key === 'Enter') {
                 event.preventDefault();
@@ -905,9 +923,13 @@ async function initTopsterImporter(albumCards) {
         pickerEntryIndex = entryIndex;
         pickerLookupToken++;
         coverPicker.hidden = false;
-        coverPickerTitle.textContent = `Select cover: ${formatEntryName(entry)}`;
+        coverPickerTitle.textContent = isRollingStoneSingerTopsterSource()
+            ? `Select artist image: ${entry.title}`
+            : `Select cover: ${formatEntryName(entry)}`;
         coverPickerResults.innerHTML = '';
-        coverPickerStatus.textContent = 'Searching all available cover sources...';
+        coverPickerStatus.textContent = isRollingStoneSingerTopsterSource()
+            ? 'Searching artist and associated-act image sources...'
+            : 'Searching all available cover sources...';
         if (coverPickerLink) coverPickerLink.value = '';
         loadCoverPickerResults();
     }
@@ -928,12 +950,14 @@ async function initTopsterImporter(albumCards) {
         coverPickerStatus.textContent = `Searching all available sources for ${formatEntryName(entry)}...`;
 
         try {
-            const candidates = await resolveManualCoverCandidates(entry, 'all', getSourceConfig());
+            const candidates = isRollingStoneSingerTopsterSource()
+                ? await resolveRollingStoneSingerImageCandidates(entry, getSourceConfig())
+                : await resolveManualCoverCandidates(entry, 'all', getSourceConfig());
             if (token !== pickerLookupToken) return;
             renderCoverPickerCandidates(candidates);
             coverPickerStatus.textContent = candidates.length
-                ? `Select one of ${candidates.length} cover result${candidates.length === 1 ? '' : 's'}, or paste an Image Link above.`
-                : 'No cover results were found. Paste an Image Link above to set the cover manually.';
+                ? `Select one of ${candidates.length} ${isRollingStoneSingerTopsterSource() ? 'artist image' : 'cover'} result${candidates.length === 1 ? '' : 's'}, or paste an Image Link above.`
+                : `No ${isRollingStoneSingerTopsterSource() ? 'artist image' : 'cover'} results were found. Paste an Image Link above to set one manually.`;
         } catch (error) {
             if (token !== pickerLookupToken) return;
             coverPickerStatus.textContent = 'Cover search failed. Paste an Image Link above to set the cover manually.';
@@ -984,6 +1008,26 @@ async function initTopsterImporter(albumCards) {
             source: 'Image Link',
             score: 1
         });
+    }
+
+    function resetRollingStoneSingerImageToDefault() {
+        if (!isRollingStoneSingerTopsterSource() || pickerEntryIndex === null || !importedEntries[pickerEntryIndex]) return;
+        const entry = importedEntries[pickerEntryIndex];
+        const defaultCover = getRollingStoneSingerDefaultCover(entry);
+        if (!defaultCover || !defaultCover.imageSrc) return;
+
+        entry.cover = defaultCover;
+        entry.status = 'found';
+        entry.manuallySelectedCover = false;
+        setCachedCover(buildCoverCacheKey(entry), defaultCover);
+        safeMarkTopsterPublishDirty();
+
+        renderTopster(importedEntries, 0, { scroll: false });
+        saveCurrentTopster();
+        syncAllTopsterSidebarHeights();
+        window.requestAnimationFrame(syncAllTopsterSidebarHeights);
+        status.textContent = `Reset ${entry.title} to the default local artist image. Press Save Settings to publish it to ${getTopsterPublicPageName()}.`;
+        closeCoverPicker();
     }
 
     async function selectManualCover(candidate) {
@@ -1042,6 +1086,7 @@ async function initTopsterImporter(albumCards) {
             const prelookupOnly = topsterEditorPage
                 && source === 'build'
                 && sourceConfig.kind !== 'rate-your-music-chart'
+                && sourceConfig.kind !== 'rolling-stone-greatest-singers-of-all-time-2023-file'
                 && !topsterPrelookupIsComplete(loaded.signature);
 
             currentSourceText = loaded.text || '';
@@ -1974,6 +2019,67 @@ const RATE_YOUR_MUSIC_RELEASE_TYPES = [
 
 function isRateYourMusicTopsterSource() {
     return getTopsterDataSourceConfig().kind === 'rate-your-music-chart';
+}
+
+function isRollingStoneSingerTopsterSource() {
+    return getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-singers-of-all-time-2023-file';
+}
+
+const ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES = Object.freeze({
+    'sade': 'Sade_(singer)',
+    'dion': 'Dion_DiMucci',
+    'luciano': 'Luciano_(Jamaican_singer)',
+    'iu': 'IU_(singer)',
+    'brandy': 'Brandy_Norwood',
+    'robert smith': 'Robert_Smith_(musician)',
+    'bobby blue bland': 'Bobby_Bland'
+});
+
+function getRollingStoneSingerWikipediaUrl(name) {
+    const cleanName = cleanAlbumTitle(name || '').replace(/[’‘]/g, "'").replace(/[“”]/g, '"').trim();
+    if (!cleanName) return '';
+
+    const overrideKey = normalizeAlbumTitle(cleanName);
+    const pageTitle = ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES[overrideKey] || cleanName;
+    const wikiPath = encodeURIComponent(pageTitle.replace(/\s+/g, '_'))
+        .replace(/%28/g, '(')
+        .replace(/%29/g, ')')
+        .replace(/%27/g, "'");
+    return `https://en.wikipedia.org/wiki/${wikiPath}`;
+}
+
+function rollingStoneSingerImageSlug(name) {
+    return String(name || '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[’‘']/g, '')
+        .replace(/[“”"]/g, '')
+        .replace(/&/g, ' and ')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+function getRollingStoneSingerDefaultCover(entry) {
+    if (!entry || !entry.title) return null;
+    const imageSrc = entry.defaultImageSrc
+        || `rolling_stone_greatest_singers_of_all_time_2023/${rollingStoneSingerImageSlug(entry.title)}.png`;
+    return {
+        title: entry.title,
+        artist: '',
+        imageSrc: resolveMaybeRelativeUrl(imageSrc, window.location.href),
+        href: entry.wikipediaHref || getRollingStoneSingerWikipediaUrl(entry.title),
+        source: 'Default artist image',
+        selectedManually: false,
+        score: 1
+    };
+}
+
+function getRollingStoneSingerLookupNames(entry) {
+    const names = [entry && entry.title, ...(entry && Array.isArray(entry.acts) ? entry.acts : [])]
+        .map(value => cleanAlbumTitle(value || ''))
+        .filter(Boolean);
+    return Array.from(new Set(names.map(name => name.trim()))).slice(0, 14);
 }
 
 function normalizeRateYourMusicMode(value) {
@@ -3467,6 +3573,38 @@ function parseAlbumText(text) {
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
 
+            // Rolling Stone's 200 Greatest Singers of All Time (2023):
+            //   1. Aretha Franklin (March 25, 1942) | (Solo)
+            //   12. John Lennon (October 9, 1940) | (The Quarrymen; The Beatles; Plastic Ono Band)
+            // The source's date is the singer's birth date; entry.year intentionally
+            // stores the birth year so the standard "year" overlay can display it.
+            if (getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-singers-of-all-time-2023-file') {
+                const singerMatch = line.match(/^(.+?)\s*\(\s*([^()]*?\b(?:18|19|20)\d{2})\s*\)\s*\|\s*\((.*?)\)\s*$/);
+                if (singerMatch) {
+                    const singerName = cleanAlbumTitle(singerMatch[1]);
+                    const birthDate = singerMatch[2].trim();
+                    const actsText = singerMatch[3].trim();
+                    const acts = /^solo$/i.test(actsText)
+                        ? []
+                        : actsText.split(/\s*;\s*/).map(value => cleanAlbumTitle(value)).filter(Boolean);
+                    return {
+                        artist: '',
+                        title: singerName,
+                        dateText: birthDate,
+                        birthDate,
+                        birthYear: extractYear(birthDate),
+                        year: extractYear(birthDate),
+                        acts,
+                        actsText,
+                        wikipediaHref: getRollingStoneSingerWikipediaUrl(singerName),
+                        defaultImageSrc: `rolling_stone_greatest_singers_of_all_time_2023/${rollingStoneSingerImageSlug(singerName)}.png`,
+                        isSingerEntry: true,
+                        raw: originalLine,
+                        ...checklistFields
+                    };
+                }
+            }
+
             // 1001 Albums You Must Hear Before You Die (All Editions) source format:
             //   1. Frank Sinatra - In the Wee Small Hours (1955)
             //   12. Miles Davis - Birth of the Cool (1957 [Compilation])
@@ -3835,6 +3973,11 @@ function getPreferredCachedCover(entry) {
         }
     }
 
+    if (isRollingStoneSingerTopsterSource()) {
+        const defaultCover = getRollingStoneSingerDefaultCover(entry);
+        if (defaultCover && defaultCover.imageSrc) return defaultCover;
+    }
+
     for (const key of aliases) {
         const item = cache[key];
         if (item && item.imageSrc) {
@@ -3911,6 +4054,153 @@ function getManualSourceLabel(source) {
         cache: 'saved local cover cache'
     };
     return labels[source] || source;
+}
+
+async function resolveLastfmArtistImageCandidates(artistName, apiKey, relationLabel = 'Artist') {
+    if (!artistName || !apiKey) return [];
+    const candidates = [];
+
+    try {
+        const infoUrl = new URL('https://ws.audioscrobbler.com/2.0/');
+        infoUrl.searchParams.set('method', 'artist.getinfo');
+        infoUrl.searchParams.set('artist', artistName);
+        infoUrl.searchParams.set('api_key', apiKey);
+        infoUrl.searchParams.set('format', 'json');
+        const infoData = await fetchJson(infoUrl.href, 12000);
+        const artist = infoData && infoData.artist ? infoData.artist : null;
+        const imageSrc = artist && Array.isArray(artist.image) ? getLastfmImage(artist.image) : '';
+        if (artist && isUsefulLastfmImage(imageSrc)) {
+            candidates.push(makeCoverCandidate({
+                title: artist.name || artistName,
+                artist: relationLabel,
+                imageSrc,
+                href: artist.url || '',
+                source: `Last.fm · ${relationLabel}`,
+                score: 1
+            }));
+        }
+    } catch (error) {
+        // artist.search below can still provide results.
+    }
+
+    try {
+        const searchUrl = new URL('https://ws.audioscrobbler.com/2.0/');
+        searchUrl.searchParams.set('method', 'artist.search');
+        searchUrl.searchParams.set('artist', artistName);
+        searchUrl.searchParams.set('api_key', apiKey);
+        searchUrl.searchParams.set('format', 'json');
+        searchUrl.searchParams.set('limit', '8');
+        const data = await fetchJson(searchUrl.href, 12000);
+        const matches = data && data.results && data.results.artistmatches && Array.isArray(data.results.artistmatches.artist)
+            ? data.results.artistmatches.artist
+            : [];
+        matches.forEach(match => {
+            const imageSrc = Array.isArray(match.image) ? getLastfmImage(match.image) : '';
+            if (!isUsefulLastfmImage(imageSrc)) return;
+            const similarity = titleSimilarity(artistName, match.name || '');
+            if (similarity < 0.34) return;
+            candidates.push(makeCoverCandidate({
+                title: match.name || artistName,
+                artist: relationLabel,
+                imageSrc,
+                href: match.url || '',
+                source: `Last.fm · ${relationLabel}`,
+                score: similarity
+            }));
+        });
+    } catch (error) {
+        // Continue with Wikipedia/Archive candidates.
+    }
+
+    return candidates;
+}
+
+async function resolveWikipediaArtistImageCandidates(artistName, relationLabel = 'Artist') {
+    if (!artistName) return [];
+    const url = new URL('https://en.wikipedia.org/w/api.php');
+    url.searchParams.set('action', 'query');
+    url.searchParams.set('generator', 'search');
+    url.searchParams.set('gsrsearch', artistName);
+    url.searchParams.set('gsrnamespace', '0');
+    url.searchParams.set('gsrlimit', '5');
+    url.searchParams.set('prop', 'pageimages|info');
+    url.searchParams.set('piprop', 'thumbnail');
+    url.searchParams.set('pithumbsize', '900');
+    url.searchParams.set('inprop', 'url');
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('origin', '*');
+
+    const data = await fetchJson(url.href, 12000);
+    const pages = data && data.query && data.query.pages ? Object.values(data.query.pages) : [];
+    return pages
+        .filter(page => page && page.thumbnail && page.thumbnail.source)
+        .map(page => makeCoverCandidate({
+            title: page.title || artistName,
+            artist: relationLabel,
+            imageSrc: page.thumbnail.source,
+            href: page.fullurl || getRollingStoneSingerWikipediaUrl(page.title || artistName),
+            source: `Wikipedia · ${relationLabel}`,
+            score: titleSimilarity(artistName, page.title || '')
+        }))
+        .filter(candidate => candidate.score >= 0.22)
+        .sort((a, b) => (b.score || 0) - (a.score || 0));
+}
+
+async function resolveInternetArchiveArtistImageCandidates(artistName) {
+    if (!artistName) return [];
+    const safeName = artistName.replace(/"/g, '');
+    const url = new URL('https://archive.org/advancedsearch.php');
+    url.searchParams.set('q', `mediatype:(image) AND (title:("${safeName}") OR creator:("${safeName}"))`);
+    url.searchParams.append('fl[]', 'identifier');
+    url.searchParams.append('fl[]', 'title');
+    url.searchParams.append('fl[]', 'creator');
+    url.searchParams.set('rows', '8');
+    url.searchParams.set('page', '1');
+    url.searchParams.set('output', 'json');
+
+    const data = await fetchJson(url.href, 12000);
+    const docs = data && data.response && Array.isArray(data.response.docs) ? data.response.docs : [];
+    return docs
+        .filter(doc => doc && doc.identifier)
+        .map(doc => makeCoverCandidate({
+            title: doc.title || artistName,
+            artist: Array.isArray(doc.creator) ? doc.creator.join(', ') : (doc.creator || 'Artist image'),
+            imageSrc: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`,
+            href: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`,
+            source: 'Internet Archive · Artist image',
+            score: titleSimilarity(artistName, doc.title || artistName)
+        }))
+        .filter(candidate => candidate.score >= 0.20);
+}
+
+async function resolveRollingStoneSingerImageCandidates(entry, config) {
+    const candidates = [];
+    const defaultCover = getRollingStoneSingerDefaultCover(entry);
+    if (defaultCover) candidates.push(defaultCover);
+
+    const lookupNames = getRollingStoneSingerLookupNames(entry);
+    for (let index = 0; index < lookupNames.length; index += 1) {
+        const lookupName = lookupNames[index];
+        const relationLabel = index === 0 ? 'Singer' : `Act: ${lookupName}`;
+        const tasks = [
+            resolveWikipediaArtistImageCandidates(lookupName, relationLabel)
+        ];
+        if (config && config.useLastfm && config.lastfmKey) {
+            tasks.unshift(resolveLastfmArtistImageCandidates(lookupName, config.lastfmKey, relationLabel));
+        }
+
+        const groups = await Promise.all(tasks.map(task => Promise.resolve(task).catch(() => [])));
+        groups.forEach(group => candidates.push(...group));
+    }
+
+    try {
+        candidates.push(...await resolveInternetArchiveArtistImageCandidates(entry.title));
+    } catch (error) {
+        // Optional archive image lookup.
+    }
+
+    candidates.push(...resolveCacheCoverCandidates(entry));
+    return dedupeCoverCandidates(candidates).slice(0, 50);
 }
 
 async function resolveManualCoverCandidates(entry, selectedSource, config) {
@@ -4200,7 +4490,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         tile.title = label;
         tile.setAttribute('aria-label', label);
         tile.addEventListener('click', event => {
-            if (event.target && event.target.closest && event.target.closest('.topster-rym-release-link')) return;
+            if (event.target && event.target.closest && event.target.closest('.topster-rym-release-link, .topster-singer-wikipedia-link')) return;
             showMobileInfo(event);
         });
     }
@@ -4222,6 +4512,10 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         const rymReleaseHref = !onSelectCover && isRateYourMusicTopsterSource()
             ? String(entry.releaseHref || '').trim()
             : '';
+        const singerWikipediaHref = !onSelectCover && isRollingStoneSingerTopsterSource()
+            ? String(entry.wikipediaHref || getRollingStoneSingerWikipediaUrl(entry.title || '')).trim()
+            : '';
+
         if (rymReleaseHref && /^https:\/\/(?:www\.)?rateyourmusic\.com\/release\//i.test(rymReleaseHref)) {
             const releaseLink = document.createElement('a');
             releaseLink.className = 'topster-rym-release-link';
@@ -4229,6 +4523,13 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
             releaseLink.setAttribute('aria-label', `${label}. Open RateYourMusic release page.`);
             releaseLink.appendChild(img);
             tile.appendChild(releaseLink);
+        } else if (singerWikipediaHref && /^https:\/\/en\.wikipedia\.org\/wiki\//i.test(singerWikipediaHref)) {
+            const wikipediaLink = document.createElement('a');
+            wikipediaLink.className = 'topster-singer-wikipedia-link';
+            wikipediaLink.href = singerWikipediaHref;
+            wikipediaLink.setAttribute('aria-label', `${label}. Open Wikipedia page.`);
+            wikipediaLink.appendChild(img);
+            tile.appendChild(wikipediaLink);
         } else {
             tile.appendChild(img);
         }
