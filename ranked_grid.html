@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Albums Ranked</title>
-    <link rel="stylesheet" href="styles.css?v=20260720-topster-backend-wait-desktop-tooltip-v15">
+    <link rel="stylesheet" href="styles.css?v=20260701-topster-iphone-mobile-text-v8">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
-<body data-topster-store-source="ranked" data-topster-source="ranked-sheet">
+<body data-topster-require-admin="true" data-topster-source="ranked-sheet">
     <header>
         <div class="header-left">
             <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
@@ -22,6 +22,7 @@
             <a href="about.html">About</a>
             <a href="contact.html">Contact</a>
             <a href="album_list.html">List</a>
+            <a href="ranked_album_list.html">Rank</a>
         </nav>
     </header>
 
@@ -33,13 +34,6 @@
             </div>
             <br>
             <hr>
-
-            <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
-                <p class="topster-loading-title">Loading Topster</p>
-                <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
-                <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
-                <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
-            </div>
 
             <div class="topster-import-panel" id="topster-import-panel">
                 <div class="topster-controls topster-file-controls">
@@ -129,6 +123,7 @@
 
             <div class="topster-cache-actions" id="topster-cache-actions">
                 <button type="button" id="topster-cache-clear-button" class="danger-button">Clear Cover Cache</button>
+                <button type="button" class="secondary-button topster-navigate-page-button" onclick="window.location.href='ranked_album_list.html'">Navigate to Page</button>
             </div>
         </section>
 
@@ -152,7 +147,7 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260807-rolling-stone-500-multi-v19';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260814-admin-hub-auth-v31';
 
         function markTopsterPublishDirty() {
             window.__navincitronTopsterPublishDirty = true;
@@ -179,6 +174,6 @@
             });
         })();
     </script>
-    <script src="topster_grid.js?v=20260807-rolling-stone-500-multi-v19"></script>
+    <script src="topster_grid.js?v=20260814-admin-hub-auth-v31"></script>
 </body>
 </html>
