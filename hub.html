@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navincitron - Topster Hub</title>
+    <link rel="stylesheet" href="styles.css?v=20260814-hub-v1">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+    <style>
+        .hub-panel {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .hub-intro {
+            text-align: center;
+            margin: 8px auto 24px;
+            color: #ddd;
+            max-width: 760px;
+            line-height: 1.5;
+        }
+
+        .hub-card {
+            background-color: #444;
+            border-radius: 10px;
+            margin-top: 20px;
+            padding: 20px;
+        }
+
+        .hub-card h3 {
+            margin: 0 0 6px;
+            text-align: center;
+        }
+
+        .hub-card > p {
+            color: #ddd;
+            margin: 0 0 18px;
+            text-align: center;
+        }
+
+        .hub-button-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .hub-button {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 76px;
+            box-sizing: border-box;
+            padding: 14px 18px;
+            border-radius: 10px;
+            background-color: #b93838;
+            color: #fff;
+            text-decoration: none;
+            text-align: center;
+            transition: background-color 0.15s ease, transform 0.15s ease;
+        }
+
+        .hub-button:hover,
+        .hub-button:focus-visible {
+            background-color: #8f2929;
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .hub-button-title {
+            font-size: 16px;
+            font-weight: bold;
+            line-height: 1.25;
+        }
+
+        .hub-button-description {
+            display: block;
+            margin-top: 6px;
+            color: #f1dede;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        @media only screen and (max-width: 700px) {
+            .hub-panel {
+                padding: 14px;
+            }
+
+            .hub-button-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="album_list.html">List</a>
+            <a href="ranked_album_list.html">Rank</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hub-panel">
+            <div class="title-bar">
+                <br>
+                <h2 class="center">TOPSTER HUB</h2>
+            </div>
+            <p class="hub-intro">
+                Central access to the website's Topster grid, draft, checklist, and source-specific editor pages.
+            </p>
+            <section class="hub-card">
+            <h3>Core Topster Editors</h3>
+            <p>Primary pages for building and maintaining the main Navincitron Topsters.</p>
+            <div class="hub-button-grid">
+                <a class="hub-button" href="grid.html">
+                    <span class="hub-button-title">Albums Grid</span>
+                    <span class="hub-button-description">Main chronological album Topster editor.</span>
+                </a><a class="hub-button" href="ranked_grid.html">
+                    <span class="hub-button-title">Ranked Albums Grid</span>
+                    <span class="hub-button-description">Ranked-album Topster editor.</span>
+                </a><a class="hub-button" href="draft_grid.html">
+                    <span class="hub-button-title">Draft Albums Grid</span>
+                    <span class="hub-button-description">Build a draft Topster from a local text file.</span>
+                </a><a class="hub-button" href="draft_album_list.html">
+                    <span class="hub-button-title">Draft Album List</span>
+                    <span class="hub-button-description">Read-only preview of the published draft Topster.</span>
+                </a><a class="hub-button" href="draft_checklist.html">
+                    <span class="hub-button-title">Draft Checklist</span>
+                    <span class="hub-button-description">Checklist-oriented Topster editor.</span>
+                </a>
+            </div>
+        </section><section class="hub-card">
+            <h3>Rolling Stone Editors</h3>
+            <p>Source-specific editors for Rolling Stone lists.</p>
+            <div class="hub-button-grid">
+                <a class="hub-button" href="rolling_stone_500_albums_2003_draft.html">
+                    <span class="hub-button-title">500 Greatest Albums — 2003</span>
+                    <span class="hub-button-description">2003 Rolling Stone album-list editor.</span>
+                </a><a class="hub-button" href="rolling_stone_500_albums_2012_draft.html">
+                    <span class="hub-button-title">500 Greatest Albums — 2012</span>
+                    <span class="hub-button-description">2012 Rolling Stone album-list editor.</span>
+                </a><a class="hub-button" href="rolling_stone_500_albums_2020_draft.html">
+                    <span class="hub-button-title">500 Greatest Albums — 2020</span>
+                    <span class="hub-button-description">2020 Rolling Stone album-list editor.</span>
+                </a><a class="hub-button" href="rolling_stone_500_albums_2023_draft.html">
+                    <span class="hub-button-title">500 Greatest Albums — 2023</span>
+                    <span class="hub-button-description">2023 Rolling Stone album-list editor.</span>
+                </a><a class="hub-button" href="rolling_stone_greatest_singers_of_all_time_2023_draft.html">
+                    <span class="hub-button-title">200 Greatest Singers — 2023</span>
+                    <span class="hub-button-description">Singer-image Topster editor with birth-year overlays.</span>
+                </a>
+            </div>
+        </section><section class="hub-card">
+            <h3>Other List Editors</h3>
+            <p>Editors for additional source lists and chart snapshots.</p>
+            <div class="hub-button-grid">
+                <a class="hub-button" href="nme_500_albums_draft.html">
+                    <span class="hub-button-title">NME&#x27;s 500 Greatest Albums</span>
+                    <span class="hub-button-description">NME 500-album Topster editor.</span>
+                </a><a class="hub-button" href="1001_albums_you_must_hear_before_you_die_draft.html">
+                    <span class="hub-button-title">1001 Albums You Must Hear Before You Die</span>
+                    <span class="hub-button-description">All-editions 1001 Albums Topster editor.</span>
+                </a><a class="hub-button" href="rate_your_music_draft.html">
+                    <span class="hub-button-title">RateYourMusic&#x27;s Top Albums</span>
+                    <span class="hub-button-description">Configure and import RateYourMusic chart snapshots.</span>
+                </a>
+            </div>
+        </section>
+        </section>
+    </main>
+</body>
+</html>

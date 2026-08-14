@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260812-rolling-stone-singers-2023-v29';
+const TOPSTER_FRONTEND_VERSION = '20260814-hub-robert-smith-v30';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -2071,7 +2071,7 @@ function getRollingStoneSingerDefaultCover(entry) {
         title: entry.title,
         artist: '',
         imageSrc: resolveMaybeRelativeUrl(imageSrc, window.location.href),
-        href: entry.wikipediaHref || getRollingStoneSingerWikipediaUrl(entry.title),
+        href: getRollingStoneSingerWikipediaUrl(entry.title) || entry.wikipediaHref,
         source: 'Default artist image',
         selectedManually: false,
         score: 1
@@ -4516,7 +4516,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
             ? String(entry.releaseHref || '').trim()
             : '';
         const singerWikipediaHref = !onSelectCover && isRollingStoneSingerTopsterSource()
-            ? String(entry.wikipediaHref || getRollingStoneSingerWikipediaUrl(entry.title || '')).trim()
+            ? String(getRollingStoneSingerWikipediaUrl(entry.title || '') || entry.wikipediaHref || '').trim()
             : '';
 
         if (rymReleaseHref && /^https:\/\/(?:www\.)?rateyourmusic\.com\/release\//i.test(rymReleaseHref)) {
