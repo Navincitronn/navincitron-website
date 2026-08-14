@@ -107,7 +107,7 @@
         }
     </style>
 </head>
-<body data-topster-store-source="rate_your_music" data-topster-source="rate-your-music-chart">
+<body data-topster-require-admin="true" data-topster-store-source="rate_your_music" data-topster-source="rate-your-music-chart">
     <header>
         <div class="header-left"><img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" /><div class="brand"><h1>NAVINCITRON</h1><br><p>proper music isolation</p></div></div>
         <nav class="topnav">
@@ -249,13 +249,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260810-rate-your-music-v27';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260814-admin-hub-auth-v31';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260810-rate-your-music-v27"></script>
+    <script src="topster_grid.js?v=20260814-admin-hub-auth-v31"></script>
 </body>
 </html>

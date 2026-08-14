@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260814-hub-robert-smith-v30';
+const TOPSTER_FRONTEND_VERSION = '20260814-admin-hub-auth-v31';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -330,6 +330,52 @@ function isTopsterEditorPage() {
         || fileName === 'rate_your_music_draft.html'
         || fileName === 'rolling_stone_greatest_singers_of_all_time_2023_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
+}
+
+function isTopsterAdminProtectedPage() {
+    const body = document.body;
+    if (body && body.dataset.topsterRequireAdmin === 'true') return true;
+
+    const fileName = window.location.pathname.split('/').pop().toLowerCase();
+    if (fileName === 'grid.html' || fileName === 'ranked_grid.html' || fileName === 'draft_album_list.html') return true;
+    if (/^draft_.+\.html$/.test(fileName)) return true;
+    if (/_draft\.html$/.test(fileName)) return true;
+    return false;
+}
+
+async function requireTopsterAdminAccess() {
+    if (!isTopsterAdminProtectedPage()) return true;
+
+    const statusUrl = new URL('/api/topster-admin-status', getTopsterBackendOrigin() || window.location.origin);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? window.setTimeout(() => controller.abort(), 12000) : null;
+
+    try {
+        const response = await fetch(statusUrl.href, {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+            signal: controller ? controller.signal : undefined
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const payload = await response.json();
+        if (payload && payload.authenticated) return true;
+
+        window.location.replace(buildTopsterAdminLoginUrl());
+        return false;
+    } catch (error) {
+        console.error('Topster admin authentication check failed:', error);
+        const status = document.getElementById('topster-status');
+        if (status) {
+            status.textContent = 'Admin authentication service is unavailable. This page is locked until authentication can be verified.';
+            status.hidden = false;
+        }
+        failTopsterLoading('Admin authentication could not be verified. Access is locked.');
+        return false;
+    } finally {
+        if (timeoutId) window.clearTimeout(timeoutId);
+    }
 }
 
 function isTopsterReadOnlyPage() {
@@ -4614,7 +4660,10 @@ function getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode) {
 }
 
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    const authenticated = await requireTopsterAdminAccess();
+    if (!authenticated) return;
+
     initTopsterImporter([]).catch(error => {
         console.error('Topster initialization failed:', error);
         const status = document.getElementById('topster-status');
