@@ -329,7 +329,7 @@
         }
     </style>
 </head>
-<body>
+<body data-admin-require-auth="true">
     <header>
         <div class="header-left">
             <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
@@ -348,7 +348,8 @@
         </nav>
     </header>
 
-    <main>
+    <div id="lyrics-admin-auth-status" class="lyrics-status" style="margin-top: 24px;">Verifying admin authentication…</div>
+    <main id="lyrics-admin-content" hidden>
         <section class="lyrics-page">
             <h2 class="lyrics-heading">LYRICS</h2>
             <hr>
@@ -418,6 +419,39 @@
     </main>
 
     <footer></footer>
+
+    <script>
+        (function () {
+            var backendOrigin = (/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname))
+                ? window.location.origin
+                : 'https://api.navincitron.com';
+            var statusUrl = backendOrigin + '/api/topster-admin-status';
+            var loginUrl = backendOrigin + '/topster-admin-login?next=' + encodeURIComponent(window.location.href);
+            var content = document.getElementById('lyrics-admin-content');
+            var status = document.getElementById('lyrics-admin-auth-status');
+
+            fetch(statusUrl, { credentials: 'include', cache: 'no-store' })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function (payload) {
+                    if (!payload || !payload.authenticated) {
+                        window.location.replace(loginUrl);
+                        return;
+                    }
+                    if (status) status.hidden = true;
+                    if (content) content.hidden = false;
+                })
+                .catch(function () {
+                    if (status) {
+                        status.textContent = 'Admin authentication could not be verified. Lyrics access is locked.';
+                        status.classList.add('error');
+                    }
+                });
+        })();
+    </script>
+
     <script src="lyrics.js?v=20260716-persistent-auth-always-visible-hud-v1"></script>
 </body>
 </html>
