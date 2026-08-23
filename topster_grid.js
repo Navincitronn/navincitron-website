@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260814-admin-hub-auth-v31';
+const TOPSTER_FRONTEND_VERSION = '20260823-discogs-owned-filter-v34';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -16,6 +16,14 @@ const TOPSTER_BACKEND_INITIAL_TIMEOUT_MS = 12000;
 const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
+const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v1';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 30 * 60 * 1000;
+let topsterDiscogsCollectionAlbums = null;
+let topsterDiscogsCollectionItemCount = 0;
+let topsterDiscogsCollectionLoadedAt = 0;
+let topsterDiscogsCollectionLoadPromise = null;
+
 const TOPSTER_CHECKLIST_OVERLAYS = [
     { keyword: 'Hifiman Susvara Unveiled', id: 'susvara', imageSrc: 'susvara.png', label: 'Hifiman Susvara Unveiled' },
     { keyword: 'Hifiman Arya Organic', id: 'arya', imageSrc: 'arya.png', label: 'Hifiman Arya Organic' },
@@ -190,6 +198,171 @@ function getTopsterBackendOrigin() {
 function buildTopsterApiUrl(path) {
     const backendOrigin = getTopsterBackendOrigin();
     return new URL(path || '/', backendOrigin || window.location.origin).href;
+}
+
+function normalizeDiscogsArtistForMatch(value) {
+    return cleanAlbumTitle(value || '')
+        .replace(/\s*\(\d+\)\s*$/, '')
+        .trim();
+}
+
+function topsterOwnedTextVariants(value, options = {}) {
+    const raw = cleanAlbumTitle(value || '').trim();
+    if (!raw) return [];
+
+    const candidates = [raw];
+    if (options.artist) {
+        candidates.push(normalizeDiscogsArtistForMatch(raw));
+    }
+    candidates.push(raw.replace(/^(?:the|a|an)\s+/i, '').trim());
+
+    return Array.from(new Set(candidates
+        .map(item => normalizeAlbumTitle(item))
+        .filter(Boolean)));
+}
+
+function normalizeDiscogsCollectionAlbums(rawAlbums) {
+    if (!Array.isArray(rawAlbums)) return [];
+    return rawAlbums.map(item => {
+        const title = cleanAlbumTitle(item && item.title || '');
+        const artists = Array.isArray(item && item.artists)
+            ? item.artists.map(name => normalizeDiscogsArtistForMatch(name)).filter(Boolean)
+            : [];
+        const fallbackArtist = normalizeDiscogsArtistForMatch(item && item.artist || '');
+        if (!artists.length && fallbackArtist) artists.push(fallbackArtist);
+
+        return {
+            title,
+            titleVariants: topsterOwnedTextVariants(title),
+            artists,
+            artistVariants: Array.from(new Set(artists.flatMap(name => topsterOwnedTextVariants(name, { artist: true })))),
+            releaseId: Number(item && item.releaseId) || null,
+            masterId: Number(item && item.masterId) || null,
+            year: Number(item && item.year) || null
+        };
+    }).filter(item => item.titleVariants.length);
+}
+
+function saveDiscogsCollectionBrowserCache(payload) {
+    try {
+        localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            itemCount: Number(payload && payload.itemCount) || 0,
+            albums: Array.isArray(payload && payload.albums) ? payload.albums : []
+        }));
+    } catch (error) {
+        // The shared backend remains the source of truth if local storage is unavailable.
+    }
+}
+
+function loadDiscogsCollectionBrowserCache() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY) || 'null');
+        if (!parsed || !Array.isArray(parsed.albums)) return false;
+        const savedAt = Number(parsed.savedAt) || 0;
+        if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
+        topsterDiscogsCollectionAlbums = normalizeDiscogsCollectionAlbums(parsed.albums);
+        topsterDiscogsCollectionItemCount = Number(parsed.itemCount) || parsed.albums.length;
+        topsterDiscogsCollectionLoadedAt = savedAt;
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+async function ensureTopsterDiscogsCollectionLoaded(options = {}) {
+    if (Array.isArray(topsterDiscogsCollectionAlbums) && topsterDiscogsCollectionAlbums.length) return true;
+    if (!options.force && loadDiscogsCollectionBrowserCache()) return true;
+    if (topsterDiscogsCollectionLoadPromise) return topsterDiscogsCollectionLoadPromise;
+
+    topsterDiscogsCollectionLoadPromise = (async () => {
+        try {
+            const url = new URL('/api/discogs-collection', getTopsterBackendOrigin() || window.location.origin);
+            url.searchParams.set('username', TOPSTER_DISCOGS_COLLECTION_USERNAME);
+            if (options.force) url.searchParams.set('refresh', '1');
+
+            const response = await fetch(url.href, {
+                credentials: 'include',
+                cache: 'no-store'
+            });
+            if (!response.ok) {
+                let detail = '';
+                try {
+                    const body = await response.json();
+                    detail = body && body.error ? String(body.error) : '';
+                } catch (error) {
+                    // Ignore non-JSON error bodies.
+                }
+                throw new Error(detail || `HTTP ${response.status}`);
+            }
+
+            const payload = await response.json();
+            if (!payload || payload.ok !== true || !Array.isArray(payload.albums)) {
+                throw new Error('Discogs collection response was invalid.');
+            }
+
+            topsterDiscogsCollectionAlbums = normalizeDiscogsCollectionAlbums(payload.albums);
+            topsterDiscogsCollectionItemCount = Number(payload.itemCount) || payload.albums.length;
+            topsterDiscogsCollectionLoadedAt = Date.now();
+            saveDiscogsCollectionBrowserCache(payload);
+            return true;
+        } catch (error) {
+            console.error('Discogs collection lookup failed:', error);
+            return false;
+        } finally {
+            topsterDiscogsCollectionLoadPromise = null;
+        }
+    })();
+
+    return topsterDiscogsCollectionLoadPromise;
+}
+
+function topsterEntryIsInDiscogsCollection(entry) {
+    if (!entry || !Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return false;
+
+    const entryTitleVariants = topsterOwnedTextVariants(entry.title || '');
+    const entryArtistVariants = topsterOwnedTextVariants(entry.artist || '', { artist: true });
+    if (!entryTitleVariants.length) return false;
+
+    let matchingTitleCount = 0;
+    let uniqueTitleMatch = false;
+
+    for (const album of topsterDiscogsCollectionAlbums) {
+        const titleMatches = entryTitleVariants.some(value => album.titleVariants.includes(value));
+        if (!titleMatches) continue;
+        matchingTitleCount += 1;
+
+        if (!entryArtistVariants.length || !album.artistVariants.length) {
+            uniqueTitleMatch = true;
+            continue;
+        }
+
+        const artistMatches = entryArtistVariants.some(entryArtist =>
+            album.artistVariants.some(collectionArtist =>
+                entryArtist === collectionArtist
+                || (entryArtist.length >= 5 && collectionArtist.includes(entryArtist))
+                || (collectionArtist.length >= 5 && entryArtist.includes(collectionArtist))
+            )
+        );
+        if (artistMatches) return true;
+    }
+
+    // Fallback for collaborative/Various Artists credits where Discogs and the
+    // source list use materially different artist strings. Only trust a title-only
+    // match when the collection contains that title exactly once.
+    return uniqueTitleMatch && matchingTitleCount === 1;
+}
+
+function applyOwnedReleaseVisualState(tile, entry, enabled) {
+    if (!tile) return;
+    const owned = Boolean(enabled && topsterEntryIsInDiscogsCollection(entry));
+    tile.classList.toggle('topster-owned-release', owned);
+    if (!owned) return;
+
+    tile.querySelectorAll('img, .topster-cover-overlay, .topster-tile-placeholder').forEach(element => {
+        element.style.opacity = '0.25';
+        element.style.filter = 'grayscale(100%)';
+    });
 }
 
 function getTopsterStoreSourceKey() {
@@ -575,6 +748,7 @@ async function initTopsterImporter(albumCards) {
     const albumGapValue = document.getElementById('topster-album-gap-value');
     const fontSelect = document.getElementById('topster-font');
     const coverOverlaySelect = document.getElementById('topster-cover-overlay');
+    const excludeOwnedSelect = document.getElementById('topster-exclude-owned');
     const deviceProfileSelect = document.getElementById('topster-device-profile');
     const sourceConfig = getTopsterDataSourceConfig();
     const sourceFileInput = sourceConfig.fileInputId
@@ -639,6 +813,13 @@ async function initTopsterImporter(albumCards) {
     setSettingsControls(currentSettings);
     applyTopsterSettings(currentSettings);
     loadSavedTopster();
+
+    if (currentSettings.excludeOwnedReleases) {
+        const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded();
+        if (collectionLoaded && importedEntries.length) {
+            renderTopster(importedEntries, 0, { scroll: false });
+        }
+    }
 
     if (!importedEntries.length) {
         status.textContent = '';
@@ -716,7 +897,7 @@ async function initTopsterImporter(albumCards) {
         element.addEventListener('change', handleSettingsChange);
     });
 
-    [sidebarModeSelect, roundCornersSelect, fontSelect, coverOverlaySelect].forEach(element => {
+    [sidebarModeSelect, roundCornersSelect, fontSelect, coverOverlaySelect, excludeOwnedSelect].forEach(element => {
         if (element) element.addEventListener('change', handleSettingsChange);
     });
 
@@ -794,7 +975,7 @@ async function initTopsterImporter(albumCards) {
         window.setTimeout(scheduleTopsterResponsiveRefresh, 120);
     }, { passive: true });
 
-    function handleSettingsProfileChange() {
+    async function handleSettingsProfileChange() {
         const previousSettings = normalizeTopsterSettings(readSettingsControls());
         currentSettingsProfiles[currentSettingsProfile] = previousSettings;
         currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
@@ -803,6 +984,10 @@ async function initTopsterImporter(albumCards) {
         applyTopsterSettings(currentSettings);
         saveTopsterSettings(currentSettingsProfiles);
         safeMarkTopsterPublishDirty();
+
+        if (currentSettings.excludeOwnedReleases) {
+            await ensureTopsterDiscogsCollectionLoaded();
+        }
 
         if (importedEntries.length) {
             const selectedStart = Number(rangeSelect.value || 0);
@@ -815,13 +1000,20 @@ async function initTopsterImporter(albumCards) {
             : '';
     }
 
-    function handleSettingsChange() {
+    async function handleSettingsChange() {
         currentSettings = normalizeTopsterSettings(readSettingsControls());
         currentSettingsProfiles[currentSettingsProfile] = currentSettings;
         saveTopsterSettings(currentSettingsProfiles);
         applyTopsterSettings(currentSettings);
         updateSettingsValueLabels(currentSettings);
         safeMarkTopsterPublishDirty();
+
+        if (currentSettings.excludeOwnedReleases) {
+            const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded();
+            if (!collectionLoaded && topsterEditorPage) {
+                status.textContent = 'Could not load the Discogs collection. Owned releases cannot be dimmed until the collection API is reachable.';
+            }
+        }
 
         if (!importedEntries.length) {
             setSingleRangeOption();
@@ -1487,7 +1679,7 @@ async function initTopsterImporter(albumCards) {
             const absoluteIndex = start + i;
             chart.appendChild(createTopsterTile(entry, absoluteIndex + 1, topsterReadOnly ? null : () => {
                 if (entry) openCoverPicker(entry, absoluteIndex);
-            }, settings.coverOverlay));
+            }, settings.coverOverlay, settings.excludeOwnedReleases));
         }
 
         chartWrap.appendChild(chart);
@@ -1605,7 +1797,10 @@ async function initTopsterImporter(albumCards) {
             roundCorners: Number(roundCornersSelect.value),
             albumGap: Number(albumGapSelect.value),
             font: fontSelect.value,
-            coverOverlay: coverOverlaySelect ? coverOverlaySelect.value : (currentSettings.coverOverlay || 'none')
+            coverOverlay: coverOverlaySelect ? coverOverlaySelect.value : (currentSettings.coverOverlay || 'none'),
+            excludeOwnedReleases: excludeOwnedSelect
+                ? excludeOwnedSelect.value === 'yes'
+                : Boolean(currentSettings.excludeOwnedReleases)
         };
     }
 
@@ -1617,6 +1812,7 @@ async function initTopsterImporter(albumCards) {
         albumGapSelect.value = String(settings.albumGap);
         fontSelect.value = settings.font;
         if (coverOverlaySelect) coverOverlaySelect.value = settings.coverOverlay || 'none';
+        if (excludeOwnedSelect) excludeOwnedSelect.value = settings.excludeOwnedReleases ? 'yes' : 'no';
         updateSettingsValueLabels(settings);
     }
 
@@ -1947,7 +2143,8 @@ function normalizeTopsterSettings(settings) {
         roundCorners: clampInteger(raw.roundCorners, 0, 24, 0),
         albumGap: clampInteger(raw.albumGap, 0, 100, 4),
         font: allowedFonts.has(raw.font) ? raw.font : 'Arial',
-        coverOverlay: allowedCoverOverlays.has(raw.coverOverlay) ? raw.coverOverlay : 'none'
+        coverOverlay: allowedCoverOverlays.has(raw.coverOverlay) ? raw.coverOverlay : 'none',
+        excludeOwnedReleases: raw.excludeOwnedReleases === true || raw.excludeOwnedReleases === 'yes'
     };
 
     if (isChecklistTopsterSource()) normalized.coverOverlay = 'none';
@@ -4485,7 +4682,7 @@ function isUsefulLastfmImage(imageSrc) {
     return Boolean(imageSrc) && !String(imageSrc).includes('2a96cbd8b46e442fc41c2b86b821562f');
 }
 
-function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none') {
+function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none', excludeOwnedReleases = false) {
     const tile = document.createElement('div');
     tile.className = 'topster-tile';
     let mobileInfoTimer = null;
@@ -4614,6 +4811,8 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         tile.classList.add('has-checklist-overlay');
         tile.appendChild(checklistOverlay);
     }
+
+    applyOwnedReleaseVisualState(tile, entry, excludeOwnedReleases);
 
     if (isTopsterTouchTooltipDevice()) {
         const mobileInfo = document.createElement('span');

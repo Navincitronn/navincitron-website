@@ -104,6 +104,12 @@
                             <option value="year">Show release year</option>
                         </select>
 
+                        <label for="topster-exclude-owned">Exclude releases that I have:</label>
+                        <select id="topster-exclude-owned">
+                            <option value="no" selected>No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+
                         <label for="topster-font">Font</label>
                         <select id="topster-font">
                             <option value="Arial" selected>Arial</option>
@@ -153,7 +159,7 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260814-admin-hub-auth-v31';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260823-discogs-owned-filter-v34';
 
         function markTopsterPublishDirty() {
             window.__navincitronTopsterPublishDirty = true;
@@ -180,6 +186,6 @@
             });
         })();
     </script>
-    <script src="topster_grid.js?v=20260814-admin-hub-auth-v31"></script>
+    <script src="topster_grid.js?v=20260823-discogs-owned-filter-v34"></script>
 </body>
 </html>

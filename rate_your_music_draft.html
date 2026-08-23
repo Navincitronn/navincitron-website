@@ -219,6 +219,12 @@
                         <label for="topster-cover-overlay">Cover overlay</label>
                         <select id="topster-cover-overlay"><option value="none" selected>Off</option><option value="index">Show index</option><option value="year">Show release year</option></select>
 
+                        <label for="topster-exclude-owned">Exclude releases that I have:</label>
+                        <select id="topster-exclude-owned">
+                            <option value="no" selected>No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+
                         <label for="topster-font">Font</label>
                         <select id="topster-font">
                             <option value="Arial" selected>Arial</option><option value="Verdana">Verdana</option><option value="Helvetica Neue">Helvetica Neue</option><option value="Sans-serif">Sans-serif</option><option value="Monospace">Monospace</option><option value="Open Sans">Open Sans</option><option value="Helvetica">Helvetica</option><option value="Georgia">Georgia</option><option value="Tahoma">Tahoma</option><option value="Calibri">Calibri</option>
@@ -250,13 +256,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260814-admin-hub-auth-v31';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260823-discogs-owned-filter-v34';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260814-admin-hub-auth-v31"></script>
+    <script src="topster_grid.js?v=20260823-discogs-owned-filter-v34"></script>
 </body>
 </html>
