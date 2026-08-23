@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260823-discogs-owned-filter-v34';
+const TOPSTER_FRONTEND_VERSION = '20260823-singers-2008-discogs-match-v35';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -317,40 +317,142 @@ async function ensureTopsterDiscogsCollectionLoaded(options = {}) {
     return topsterDiscogsCollectionLoadPromise;
 }
 
-function topsterEntryIsInDiscogsCollection(entry) {
-    if (!entry || !Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return false;
+function discogsRomanNumeralToNumber(value) {
+    const map = { i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10' };
+    return map[String(value || '').toLowerCase()] || String(value || '');
+}
 
-    const entryTitleVariants = topsterOwnedTextVariants(entry.title || '');
-    const entryArtistVariants = topsterOwnedTextVariants(entry.artist || '', { artist: true });
-    if (!entryTitleVariants.length) return false;
+function normalizeDiscogsLooseTitle(value, artist = '') {
+    let text = cleanAlbumTitle(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[’‘]/g, "'")
+        .replace(/[“”]/g, '"');
 
-    let matchingTitleCount = 0;
-    let uniqueTitleMatch = false;
+    text = text.replace(/\b(?:vol(?:ume)?|part)\.?\s*([ivx]+)\b/gi, (match, roman) => ` volume ${discogsRomanNumeralToNumber(roman)} `);
+    text = text.replace(/\bvol(?:ume)?\.?\b/g, ' volume ');
+    text = text.replace(/\b(?:one|first)\b/g, '1');
+    text = text.replace(/\b(?:two|second)\b/g, '2');
+    text = text.replace(/\b(?:three|third)\b/g, '3');
+    text = text.replace(/\b(?:four|fourth)\b/g, '4');
+    text = text.replace(/\b(?:five|fifth)\b/g, '5');
+    text = text.replace(/\b(?:19|20)\d{2}\b/g, ' ');
 
-    for (const album of topsterDiscogsCollectionAlbums) {
-        const titleMatches = entryTitleVariants.some(value => album.titleVariants.includes(value));
-        if (!titleMatches) continue;
-        matchingTitleCount += 1;
+    const artistTokens = new Set(
+        cleanAlbumTitle(artist || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean)
+    );
+    const stop = new Set([
+        'the', 'a', 'an', 'of', 'and', 'with', 'by', 'at', 'in', 'on', 'for',
+        'complete', 'edition', 'editions', 'remaster', 'remastered', 'stereo', 'mono',
+        'disc', 'cd', 'lp', 'recordings', 'recording'
+    ]);
 
-        if (!entryArtistVariants.length || !album.artistVariants.length) {
-            uniqueTitleMatch = true;
-            continue;
-        }
+    const tokens = text
+        .replace(/[^a-z0-9]+/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter(token => !stop.has(token))
+        .filter(token => !artistTokens.has(token));
 
-        const artistMatches = entryArtistVariants.some(entryArtist =>
-            album.artistVariants.some(collectionArtist =>
-                entryArtist === collectionArtist
-                || (entryArtist.length >= 5 && collectionArtist.includes(entryArtist))
-                || (collectionArtist.length >= 5 && entryArtist.includes(collectionArtist))
-            )
-        );
-        if (artistMatches) return true;
+    return {
+        tokens,
+        compact: tokens.join(''),
+        volume: (() => {
+            const match = text.match(/\bvolume\s*(\d+)\b/);
+            return match ? Number(match[1]) : null;
+        })()
+    };
+}
+
+function discogsArtistMatches(entry, album) {
+    const entryArtists = topsterOwnedTextVariants(entry && entry.artist || '', { artist: true });
+    const collectionArtists = Array.isArray(album && album.artistVariants) ? album.artistVariants : [];
+    if (!entryArtists.length || !collectionArtists.length) return false;
+    return entryArtists.some(entryArtist =>
+        collectionArtists.some(collectionArtist =>
+            entryArtist === collectionArtist
+            || (entryArtist.length >= 5 && collectionArtist.includes(entryArtist))
+            || (collectionArtist.length >= 5 && entryArtist.includes(collectionArtist))
+        )
+    );
+}
+
+function discogsLooseTitleMatch(entryTitle, collectionTitle, artist = '') {
+    const left = normalizeDiscogsLooseTitle(entryTitle, artist);
+    const right = normalizeDiscogsLooseTitle(collectionTitle, artist);
+    if (!left.compact || !right.compact) return { matched: false, strong: false, score: 0 };
+
+    // If both titles explicitly specify a volume, do not cross-match different volumes.
+    if (left.volume !== null && right.volume !== null && left.volume !== right.volume) {
+        return { matched: false, strong: false, score: 0 };
     }
 
-    // Fallback for collaborative/Various Artists credits where Discogs and the
-    // source list use materially different artist strings. Only trust a title-only
-    // match when the collection contains that title exactly once.
-    return uniqueTitleMatch && matchingTitleCount === 1;
+    if (left.compact === right.compact) return { matched: true, strong: true, score: 1 };
+
+    const shorter = left.compact.length <= right.compact.length ? left.compact : right.compact;
+    const longer = shorter === left.compact ? right.compact : left.compact;
+    if (shorter.length >= 8 && longer.includes(shorter)) {
+        return { matched: true, strong: true, score: 0.98 };
+    }
+
+    const leftSet = new Set(left.tokens);
+    const rightSet = new Set(right.tokens);
+    const common = [...leftSet].filter(token => rightSet.has(token));
+    const minimumSize = Math.max(1, Math.min(leftSet.size, rightSet.size));
+    const containment = common.length / minimumSize;
+    const unionSize = Math.max(1, new Set([...leftSet, ...rightSet]).size);
+    const jaccard = common.length / unionSize;
+    const score = Math.max(containment * 0.85 + jaccard * 0.15, jaccard);
+
+    if (common.length >= 2 && containment >= 0.74) {
+        return { matched: true, strong: containment >= 0.90 && common.length >= 3, score };
+    }
+    return { matched: false, strong: false, score };
+}
+
+const TOPSTER_DISCOGS_EQUIVALENT_RELEASES = Object.freeze({
+    // User-confirmed equivalent/acceptable collection editions whose titles are
+    // too different for a responsible generic fuzzy-title threshold.
+    'muddywaters::theanthology': ['mannishboybestofmuddywaters'],
+    'billieholiday::aneveningwithbillieholiday': ['recitalbybillieholiday']
+});
+
+function discogsKnownEquivalentMatch(entry, album) {
+    const artistKey = normalizeAlbumTitle(entry && entry.artist || '');
+    const entryTitleKey = normalizeAlbumTitle(entry && entry.title || '');
+    const albumTitleKey = normalizeAlbumTitle(album && album.title || '');
+    const aliases = TOPSTER_DISCOGS_EQUIVALENT_RELEASES[`${artistKey}::${entryTitleKey}`] || [];
+    return aliases.some(alias => albumTitleKey === alias || albumTitleKey.includes(alias) || alias.includes(albumTitleKey));
+}
+
+function topsterEntryIsInDiscogsCollection(entry) {
+    if (!entry || !Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return false;
+    if (!cleanAlbumTitle(entry.title || '')) return false;
+
+    for (const album of topsterDiscogsCollectionAlbums) {
+        const artistMatches = discogsArtistMatches(entry, album);
+        const titleMatch = discogsLooseTitleMatch(entry.title || '', album.title || '', entry.artist || '');
+
+        // Strong title containment is enough on its own. This intentionally covers
+        // cases such as Harry Smith's Anthology, whose Discogs release artist is
+        // commonly Various rather than the compiler credited by a Topster source.
+        if (titleMatch.strong) return true;
+
+        // Looser token similarity requires the same artist.
+        if (artistMatches && titleMatch.matched) return true;
+
+        if (artistMatches && discogsKnownEquivalentMatch(entry, album)) return true;
+    }
+
+    return false;
 }
 
 function applyOwnedReleaseVisualState(tile, entry, enabled) {
@@ -373,7 +475,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music', 'rolling_stone_greatest_singers_of_all_time_2023']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music', 'rolling_stone_greatest_singers_of_all_time_2008', 'rolling_stone_greatest_singers_of_all_time_2023']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -388,6 +490,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'nme-500-albums-file') return 'nme_500_albums';
     if (kind === '1001-albums-you-must-hear-before-you-die-file') return '1001_albums_you_must_hear_before_you_die';
     if (kind === 'rate-your-music-chart') return 'rate_your_music';
+    if (kind === 'rolling-stone-greatest-singers-of-all-time-2008-file') return 'rolling_stone_greatest_singers_of_all_time_2008';
     if (kind === 'rolling-stone-greatest-singers-of-all-time-2023-file') return 'rolling_stone_greatest_singers_of_all_time_2023';
     return 'grid';
 }
@@ -634,12 +737,26 @@ function getTopsterDataSourceConfig() {
         };
     }
 
+    if (sourceName === 'rolling-stone-greatest-singers-of-all-time-2008-file' || sourceName === 'rolling_stone_greatest_singers_of_all_time_2008' || sourceName === 'rolling-stone-greatest-singers-2008') {
+        return {
+            kind: 'rolling-stone-greatest-singers-of-all-time-2008-file',
+            label: 'rolling_stone_greatest_singers_of_all_time_2008.txt',
+            readLabel: 'rolling_stone_greatest_singers_of_all_time_2008.txt',
+            fileName: 'rolling_stone_greatest_singers_of_all_time_2008.txt',
+            imageFolder: 'rolling_stone_greatest_singers_of_all_time_2008',
+            singerEdition: '2008',
+            staticFileOnly: true
+        };
+    }
+
     if (sourceName === 'rolling-stone-greatest-singers-of-all-time-2023-file' || sourceName === 'rolling_stone_greatest_singers_of_all_time_2023' || sourceName === 'rolling-stone-greatest-singers-2023') {
         return {
             kind: 'rolling-stone-greatest-singers-of-all-time-2023-file',
             label: 'rolling_stone_greatest_singers_of_all_time_2023.txt',
             readLabel: 'rolling_stone_greatest_singers_of_all_time_2023.txt',
             fileName: 'rolling_stone_greatest_singers_of_all_time_2023.txt',
+            imageFolder: 'rolling_stone_greatest_singers_of_all_time_2023',
+            singerEdition: '2023',
             staticFileOnly: true
         };
     }
@@ -700,6 +817,7 @@ function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
         nme_500_albums: 'nme_500_albums_list.html',
         '1001_albums_you_must_hear_before_you_die': '1001_albums_you_must_hear_before_you_die_list.html',
         rate_your_music: 'rate_your_music_list.html',
+        rolling_stone_greatest_singers_of_all_time_2008: 'rolling_stone_greatest_singers_of_all_time_2008_list.html',
         rolling_stone_greatest_singers_of_all_time_2023: 'rolling_stone_greatest_singers_of_all_time_2023_list.html'
     };
     return pageNames[sourceKey] || 'album_list.html';
@@ -718,6 +836,7 @@ function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
         nme_500_albums: "NME's 500 Greatest Albums Of All Time",
         '1001_albums_you_must_hear_before_you_die': '1001 Albums You Must Hear Before You Die (All Editions)',
         rate_your_music: "RateYourMusic's Top Albums Of All Time",
+        rolling_stone_greatest_singers_of_all_time_2008: "Rolling Stone's 200 Greatest Singers of All Time (2008)",
         rolling_stone_greatest_singers_of_all_time_2023: "Rolling Stone's 200 Greatest Singers of All Time (2023)"
     };
     return names[sourceKey] || 'Albums';
@@ -1324,7 +1443,7 @@ async function initTopsterImporter(albumCards) {
             const prelookupOnly = topsterEditorPage
                 && source === 'build'
                 && sourceConfig.kind !== 'rate-your-music-chart'
-                && sourceConfig.kind !== 'rolling-stone-greatest-singers-of-all-time-2023-file'
+                && !sourceConfig.kind.startsWith('rolling-stone-greatest-singers-of-all-time-')
                 && !topsterPrelookupIsComplete(loaded.signature);
 
             currentSourceText = loaded.text || '';
@@ -2265,7 +2384,9 @@ function isRateYourMusicTopsterSource() {
 }
 
 function isRollingStoneSingerTopsterSource() {
-    return getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-singers-of-all-time-2023-file';
+    const kind = getTopsterDataSourceConfig().kind;
+    return kind === 'rolling-stone-greatest-singers-of-all-time-2008-file'
+        || kind === 'rolling-stone-greatest-singers-of-all-time-2023-file';
 }
 
 const ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES = Object.freeze({
@@ -2274,8 +2395,8 @@ const ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES = Object.freeze({
     'luciano': 'Luciano_(Jamaican_singer)',
     'iu': 'IU_(singer)',
     'brandy': 'Brandy_Norwood',
-    'robert smith': 'Robert_Smith_(musician)',
-    'bobby blue bland': 'Bobby_Bland',
+    'robertsmith': 'Robert_Smith_(musician)',
+    'bobbybluebland': 'Bobby_Bland',
     'prince': 'Prince_(musician)',
     'sylvester': 'Sylvester_(singer)',
     'usher': 'Usher_(musician)'
@@ -2308,8 +2429,10 @@ function rollingStoneSingerImageSlug(name) {
 
 function getRollingStoneSingerDefaultCover(entry) {
     if (!entry || !entry.title) return null;
+    const sourceConfig = getTopsterDataSourceConfig();
+    const imageFolder = sourceConfig.imageFolder || 'rolling_stone_greatest_singers_of_all_time_2023';
     const imageSrc = entry.defaultImageSrc
-        || `rolling_stone_greatest_singers_of_all_time_2023/${rollingStoneSingerImageSlug(entry.title)}.png`;
+        || `${imageFolder}/${rollingStoneSingerImageSlug(entry.title)}.png`;
     return {
         title: entry.title,
         artist: '',
@@ -2326,6 +2449,23 @@ function getRollingStoneSingerLookupNames(entry) {
         .map(value => cleanAlbumTitle(value || ''))
         .filter(Boolean);
     return Array.from(new Set(names.map(name => name.trim()))).slice(0, 14);
+}
+
+async function ensureRollingStoneSingerAssociatedActs(entry) {
+    if (!entry || !entry.allowActsLookup || (Array.isArray(entry.acts) && entry.acts.length)) return;
+
+    try {
+        const url = new URL('/api/musicbrainz-artist-acts', getTopsterBackendOrigin() || window.location.origin);
+        url.searchParams.set('name', entry.title || '');
+        const response = await fetch(url.href, { credentials: 'include', cache: 'no-store' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!payload || !Array.isArray(payload.acts)) return;
+        entry.acts = payload.acts.map(value => cleanAlbumTitle(value || '')).filter(Boolean);
+        entry.actsText = entry.acts.join('; ');
+    } catch (error) {
+        // Associated acts are an optional enhancement; the singer lookup itself continues.
+    }
 }
 
 function normalizeRateYourMusicMode(value) {
@@ -3819,6 +3959,35 @@ function parseAlbumText(text) {
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
 
+            // Rolling Stone's 200 Greatest Singers of All Time (2008) source:
+            //   1. Aretha Franklin (March 25, 1942)
+            //   90. The Everly Brothers (Don Everly: February 1, 1937; Phil Everly: January 19, 1939)
+            // The source does not include act/band memberships. Those are looked up
+            // on demand from MusicBrainz when the manual artist-image picker opens.
+            if (getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-singers-of-all-time-2008-file') {
+                const singerMatch = line.match(/^(.+?)\s*\(\s*(.+?\b(?:18|19|20)\d{2}(?:\s*;\s*.+?\b(?:18|19|20)\d{2})*)\s*\)\s*$/);
+                if (singerMatch) {
+                    const singerName = cleanAlbumTitle(singerMatch[1]);
+                    const birthDate = singerMatch[2].trim();
+                    return {
+                        artist: '',
+                        title: singerName,
+                        dateText: birthDate,
+                        birthDate,
+                        birthYear: extractYear(birthDate),
+                        year: extractYear(birthDate),
+                        acts: [],
+                        actsText: '',
+                        allowActsLookup: true,
+                        wikipediaHref: getRollingStoneSingerWikipediaUrl(singerName),
+                        defaultImageSrc: `rolling_stone_greatest_singers_of_all_time_2008/${rollingStoneSingerImageSlug(singerName)}.png`,
+                        isSingerEntry: true,
+                        raw: originalLine,
+                        ...checklistFields
+                    };
+                }
+            }
+
             // Rolling Stone's 200 Greatest Singers of All Time (2023):
             //   1. Aretha Franklin (March 25, 1942) | (Solo)
             //   12. John Lennon (October 9, 1940) | (The Quarrymen; The Beatles; Plastic Ono Band)
@@ -3842,6 +4011,7 @@ function parseAlbumText(text) {
                         year: extractYear(birthDate),
                         acts,
                         actsText,
+                        allowActsLookup: false,
                         wikipediaHref: getRollingStoneSingerWikipediaUrl(singerName),
                         defaultImageSrc: `rolling_stone_greatest_singers_of_all_time_2023/${rollingStoneSingerImageSlug(singerName)}.png`,
                         isSingerEntry: true,
@@ -4424,6 +4594,7 @@ async function resolveRollingStoneSingerImageCandidates(entry, config) {
     const defaultCover = getRollingStoneSingerDefaultCover(entry);
     if (defaultCover) candidates.push(defaultCover);
 
+    await ensureRollingStoneSingerAssociatedActs(entry);
     const lookupNames = getRollingStoneSingerLookupNames(entry);
     for (let index = 0; index < lookupNames.length; index += 1) {
         const lookupName = lookupNames[index];
