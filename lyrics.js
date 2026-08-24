@@ -27,10 +27,6 @@
     const nextTrackButton = document.getElementById("lyrics-next-track");
     const embedCard = document.getElementById("lyrics-embed-card");
     const embedContainer = document.getElementById("lyrics-embed-container");
-    const commentsCard = document.getElementById("lyrics-comments-card");
-    const commentsStatus = document.getElementById("lyrics-comments-status");
-    const geniusLoginButton = document.getElementById("lyrics-genius-login");
-    const commentsList = document.getElementById("lyrics-comments-list");
 
     let lastTrackKey = "";
     let lastGeniusSongId = null;
@@ -43,9 +39,6 @@
     let hasDisplayedTrack = false;
     let playbackControlInProgress = false;
     let previousRestartArmedUntil = 0;
-    let lastCommentsSongId = null;
-    let commentsLoadedSongId = null;
-    let commentsRequestSerial = 0;
     let lastEmbedInteractionAt = 0;
     let annotationReturnScrollY = null;
     let annotationScrollActive = false;
@@ -484,178 +477,6 @@
         frame.srcdoc = buildGeniusEmbedDocument(geniusSong, songId);
     }
 
-    function clearGeniusComments(message = "Waiting for a Genius song match.", hideCard = true) {
-        commentsRequestSerial += 1;
-        lastCommentsSongId = null;
-        commentsLoadedSongId = null;
-        commentsList.replaceChildren();
-        commentsStatus.textContent = message;
-        commentsStatus.classList.remove("error");
-        geniusLoginButton.classList.add("lyrics-hidden");
-        geniusLoginButton.removeAttribute("data-login-url");
-        commentsCard.classList.toggle("lyrics-hidden", Boolean(hideCard));
-    }
-
-    function showGeniusAuthorization(message, loginUrl, configured = true) {
-        commentsList.replaceChildren();
-        commentsStatus.textContent = message || (configured
-            ? "Connect your Genius account once to authorize song comments."
-            : "Genius OAuth is not configured on the backend.");
-        commentsStatus.classList.toggle("error", !configured);
-        geniusLoginButton.textContent = configured
-            ? "Connect to Genius"
-            : "Genius OAuth Setup Required";
-        geniusLoginButton.disabled = !configured;
-        if (configured) {
-            const destination = loginUrl
-                ? new URL(loginUrl, API_BASE_URL).href
-                : `${API_BASE_URL}/genius/login?next=${encodeURIComponent(window.location.href)}`;
-            geniusLoginButton.setAttribute("data-login-url", destination);
-            geniusLoginButton.classList.remove("lyrics-hidden");
-        } else {
-            geniusLoginButton.removeAttribute("data-login-url");
-            geniusLoginButton.classList.remove("lyrics-hidden");
-        }
-    }
-
-    function formatCommentDate(value) {
-        const raw = String(value || "").trim();
-        if (!raw) return "";
-        const date = new Date(raw);
-        if (Number.isNaN(date.getTime())) return raw;
-        try {
-            return new Intl.DateTimeFormat(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-            }).format(date);
-        } catch (error) {
-            return raw;
-        }
-    }
-
-    function renderGeniusComments(comments) {
-        geniusLoginButton.classList.add("lyrics-hidden");
-        geniusLoginButton.disabled = false;
-        geniusLoginButton.removeAttribute("data-login-url");
-        commentsList.replaceChildren();
-        const items = Array.isArray(comments) ? comments : [];
-
-        if (!items.length) {
-            commentsStatus.textContent = "There are no comments on this Genius track.";
-            return;
-        }
-
-        commentsStatus.textContent = `${items.length} Genius comment${items.length === 1 ? "" : "s"}`;
-
-        for (const comment of items) {
-            const article = document.createElement("article");
-            article.className = "lyrics-comment";
-            const depth = Math.max(0, Math.min(8, Number(comment.depth) || 0));
-            if (depth > 0) article.style.setProperty("--comment-depth", String(depth));
-
-            const header = document.createElement("div");
-            header.className = "lyrics-comment-header";
-
-            if (comment.avatarUrl) {
-                const avatar = document.createElement("img");
-                avatar.className = "lyrics-comment-avatar";
-                avatar.src = comment.avatarUrl;
-                avatar.alt = "";
-                avatar.loading = "lazy";
-                avatar.referrerPolicy = "no-referrer";
-                header.appendChild(avatar);
-            }
-
-            const author = document.createElement("strong");
-            author.className = "lyrics-comment-author";
-            author.textContent = comment.author || "Genius user";
-            header.appendChild(author);
-
-            const metadata = [];
-            if (Number.isFinite(Number(comment.votes))) {
-                const votes = Number(comment.votes);
-                metadata.push(`${votes} vote${Math.abs(votes) === 1 ? "" : "s"}`);
-            }
-            const dateText = formatCommentDate(comment.createdAt);
-            if (dateText) metadata.push(dateText);
-
-            if (metadata.length) {
-                const meta = document.createElement("span");
-                meta.className = "lyrics-comment-meta";
-                meta.textContent = metadata.join(" · ");
-                header.appendChild(meta);
-            }
-
-            const body = document.createElement("div");
-            body.className = "lyrics-comment-body";
-            body.textContent = String(comment.body || "").trim() || "[Empty comment]";
-
-            article.appendChild(header);
-            article.appendChild(body);
-            commentsList.appendChild(article);
-        }
-    }
-
-    async function fetchGeniusComments(geniusSong, force = false) {
-        const songId = Number(geniusSong && geniusSong.id);
-        if (!Number.isFinite(songId) || songId <= 0) {
-            clearGeniusComments("No Genius song was matched, so comments are unavailable.", true);
-            return;
-        }
-
-        if (!force && lastCommentsSongId === songId && commentsLoadedSongId === songId) {
-            commentsCard.classList.remove("lyrics-hidden");
-            return;
-        }
-
-        lastCommentsSongId = songId;
-        commentsLoadedSongId = null;
-        commentsCard.classList.remove("lyrics-hidden");
-        commentsList.replaceChildren();
-        commentsStatus.textContent = "Loading Genius comments…";
-        commentsStatus.classList.remove("error");
-        const serial = ++commentsRequestSerial;
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/lyrics/comments/${encodeURIComponent(songId)}`, {
-                method: "GET",
-                credentials: "include",
-                cache: "no-store",
-                headers: { Accept: "application/json" },
-            });
-            let data;
-            try {
-                data = await response.json();
-            } catch (error) {
-                throw new Error(`The Genius comments service returned an unreadable response (${response.status}).`);
-            }
-            if (serial !== commentsRequestSerial || lastCommentsSongId !== songId) return;
-            if (data && data.geniusAuthorizationRequired) {
-                commentsLoadedSongId = songId;
-                showGeniusAuthorization(
-                    data.error || "Connect your Genius account once to authorize song comments.",
-                    data.geniusLoginUrl || "",
-                    data.geniusOAuthConfigured !== false
-                );
-                return;
-            }
-            if (!response.ok || !data.ok) {
-                throw new Error(data.error || `Genius comments request failed (${response.status}).`);
-            }
-            commentsLoadedSongId = songId;
-            renderGeniusComments(data.comments || []);
-        } catch (error) {
-            if (serial !== commentsRequestSerial || lastCommentsSongId !== songId) return;
-            commentsLoadedSongId = songId;
-            commentsList.replaceChildren();
-            commentsStatus.textContent = `Genius comments are unavailable: ${error.message || error}`;
-            commentsStatus.classList.add("error");
-        }
-    }
-
     function displayNoTrack() {
         songCard.classList.remove("lyrics-hidden");
 
@@ -671,7 +492,6 @@
         }
 
         renderEmptyPlaybackHud(true);
-        clearGeniusComments("Waiting for a Genius song match.", true);
         setStatus("Spotify is connected, but no song is currently playing. Press Play to resume playback.");
     }
 
@@ -682,7 +502,6 @@
             setPlaybackIdleSnapshot(true);
         } else {
             renderEmptyPlaybackHud(false);
-            clearGeniusComments("Waiting for Spotify to reconnect.", true);
         }
 
         setStatus("Spotify is not connected. Press “Login with Spotify” to continue.", "error");
@@ -716,7 +535,6 @@
             if (trackChanged || lastGeniusSongId !== null) {
                 clearEmbed("No Genius lyrics page was matched for this track.");
             }
-            clearGeniusComments("No Genius song was matched, so comments are unavailable.", true);
             let statusMessage = `Now playing: ${track.artist} - ${track.title}. No confident Genius match was found.`;
             let statusType = "";
 
@@ -749,7 +567,6 @@
         }
 
         renderGeniusEmbed(geniusSong);
-        fetchGeniusComments(geniusSong, trackChanged);
         const playbackLabel = track.isPlaying ? "Now playing" : "Paused on";
         setStatus(`${playbackLabel}: ${track.artist} - ${track.title}`, "success");
     }
@@ -936,11 +753,6 @@
         }, 0);
     });
 
-    geniusLoginButton.addEventListener("click", () => {
-        const loginUrl = geniusLoginButton.getAttribute("data-login-url");
-        if (loginUrl) window.location.href = loginUrl;
-    });
-
     previousTrackButton.addEventListener("click", handlePreviousTrackPress);
     pauseButton.addEventListener("click", () => sendPlaybackControl("pause"));
     playButton.addEventListener("click", () => sendPlaybackControl("play"));
@@ -966,7 +778,6 @@
 
     window.setInterval(renderPlaybackProgress, 250);
     renderEmptyPlaybackHud(false);
-    clearGeniusComments("Waiting for a Genius song match.", true);
     fetchCurrentLyrics(false);
     schedulePolling();
 })();

@@ -284,86 +284,6 @@
             overflow: hidden;
         }
 
-        .lyrics-comments-card {
-            background-color: #444444;
-            border-radius: 10px;
-            margin: 20px auto 0;
-            padding: 20px;
-        }
-
-        .lyrics-comments-card h3 {
-            margin: 0 0 12px;
-            text-align: center;
-        }
-
-        .lyrics-comments-status {
-            color: #cccccc;
-            font-size: 14px;
-            margin: 0 0 14px;
-            text-align: center;
-        }
-
-        .lyrics-comments-status.error {
-            color: #ffb0b0;
-        }
-
-        .lyrics-comments-connect-button {
-            background-color: #1974D2;
-            display: block;
-            margin: 0 auto 14px;
-        }
-
-        .lyrics-comments-connect-button:hover {
-            background-color: #145a8a;
-        }
-
-        .lyrics-comments-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .lyrics-comment {
-            background-color: #333333;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 8px;
-            margin-left: calc(min(var(--comment-depth, 0), 4) * 14px);
-            padding: 12px 14px;
-        }
-
-        .lyrics-comment-header {
-            align-items: center;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        .lyrics-comment-avatar {
-            border-radius: 50%;
-            height: 28px;
-            object-fit: cover;
-            width: 28px;
-        }
-
-        .lyrics-comment-author {
-            color: #ffffff;
-        }
-
-        .lyrics-comment-meta {
-            color: #aaaaaa;
-            font-size: 12px;
-            margin-left: auto;
-        }
-
-        .lyrics-comment-body {
-            color: #eeeeee;
-            font-size: 16px;
-            line-height: 1.5;
-            overflow-wrap: anywhere;
-            white-space: pre-wrap;
-        }
-
         .lyrics-hidden {
             display: none !important;
         }
@@ -405,15 +325,6 @@
             .lyrics-transport-controls button {
                 min-width: 0;
                 width: 100%;
-            }
-
-            .lyrics-comment {
-                margin-left: calc(min(var(--comment-depth, 0), 2) * 10px);
-            }
-
-            .lyrics-comment-meta {
-                flex-basis: 100%;
-                margin-left: 36px;
             }
         }
     </style>
@@ -504,13 +415,6 @@
                     <div class="lyrics-embed-placeholder">Waiting for a currently playing song.</div>
                 </div>
             </section>
-
-            <section id="lyrics-comments-card" class="lyrics-comments-card lyrics-hidden" aria-label="Genius comments">
-                <h3>Genius Comments</h3>
-                <p id="lyrics-comments-status" class="lyrics-comments-status">Waiting for a Genius song match.</p>
-                <button id="lyrics-genius-login" type="button" class="lyrics-comments-connect-button lyrics-hidden">Connect to Genius</button>
-                <div id="lyrics-comments-list" class="lyrics-comments-list"></div>
-            </section>
         </section>
     </main>
 
@@ -548,6 +452,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260824-genius-oauth-comments-v2"></script>
+    <script src="lyrics.js?v=20260824-lyrics-clean-v1"></script>
 </body>
 </html>
