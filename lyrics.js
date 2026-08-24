@@ -29,6 +29,7 @@
     const embedContainer = document.getElementById("lyrics-embed-container");
     const commentsCard = document.getElementById("lyrics-comments-card");
     const commentsStatus = document.getElementById("lyrics-comments-status");
+    const geniusLoginButton = document.getElementById("lyrics-genius-login");
     const commentsList = document.getElementById("lyrics-comments-list");
 
     let lastTrackKey = "";
@@ -490,7 +491,31 @@
         commentsList.replaceChildren();
         commentsStatus.textContent = message;
         commentsStatus.classList.remove("error");
+        geniusLoginButton.classList.add("lyrics-hidden");
+        geniusLoginButton.removeAttribute("data-login-url");
         commentsCard.classList.toggle("lyrics-hidden", Boolean(hideCard));
+    }
+
+    function showGeniusAuthorization(message, loginUrl, configured = true) {
+        commentsList.replaceChildren();
+        commentsStatus.textContent = message || (configured
+            ? "Connect your Genius account once to authorize song comments."
+            : "Genius OAuth is not configured on the backend.");
+        commentsStatus.classList.toggle("error", !configured);
+        geniusLoginButton.textContent = configured
+            ? "Connect Genius for Comments"
+            : "Genius OAuth Setup Required";
+        geniusLoginButton.disabled = !configured;
+        if (configured) {
+            const destination = loginUrl
+                ? new URL(loginUrl, API_BASE_URL).href
+                : `${API_BASE_URL}/genius/login?next=${encodeURIComponent(window.location.href)}`;
+            geniusLoginButton.setAttribute("data-login-url", destination);
+            geniusLoginButton.classList.remove("lyrics-hidden");
+        } else {
+            geniusLoginButton.removeAttribute("data-login-url");
+            geniusLoginButton.classList.remove("lyrics-hidden");
+        }
     }
 
     function formatCommentDate(value) {
@@ -512,6 +537,9 @@
     }
 
     function renderGeniusComments(comments) {
+        geniusLoginButton.classList.add("lyrics-hidden");
+        geniusLoginButton.disabled = false;
+        geniusLoginButton.removeAttribute("data-login-url");
         commentsList.replaceChildren();
         const items = Array.isArray(comments) ? comments : [];
 
@@ -605,6 +633,15 @@
                 throw new Error(`The Genius comments service returned an unreadable response (${response.status}).`);
             }
             if (serial !== commentsRequestSerial || lastCommentsSongId !== songId) return;
+            if (data && data.geniusAuthorizationRequired) {
+                commentsLoadedSongId = songId;
+                showGeniusAuthorization(
+                    data.error || "Connect your Genius account once to authorize song comments.",
+                    data.geniusLoginUrl || "",
+                    data.geniusOAuthConfigured !== false
+                );
+                return;
+            }
             if (!response.ok || !data.ok) {
                 throw new Error(data.error || `Genius comments request failed (${response.status}).`);
             }
@@ -897,6 +934,11 @@
                 queueGeniusAnnotationReveal();
             }
         }, 0);
+    });
+
+    geniusLoginButton.addEventListener("click", () => {
+        const loginUrl = geniusLoginButton.getAttribute("data-login-url");
+        if (loginUrl) window.location.href = loginUrl;
     });
 
     previousTrackButton.addEventListener("click", handlePreviousTrackPress);
