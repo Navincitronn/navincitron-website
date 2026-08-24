@@ -256,13 +256,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260824-discogs-flex-match-v36';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260824-discogs-semantic-ownership-v37';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260824-discogs-flex-match-v36"></script>
+    <script src="topster_grid.js?v=20260824-discogs-semantic-ownership-v37"></script>
 </body>
 </html>

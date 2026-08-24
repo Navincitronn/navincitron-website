@@ -2,7 +2,8 @@
     "use strict";
 
     const API_BASE_URL = "https://api.navincitron.com";
-    const POLL_INTERVAL_MS = 6000;
+    const POLL_INTERVAL_MS = 3000;
+    const PREVIOUS_DOUBLE_PRESS_WINDOW_MS = 2500;
 
     const loginButton = document.getElementById("lyrics-login");
     const refreshButton = document.getElementById("lyrics-refresh");
@@ -26,6 +27,9 @@
     const nextTrackButton = document.getElementById("lyrics-next-track");
     const embedCard = document.getElementById("lyrics-embed-card");
     const embedContainer = document.getElementById("lyrics-embed-container");
+    const commentsCard = document.getElementById("lyrics-comments-card");
+    const commentsStatus = document.getElementById("lyrics-comments-status");
+    const commentsList = document.getElementById("lyrics-comments-list");
 
     let lastTrackKey = "";
     let lastGeniusSongId = null;
@@ -37,6 +41,10 @@
     let hasCurrentTrack = false;
     let hasDisplayedTrack = false;
     let playbackControlInProgress = false;
+    let previousRestartArmedUntil = 0;
+    let lastCommentsSongId = null;
+    let commentsLoadedSongId = null;
+    let commentsRequestSerial = 0;
     let lastEmbedInteractionAt = 0;
     let annotationReturnScrollY = null;
     let annotationScrollActive = false;
@@ -475,6 +483,142 @@
         frame.srcdoc = buildGeniusEmbedDocument(geniusSong, songId);
     }
 
+    function clearGeniusComments(message = "Waiting for a Genius song match.", hideCard = true) {
+        commentsRequestSerial += 1;
+        lastCommentsSongId = null;
+        commentsLoadedSongId = null;
+        commentsList.replaceChildren();
+        commentsStatus.textContent = message;
+        commentsStatus.classList.remove("error");
+        commentsCard.classList.toggle("lyrics-hidden", Boolean(hideCard));
+    }
+
+    function formatCommentDate(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return raw;
+        try {
+            return new Intl.DateTimeFormat(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+            }).format(date);
+        } catch (error) {
+            return raw;
+        }
+    }
+
+    function renderGeniusComments(comments) {
+        commentsList.replaceChildren();
+        const items = Array.isArray(comments) ? comments : [];
+
+        if (!items.length) {
+            commentsStatus.textContent = "There are no comments on this Genius track.";
+            return;
+        }
+
+        commentsStatus.textContent = `${items.length} Genius comment${items.length === 1 ? "" : "s"}`;
+
+        for (const comment of items) {
+            const article = document.createElement("article");
+            article.className = "lyrics-comment";
+            const depth = Math.max(0, Math.min(8, Number(comment.depth) || 0));
+            if (depth > 0) article.style.setProperty("--comment-depth", String(depth));
+
+            const header = document.createElement("div");
+            header.className = "lyrics-comment-header";
+
+            if (comment.avatarUrl) {
+                const avatar = document.createElement("img");
+                avatar.className = "lyrics-comment-avatar";
+                avatar.src = comment.avatarUrl;
+                avatar.alt = "";
+                avatar.loading = "lazy";
+                avatar.referrerPolicy = "no-referrer";
+                header.appendChild(avatar);
+            }
+
+            const author = document.createElement("strong");
+            author.className = "lyrics-comment-author";
+            author.textContent = comment.author || "Genius user";
+            header.appendChild(author);
+
+            const metadata = [];
+            if (Number.isFinite(Number(comment.votes))) {
+                const votes = Number(comment.votes);
+                metadata.push(`${votes} vote${Math.abs(votes) === 1 ? "" : "s"}`);
+            }
+            const dateText = formatCommentDate(comment.createdAt);
+            if (dateText) metadata.push(dateText);
+
+            if (metadata.length) {
+                const meta = document.createElement("span");
+                meta.className = "lyrics-comment-meta";
+                meta.textContent = metadata.join(" · ");
+                header.appendChild(meta);
+            }
+
+            const body = document.createElement("div");
+            body.className = "lyrics-comment-body";
+            body.textContent = String(comment.body || "").trim() || "[Empty comment]";
+
+            article.appendChild(header);
+            article.appendChild(body);
+            commentsList.appendChild(article);
+        }
+    }
+
+    async function fetchGeniusComments(geniusSong, force = false) {
+        const songId = Number(geniusSong && geniusSong.id);
+        if (!Number.isFinite(songId) || songId <= 0) {
+            clearGeniusComments("No Genius song was matched, so comments are unavailable.", true);
+            return;
+        }
+
+        if (!force && lastCommentsSongId === songId && commentsLoadedSongId === songId) {
+            commentsCard.classList.remove("lyrics-hidden");
+            return;
+        }
+
+        lastCommentsSongId = songId;
+        commentsLoadedSongId = null;
+        commentsCard.classList.remove("lyrics-hidden");
+        commentsList.replaceChildren();
+        commentsStatus.textContent = "Loading Genius comments…";
+        commentsStatus.classList.remove("error");
+        const serial = ++commentsRequestSerial;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/comments/${encodeURIComponent(songId)}`, {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            let data;
+            try {
+                data = await response.json();
+            } catch (error) {
+                throw new Error(`The Genius comments service returned an unreadable response (${response.status}).`);
+            }
+            if (serial !== commentsRequestSerial || lastCommentsSongId !== songId) return;
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || `Genius comments request failed (${response.status}).`);
+            }
+            commentsLoadedSongId = songId;
+            renderGeniusComments(data.comments || []);
+        } catch (error) {
+            if (serial !== commentsRequestSerial || lastCommentsSongId !== songId) return;
+            commentsLoadedSongId = songId;
+            commentsList.replaceChildren();
+            commentsStatus.textContent = `Genius comments are unavailable: ${error.message || error}`;
+            commentsStatus.classList.add("error");
+        }
+    }
+
     function displayNoTrack() {
         songCard.classList.remove("lyrics-hidden");
 
@@ -490,6 +634,7 @@
         }
 
         renderEmptyPlaybackHud(true);
+        clearGeniusComments("Waiting for a Genius song match.", true);
         setStatus("Spotify is connected, but no song is currently playing. Press Play to resume playback.");
     }
 
@@ -500,6 +645,7 @@
             setPlaybackIdleSnapshot(true);
         } else {
             renderEmptyPlaybackHud(false);
+            clearGeniusComments("Waiting for Spotify to reconnect.", true);
         }
 
         setStatus("Spotify is not connected. Press “Login with Spotify” to continue.", "error");
@@ -533,6 +679,7 @@
             if (trackChanged || lastGeniusSongId !== null) {
                 clearEmbed("No Genius lyrics page was matched for this track.");
             }
+            clearGeniusComments("No Genius song was matched, so comments are unavailable.", true);
             let statusMessage = `Now playing: ${track.artist} - ${track.title}. No confident Genius match was found.`;
             let statusType = "";
 
@@ -565,6 +712,7 @@
         }
 
         renderGeniusEmbed(geniusSong);
+        fetchGeniusComments(geniusSong, trackChanged);
         const playbackLabel = track.isPlaying ? "Now playing" : "Paused on";
         setStatus(`${playbackLabel}: ${track.artist} - ${track.title}`, "success");
     }
@@ -648,6 +796,7 @@
         if (playbackControlInProgress || !spotifyAuthenticated) return;
 
         const labels = {
+            restart: "Restart track",
             previous: "Previous track",
             pause: "Pause",
             play: "Play",
@@ -658,7 +807,11 @@
         updatePlaybackControls();
         setStatus(`${labels[action] || action} requested…`);
 
-        if (action === "pause") {
+        if (action === "restart") {
+            playbackClock.progressMs = 0;
+            playbackClock.sampledAt = Date.now();
+            renderPlaybackProgress();
+        } else if (action === "pause") {
             playbackClock.progressMs = estimatedPlaybackProgress();
             playbackClock.isPlaying = false;
             playbackClock.sampledAt = Date.now();
@@ -694,10 +847,16 @@
             if (action === "previous" || action === "next") {
                 lastTrackKey = "";
                 lastGeniusSongId = null;
+                previousRestartArmedUntil = 0;
             }
-            setStatus(data.message || `${labels[action] || action} requested.`, "success");
-            window.setTimeout(() => fetchCurrentLyrics(false), action === "previous" || action === "next" ? 850 : 300);
-            window.setTimeout(() => fetchCurrentLyrics(false), action === "previous" || action === "next" ? 1800 : 900);
+            if (action === "restart") {
+                setStatus(`Restarted at 0:00. Press Previous Track again within ${Math.round(PREVIOUS_DOUBLE_PRESS_WINDOW_MS / 100) / 10} seconds to play the previous track.`, "success");
+            } else {
+                setStatus(data.message || `${labels[action] || action} requested.`, "success");
+            }
+            const trackChange = action === "previous" || action === "next";
+            window.setTimeout(() => fetchCurrentLyrics(false), trackChange ? 850 : 300);
+            window.setTimeout(() => fetchCurrentLyrics(false), trackChange ? 1800 : 900);
         } catch (error) {
             setStatus(`Spotify control unavailable: ${error.message || error}`, "error");
             window.setTimeout(() => fetchCurrentLyrics(false), 300);
@@ -705,6 +864,18 @@
             playbackControlInProgress = false;
             updatePlaybackControls();
         }
+    }
+
+    function handlePreviousTrackPress() {
+        if (playbackControlInProgress || !spotifyAuthenticated) return;
+        const now = Date.now();
+        if (now <= previousRestartArmedUntil) {
+            previousRestartArmedUntil = 0;
+            sendPlaybackControl("previous");
+            return;
+        }
+        previousRestartArmedUntil = now + PREVIOUS_DOUBLE_PRESS_WINDOW_MS;
+        sendPlaybackControl("restart");
     }
 
     function schedulePolling() {
@@ -728,16 +899,20 @@
         }, 0);
     });
 
-    previousTrackButton.addEventListener("click", () => sendPlaybackControl("previous"));
+    previousTrackButton.addEventListener("click", handlePreviousTrackPress);
     pauseButton.addEventListener("click", () => sendPlaybackControl("pause"));
     playButton.addEventListener("click", () => sendPlaybackControl("play"));
-    nextTrackButton.addEventListener("click", () => sendPlaybackControl("next"));
+    nextTrackButton.addEventListener("click", () => {
+        previousRestartArmedUntil = 0;
+        sendPlaybackControl("next");
+    });
 
     loginButton.addEventListener("click", () => {
         window.location.href = `${API_BASE_URL}/login?next=${encodeURIComponent("/lyrics.html")}`;
     });
 
     refreshButton.addEventListener("click", () => {
+        previousRestartArmedUntil = 0;
         lastTrackKey = "";
         lastGeniusSongId = null;
         fetchCurrentLyrics(true);
@@ -749,6 +924,7 @@
 
     window.setInterval(renderPlaybackProgress, 250);
     renderEmptyPlaybackHud(false);
+    clearGeniusComments("Waiting for a Genius song match.", true);
     fetchCurrentLyrics(false);
     schedulePolling();
 })();

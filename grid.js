@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260824-discogs-flex-match-v36';
+const TOPSTER_FRONTEND_VERSION = '20260824-discogs-semantic-ownership-v37';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -442,12 +442,32 @@ function discogsOwnedArtistTokenSet(value) {
     return new Set(tokenizeTitle(normalizeDiscogsArtistForMatch(value || '')));
 }
 
+const DISCOGS_OWNED_ARTIST_ALIAS_GROUPS = Object.freeze([
+    // Early Wailers releases can be filed under either Bob Marley or The Wailers.
+    ['Bob Marley', 'Bob Marley And The Wailers', 'The Wailers']
+]);
+
+function discogsOwnedArtistAliasGroupMatch(entryArtist, collectionArtists) {
+    const entryVariants = new Set(discogsOwnedArtistVariants(entryArtist));
+    const rawCollectionArtists = Array.isArray(collectionArtists) ? collectionArtists : [collectionArtists];
+    const collectionVariants = new Set(rawCollectionArtists.flatMap(discogsOwnedArtistVariants));
+    if (!entryVariants.size || !collectionVariants.size) return false;
+
+    return DISCOGS_OWNED_ARTIST_ALIAS_GROUPS.some(group => {
+        const groupVariants = new Set(group.flatMap(discogsOwnedArtistVariants));
+        const entryInGroup = Array.from(entryVariants).some(value => groupVariants.has(value));
+        const collectionInGroup = Array.from(collectionVariants).some(value => groupVariants.has(value));
+        return entryInGroup && collectionInGroup;
+    });
+}
+
 function discogsOwnedArtistsMatch(entryArtist, collectionArtists) {
     const e = discogsOwnedArtistVariants(entryArtist);
     const rawCollectionArtists = Array.isArray(collectionArtists) ? collectionArtists : [collectionArtists];
     const c = Array.from(new Set(rawCollectionArtists.flatMap(discogsOwnedArtistVariants)));
     if (!e.length || !c.length) return false;
     if (e.some(a => c.some(b => a===b || (a.length>=5 && b.includes(a)) || (b.length>=5 && a.includes(b))))) return true;
+    if (discogsOwnedArtistAliasGroupMatch(entryArtist, rawCollectionArtists)) return true;
 
     // Permit a distinctive shared surname/name token for Discogs credit forms
     // such as \"Krzysztof Komeda\" vs \"Komeda Quintet\". Requiring six
@@ -483,8 +503,78 @@ const DISCOGS_OWNED_TITLE_ALIAS_GROUPS = Object.freeze([
     { artists: ['The Yardbirds'], titles: ['Roger The Engineer', 'The Yardbirds'] },
     { artists: ['Fred Neil'], titles: ['Fred Neil', "Everybody's Talkin' (Theme From Midnight Cowboy)"] },
     { artists: ['Ennio Morricone'], titles: ['Once Upon A Time In The West', "C'Era Una Volta Il West"] },
-    { artists: ['David Bowie'], titles: ['Space Oddity', 'David Bowie'] }
+    { artists: ['David Bowie'], titles: ['Space Oddity', 'David Bowie'] },
+    { artists: ['Nick Lowe'], titles: ['Jesus Of Cool', 'Pure Pop For Now People'] }
 ]);
+
+// A collection entry can represent a larger package that contains the album in
+// the Topster. These mappings are directional: owning the container counts as
+// owning the contained release, but owning only the contained release does not
+// imply ownership of the larger package.
+const DISCOGS_OWNED_CONTAINER_GROUPS = Object.freeze([
+    { artists: ['Death Grips'], container: 'The Powers That B', contains: ['Jenny Death'] },
+    { artists: ['Fishmans'], container: 'Fishmans Rock Festival', contains: ['Long Season', '98.12.28 男達の別れ', '宇宙 日本 世田谷'] },
+    { artists: ['Fishmans'], container: '98.12.28 男達の別れ', contains: ['宇宙 日本 世田谷'] }
+]);
+
+// Some source lists identify a producer/curator as the artist while Discogs
+// files the physical release under Various. Keep these exceptions explicit so
+// \"Various\" never becomes a blanket artist wildcard.
+const DISCOGS_OWNED_CROSS_CREDIT_GROUPS = Object.freeze([
+    {
+        entryArtists: ['Phil Spector'],
+        collectionArtists: ['Various'],
+        entryTitles: ['A Christmas Gift For You'],
+        collectionTitles: ['A Christmas Gift For You From Philles Records']
+    }
+]);
+
+function discogsOwnedRelationKey(value) {
+    return cleanAlbumTitle(value || '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^\p{L}\p{N}]+/gu, '')
+        .trim();
+}
+
+function discogsOwnedArtistMatchesScopedGroup(entryArtist, groupArtists) {
+    const entryVariants = new Set(discogsOwnedArtistVariants(entryArtist));
+    const groupVariants = new Set((groupArtists || []).flatMap(discogsOwnedArtistVariants));
+    return Array.from(entryVariants).some(value => groupVariants.has(value)
+        || Array.from(groupVariants).some(groupValue => value.length >= 5 && (value.includes(groupValue) || groupValue.includes(value))));
+}
+
+function discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle) {
+    const entryKey = discogsOwnedRelationKey(entryTitle);
+    const collectionKey = discogsOwnedRelationKey(collectionTitle);
+    if (!entryKey || !collectionKey) return false;
+
+    return DISCOGS_OWNED_CONTAINER_GROUPS.some(group => {
+        if (!discogsOwnedArtistMatchesScopedGroup(entryArtist, group.artists)) return false;
+        if (discogsOwnedRelationKey(group.container) !== collectionKey) return false;
+        return group.contains.some(title => discogsOwnedRelationKey(title) === entryKey);
+    });
+}
+
+function discogsOwnedKnownCrossCreditMatch(entryArtist, entryTitle, collectionTitle, collectionArtists = []) {
+    const entryArtistKeys = new Set(discogsOwnedArtistVariants(entryArtist));
+    const collectionArtistKeys = new Set((Array.isArray(collectionArtists) ? collectionArtists : [collectionArtists]).flatMap(discogsOwnedArtistVariants));
+    const entryTitleKey = discogsOwnedRelationKey(entryTitle);
+    const collectionTitleKey = discogsOwnedRelationKey(collectionTitle);
+    if (!entryArtistKeys.size || !collectionArtistKeys.size || !entryTitleKey || !collectionTitleKey) return false;
+
+    return DISCOGS_OWNED_CROSS_CREDIT_GROUPS.some(group => {
+        const allowedEntryArtists = new Set(group.entryArtists.flatMap(discogsOwnedArtistVariants));
+        const allowedCollectionArtists = new Set(group.collectionArtists.flatMap(discogsOwnedArtistVariants));
+        const entryArtistMatch = Array.from(entryArtistKeys).some(value => allowedEntryArtists.has(value));
+        const collectionArtistMatch = Array.from(collectionArtistKeys).some(value => allowedCollectionArtists.has(value));
+        if (!entryArtistMatch || !collectionArtistMatch) return false;
+        return group.entryTitles.some(title => discogsOwnedRelationKey(title) === entryTitleKey)
+            && group.collectionTitles.some(title => discogsOwnedRelationKey(title) === collectionTitleKey);
+    });
+}
 
 function discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists = []) {
     const entryTitleKey = normalizeAlbumTitle(entryTitle || '');
@@ -526,10 +616,17 @@ function topsterEntryIsInDiscogsCollection(entry) {
         if (!collectionTitle) continue;
         const artistsMatch = discogsOwnedArtistsMatch(entryArtist, collectionArtists);
 
+        // Handle semantic catalog relationships that cannot be derived from the
+        // literal Discogs title/artist fields. These are deliberately explicit
+        // and scoped to avoid turning fuzzy matching into a broad false-positive
+        // source across the collection.
+        if (discogsOwnedKnownCrossCreditMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
+
         // Expensive/fuzzy title comparison is only allowed when the artist credit
         // is compatible. This is both faster and much safer than fuzzy title-only
         // matching across an entire collection.
         if (artistsMatch) {
+            if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return true;
             const titleScore = discogsOwnedTitleScore(entryTitle, collectionTitle, entryArtist, collectionArtists.join(', '));
             if (titleScore >= 0.68) return true;
             if (discogsOwnedIsCompilationLike(entryTitle) && discogsOwnedIsCompilationLike(collectionTitle)) return true;
