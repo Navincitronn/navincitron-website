@@ -503,7 +503,7 @@
             : "Genius OAuth is not configured on the backend.");
         commentsStatus.classList.toggle("error", !configured);
         geniusLoginButton.textContent = configured
-            ? "Connect Genius for Comments"
+            ? "Connect to Genius"
             : "Genius OAuth Setup Required";
         geniusLoginButton.disabled = !configured;
         if (configured) {
