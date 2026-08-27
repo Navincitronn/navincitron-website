@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260827-quotes-discogs-poster-v41';
+const TOPSTER_FRONTEND_VERSION = '20260827-discogs-poster-backend-v42';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -216,42 +216,56 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
     const posterLink = panel.querySelector('#topster-loading-poster-link');
     if (!posterWrap || !posterImage || !posterFallback) return;
 
-    const requestId = ++topsterLoadingQuotePosterRequestId;
     const filmTitle = topsterLoadingQuoteFilmTitle(quote && quote.source);
     posterWrap.hidden = false;
+    posterWrap.style.display = 'block';
     posterWrap.classList.add('topster-loading-poster-pending');
-    posterImage.hidden = true;
-    posterImage.removeAttribute('src');
-    posterImage.alt = filmTitle ? `${filmTitle} poster` : 'Movie poster';
+
     posterFallback.hidden = false;
+    posterFallback.style.display = 'flex';
     posterFallback.textContent = filmTitle || 'Movie Poster';
+
+    posterImage.hidden = true;
+    posterImage.style.display = 'none';
+    posterImage.alt = filmTitle ? `${filmTitle} poster` : 'Movie poster';
+
     if (posterLink) {
         posterLink.removeAttribute('href');
         posterLink.removeAttribute('target');
         posterLink.removeAttribute('rel');
     }
 
-    const poster = await fetchTopsterLoadingQuotePoster(quote);
-    if (requestId !== topsterLoadingQuotePosterRequestId) return;
+    if (!filmTitle) return;
 
-    posterWrap.classList.remove('topster-loading-poster-pending');
-    if (poster && poster.image) {
-        posterImage.src = poster.image;
-        posterImage.hidden = false;
+    const posterUrl = quote && quote.poster
+        ? String(quote.poster)
+        : (() => {
+            const url = new URL('/api/movie-poster', getTopsterBackendOrigin() || window.location.origin);
+            url.searchParams.set('title', filmTitle);
+            url.searchParams.set('v', TOPSTER_FRONTEND_VERSION);
+            return url.href;
+        })();
+
+    posterImage.onload = () => {
+        posterWrap.classList.remove('topster-loading-poster-pending');
         posterFallback.hidden = true;
-        if (posterLink && poster.page) {
-            posterLink.href = poster.page;
-            posterLink.target = '_blank';
-            posterLink.rel = 'noopener noreferrer';
-        }
-        return;
-    }
+        posterFallback.style.display = 'none';
+        posterImage.hidden = false;
+        posterImage.style.display = 'block';
+    };
 
-    if (posterLink) {
-        posterLink.removeAttribute('href');
-        posterLink.removeAttribute('target');
-        posterLink.removeAttribute('rel');
-    }
+    posterImage.onerror = () => {
+        posterWrap.classList.remove('topster-loading-poster-pending');
+        posterImage.hidden = true;
+        posterImage.style.display = 'none';
+        posterFallback.hidden = false;
+        posterFallback.style.display = 'flex';
+    };
+
+    // Use the backend as an image redirect/proxy. <img> requests do not require
+    // browser CORS permission, so this is much more reliable than fetching the
+    // Wikipedia REST endpoint directly in JavaScript.
+    posterImage.src = posterUrl;
 }
 
 function scheduleTopsterPublicLoadingPanelDismiss(panel) {
@@ -709,7 +723,11 @@ function discogsOwnedArtistTokenSet(value) {
 
 const DISCOGS_OWNED_ARTIST_ALIAS_GROUPS = Object.freeze([
     // Early Wailers releases can be filed under either Bob Marley or The Wailers.
-    ['Bob Marley', 'Bob Marley And The Wailers', 'The Wailers']
+    ['Bob Marley', 'Bob Marley And The Wailers', 'The Wailers'],
+    // Zappa records can be filed under his own name or The Mothers.
+    ['Frank Zappa', 'The Mothers', 'The Mothers Of Invention', 'Frank Zappa And The Mothers Of Invention'],
+    // Discogs may split Hall & Oates into the two individual artist credits.
+    ['Hall & Oates', 'Daryl Hall & John Oates', 'Daryl Hall / John Oates', 'Daryl Hall', 'John Oates']
 ]);
 
 function discogsOwnedArtistAliasGroupMatch(entryArtist, collectionArtists) {
@@ -770,7 +788,7 @@ const DISCOGS_OWNED_TITLE_ALIAS_GROUPS = Object.freeze([
     { artists: ['Ennio Morricone'], titles: ['Once Upon A Time In The West', "C'Era Una Volta Il West"] },
     { artists: ['David Bowie'], titles: ['Space Oddity', 'David Bowie'] },
     { artists: ['Nick Lowe'], titles: ['Jesus Of Cool', 'Pure Pop For Now People'] },
-    { artists: ['Big Star'], titles: ['Third/Sister Lovers', '3rd'] },
+    { artists: ['Big Star'], titles: ['Third/Sister Lovers', '3rd/Sister Lovers', '3rd'] },
     { artists: ['Count Basie'], titles: ['The Atomic Mr. Basie', 'Basie'] },
     { artists: ['Led Zeppelin'], titles: ['Led Zeppelin I', 'Led Zeppelin'] },
     { artists: ['The Kinks'], titles: ['Lola Versus Powerman', 'Lola Versus Powerman And The Moneygoround', 'Lola Versus Powerman And The Moneygoround (Part One)'] }
@@ -883,72 +901,87 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
     const clean = discogsOwnedNormalizeRomanVolumes(title);
     if (!clean) return [];
 
-    const variants = new Set();
-    const add = value => {
-        const normalized = normalizeAlbumTitle(value || '');
-        if (normalized) variants.add(normalized);
+    const normalizedVariants = new Set();
+    const rawVariants = new Set();
+    const queue = [];
+
+    const enqueue = value => {
+        const raw = cleanAlbumTitle(value || '');
+        if (!raw || rawVariants.has(raw)) return;
+        rawVariants.add(raw);
+        queue.push(raw);
+        const normalized = normalizeAlbumTitle(raw);
+        if (normalized) normalizedVariants.add(normalized);
     };
 
-    const addCoreForms = value => {
-        let text = cleanAlbumTitle(value || '');
-        if (!text) return;
-        add(text);
-
-        // Discogs commonly appends edition/translation/soundtrack wording in
-        // parentheses. Removing only a trailing parenthetical is safe when the
-        // artist credit is already compatible.
-        while (/\s*\([^()]*\)\s*$/.test(text)) {
-            text = cleanAlbumTitle(text.replace(/\s*\([^()]*\)\s*$/, ''));
-            add(text);
-        }
-
-        // Explicit Vol./Volume markers are metadata, unlike a bare sequel
-        // numeral such as Pretenders II.
-        const withoutVolume = cleanAlbumTitle(text.replace(
-            /\s*(?:[-–—,:]\s*)?\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i,
-            ''
-        ));
-        add(withoutVolume);
-
-        // Remove trailing year ranges and similar archival date annotations.
-        add(text.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\s*$/g, '').trim());
-
-        // Edition/format wording often appears as append-only metadata.
-        add(text.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
-
-        // Credits sometimes migrate between title and artist fields.
-        add(text.replace(/\s+\b(?:with|featuring|feat\.?|by)\b\s+.+$/i, ''));
-
-        // Live/tribute/in-concert descriptors are often append-only variants.
-        add(text.replace(/\s+[-–—:]?\s*\b(?:live at|live from|in concert|a tribute to|original soundtrack recording|motion picture soundtrack)\b.+$/i, ''));
-
-        // Combined-title releases sometimes surface either constituent title.
-        text.split(/\s*\/\s*/).forEach(part => {
-            const normalizedPart = cleanAlbumTitle(part);
-            if (normalizedPart && tokenizeTitle(normalizedPart).length >= 3) add(normalizedPart);
-        });
-
-        // Some Discogs titles append a descriptive subtitle after a separator.
-        const segments = text.split(/\s+[—–-]\s+|:\s+/).map(part => cleanAlbumTitle(part)).filter(Boolean);
-        if (segments.length >= 2) {
-            const descriptorPattern = /\b(?:tribute|soundtrack|original|complete|unbelievable|concert|live|club|moneygoround|part|rare|unreleased|golden greats)\b/i;
-            segments.forEach(segment => {
-                const tokenCount = tokenizeTitle(segment).length;
-                if (tokenCount >= 3 && (descriptorPattern.test(text) || tokenCount >= 4)) add(segment);
-            });
-        }
-    };
-
-    addCoreForms(clean);
+    const escapeRegExp = value => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const artistText = normalizeDiscogsArtistForMatch(artist || '');
-    if (artistText) {
-        const escapedArtist = artistText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const artistPrefix = new RegExp(`^(?:the\s+)?${escapedArtist}(?:\s*[-–—:]\s*|\s+)`, 'i');
-        if (artistPrefix.test(clean)) addCoreForms(clean.replace(artistPrefix, ''));
+    const artistPrefixCandidates = Array.from(new Set([
+        artistText,
+        artistText.replace(/^(?:the|a|an)\s+/i, '')
+    ].map(cleanAlbumTitle).filter(Boolean)));
+
+    enqueue(clean);
+
+    // Generate combinations, not just one transformation at a time. This lets
+    // "The Complete Live At ... 1965" safely become "Live At ..." after the
+    // edition word, year, and leading article are all removed.
+    while (queue.length && rawVariants.size < 80) {
+        const current = queue.shift();
+
+        // Leading articles are catalog punctuation, not identity.
+        enqueue(current.replace(/^(?:the|a|an)\s+/i, ''));
+
+        // Trailing parentheticals are commonly translation/edition/soundtrack metadata.
+        enqueue(current.replace(/\s*\([^()]*\)\s*$/, ''));
+
+        // Explicit volume labels may be omitted by one source. Bare sequel numerals
+        // are still protected later by discogsOwnedFuzzyTitleMatchIsSafe().
+        enqueue(current.replace(/\s*(?:[-–—,:]\s*)?\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i, ''));
+
+        // Archive date annotations are often absent from list titles.
+        enqueue(current.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\s*$/i, ''));
+
+        // Edition words can appear anywhere and combine with other metadata removals.
+        enqueue(current.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
+
+        // Credits sometimes migrate from the artist field to the title field.
+        enqueue(current.replace(/\s+\b(?:with|featuring|feat\.?|by)\b\s+.+$/i, ''));
+
+        // Compilation descriptors appended after a separator are safe to discard
+        // when the artist already matches (e.g. Chronicle - The 20 Greatest Hits).
+        enqueue(current.replace(/\s+[—–-]\s+(?:the\s+)?(?:\d+\s+)?(?:greatest|golden)\s+hits\b.*$/i, ''));
+        enqueue(current.replace(/\s+[—–-]\s+\b(?:original soundtrack|original movie soundtrack|soundtrack|a tribute to)\b.*$/i, ''));
+
+        // The same artist name is often redundantly prepended to a Discogs title,
+        // including possessive forms such as "The Drifters' Golden Hits".
+        artistPrefixCandidates.forEach(candidate => {
+            const escaped = escapeRegExp(candidate);
+            const prefixPattern = new RegExp(`^${escaped}(?:['’](?:s)?)?(?:\\s*[-–—:]\\s*|\\s+)`, 'i');
+            enqueue(current.replace(prefixPattern, ''));
+        });
+
+        // Slash-combined releases may list one constituent album. Requiring two
+        // distinctive tokens and a reasonable text length avoids tiny collisions.
+        current.split(/\s*\/\s*/).forEach(part => {
+            const partClean = cleanAlbumTitle(part);
+            const partNormalized = normalizeAlbumTitle(partClean);
+            if (partNormalized.length >= 8 && tokenizeTitle(partClean).length >= 2) enqueue(partClean);
+        });
+
+        // Hyphen/colon combined titles can likewise surface one substantial part.
+        // The >=10-character threshold deliberately keeps "Star Wars" from matching
+        // "Star Wars: The Empire Strikes Back" while allowing Deaf Dumb Blind and
+        // Roforofo Fight to match their expanded Discogs titles.
+        current.split(/\s+[—–-]\s+|:\s+/).forEach(part => {
+            const partClean = cleanAlbumTitle(part);
+            const partNormalized = normalizeAlbumTitle(partClean);
+            if (partNormalized.length >= 10 && tokenizeTitle(partClean).length >= 2) enqueue(partClean);
+        });
     }
 
-    return Array.from(variants);
+    return Array.from(normalizedVariants);
 }
 
 function discogsOwnedTruncatedTitleMatch(shortTitle, fullTitle) {
