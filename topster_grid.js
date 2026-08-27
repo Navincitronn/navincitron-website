@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260824-discogs-semantic-ownership-v37';
+const TOPSTER_FRONTEND_VERSION = '20260827-owned-x-public-cover-retry-v38';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -643,12 +643,24 @@ function applyOwnedReleaseVisualState(tile, entry, enabled) {
     if (!tile) return;
     const owned = Boolean(enabled && topsterEntryIsInDiscogsCollection(entry));
     tile.classList.toggle('topster-owned-release', owned);
-    if (!owned) return;
+
+    const existingOwnedX = tile.querySelector('.topster-owned-release-x');
+    if (!owned) {
+        if (existingOwnedX) existingOwnedX.remove();
+        return;
+    }
 
     tile.querySelectorAll('img, .topster-cover-overlay, .topster-tile-placeholder').forEach(element => {
         element.style.opacity = '0.25';
         element.style.filter = 'grayscale(100%)';
     });
+
+    if (!existingOwnedX) {
+        const ownedX = document.createElement('span');
+        ownedX.className = 'topster-owned-release-x';
+        ownedX.setAttribute('aria-hidden', 'true');
+        tile.appendChild(ownedX);
+    }
 }
 
 function getTopsterStoreSourceKey() {
@@ -1091,6 +1103,7 @@ async function initTopsterImporter(albumCards) {
     );
     let pickerEntryIndex = null;
     let pickerLookupToken = 0;
+    const retryingPublicCoverIndexes = new Set();
     const topsterSourceLabel = getTopsterSourceLabel();
     const topsterReadOnly = document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list');
     const topsterAutoLoad = document.body && (document.body.dataset.topsterAutoload === 'true' || topsterReadOnly);
@@ -1955,6 +1968,45 @@ async function initTopsterImporter(albumCards) {
         }
     }
 
+    async function retryPublicAlbumCover(entry, absoluteIndex) {
+        if (!entry || !isPublicAlbumCoverRetrySource() || retryingPublicCoverIndexes.has(absoluteIndex)) return;
+        retryingPublicCoverIndexes.add(absoluteIndex);
+
+        const previousCover = entry.cover && entry.cover.imageSrc ? { ...entry.cover } : null;
+        entry.status = 'loading';
+        entry.cover = null;
+        renderTopster(importedEntries, 0, { scroll: false });
+
+        try {
+            // First retry the exact published image with a cache-busting request. This
+            // handles intermittent CDN/host failures without changing the chosen cover.
+            if (previousCover && await probeTopsterImage(previousCover.imageSrc)) {
+                entry.cover = previousCover;
+                entry.status = 'found';
+            } else {
+                // If the published image is genuinely unavailable, do a fresh cover
+                // lookup but deliberately skip the saved cache so we do not immediately
+                // return the same broken URL again.
+                await maybeLoadLocalIndex();
+                const retryConfig = { ...getSourceConfig(), useCache: false };
+                const freshCover = await resolveAlbumCover(entry, albumCatalog, retryConfig);
+                if (freshCover && freshCover.imageSrc) {
+                    entry.cover = freshCover;
+                    entry.status = 'found';
+                } else {
+                    entry.status = 'missing';
+                }
+            }
+        } catch (error) {
+            entry.status = 'missing';
+        } finally {
+            retryingPublicCoverIndexes.delete(absoluteIndex);
+            renderTopster(importedEntries, 0, { scroll: false });
+            syncAllTopsterSidebarHeights();
+            window.requestAnimationFrame(syncAllTopsterSidebarHeights);
+        }
+    }
+
     function createTopsterPage(pageEntries, start, end, pageIndex, pageSize, settings = getEffectiveTopsterSettings(currentSettings)) {
         const page = document.createElement('section');
         page.className = 'topster-page';
@@ -1979,7 +2031,10 @@ async function initTopsterImporter(albumCards) {
             const absoluteIndex = start + i;
             chart.appendChild(createTopsterTile(entry, absoluteIndex + 1, topsterReadOnly ? null : () => {
                 if (entry) openCoverPicker(entry, absoluteIndex);
-            }, settings.coverOverlay, settings.excludeOwnedReleases));
+            }, settings.coverOverlay, settings.excludeOwnedReleases,
+            topsterReadOnly && isPublicAlbumCoverRetrySource() && entry
+                ? () => retryPublicAlbumCover(entry, absoluteIndex)
+                : null));
         }
 
         chartWrap.appendChild(chart);
@@ -2568,6 +2623,51 @@ function isRollingStoneSingerTopsterSource() {
     const kind = getTopsterDataSourceConfig().kind;
     return kind === 'rolling-stone-greatest-singers-of-all-time-2023-file'
         || kind === 'rolling-stone-greatest-singers-of-all-time-2008-file';
+}
+
+
+function isPublicAlbumCoverRetrySource() {
+    return isTopsterReadOnlyPage()
+        && !isRateYourMusicTopsterSource()
+        && !isRollingStoneSingerTopsterSource()
+        && !(document.body && document.body.dataset.topsterRequireAdmin === 'true');
+}
+
+function topsterRetryImageUrl(imageSrc) {
+    const value = String(imageSrc || '').trim();
+    if (!value) return '';
+    try {
+        const url = new URL(value, window.location.href);
+        url.searchParams.set('_nav_retry', String(Date.now()));
+        return url.href;
+    } catch (error) {
+        const separator = value.includes('?') ? '&' : '?';
+        return `${value}${separator}_nav_retry=${Date.now()}`;
+    }
+}
+
+function probeTopsterImage(imageSrc, timeoutMs = 10000) {
+    return new Promise(resolve => {
+        if (!imageSrc || typeof Image === 'undefined') {
+            resolve(false);
+            return;
+        }
+
+        const image = new Image();
+        let settled = false;
+        const finish = result => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeoutId);
+            image.onload = null;
+            image.onerror = null;
+            resolve(Boolean(result));
+        };
+        const timeoutId = window.setTimeout(() => finish(false), Math.max(1000, Number(timeoutMs) || 10000));
+        image.onload = () => finish(true);
+        image.onerror = () => finish(false);
+        image.src = topsterRetryImageUrl(imageSrc);
+    });
 }
 
 function getRollingStoneSingerListYear() {
@@ -5089,7 +5189,7 @@ function isUsefulLastfmImage(imageSrc) {
     return Boolean(imageSrc) && !String(imageSrc).includes('2a96cbd8b46e442fc41c2b86b821562f');
 }
 
-function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none', excludeOwnedReleases = false) {
+function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none', excludeOwnedReleases = false, onRetryCover = null) {
     const tile = document.createElement('div');
     tile.className = 'topster-tile';
     let mobileInfoTimer = null;
@@ -5105,6 +5205,26 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     const cover = entry.cover;
     const label = `${displayIndex}. ${formatEntryName(entry)}`;
     const overlayText = getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode);
+
+    const makeRetryablePlaceholder = placeholder => {
+        if (!placeholder || typeof onRetryCover !== 'function') return;
+        placeholder.classList.add('topster-tile-retryable');
+        placeholder.setAttribute('role', 'button');
+        placeholder.setAttribute('tabindex', '0');
+        placeholder.setAttribute('title', `${label} — click to retry album cover`);
+        placeholder.setAttribute('aria-label', `${label}. Album cover did not load. Click to retry.`);
+        placeholder.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            onRetryCover();
+        });
+        placeholder.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            event.stopPropagation();
+            onRetryCover();
+        });
+    };
 
     const showMobileInfo = event => {
         if (!isTopsterTouchTooltipDevice()) return false;
@@ -5157,9 +5277,11 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
             const placeholder = document.createElement('div');
             placeholder.className = 'topster-tile-placeholder';
             placeholder.textContent = formatEntryName(entry) || entry.title;
+            makeRetryablePlaceholder(placeholder);
             tile.innerHTML = '';
             tile.classList.remove('has-cover-overlay');
             tile.appendChild(placeholder);
+            applyOwnedReleaseVisualState(tile, entry, excludeOwnedReleases);
         };
 
         const rymReleaseHref = !onSelectCover && isRateYourMusicTopsterSource()
@@ -5194,8 +5316,10 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
             placeholder.textContent = 'Loading...';
         } else if (entry.status === 'missing') {
             placeholder.textContent = formatEntryName(entry) || entry.title;
+            makeRetryablePlaceholder(placeholder);
         } else {
             placeholder.textContent = formatEntryName(entry) || entry.title;
+            makeRetryablePlaceholder(placeholder);
         }
         tile.appendChild(placeholder);
     }
