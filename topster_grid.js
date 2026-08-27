@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260827-progress-discogs-strict-v39';
+const TOPSTER_FRONTEND_VERSION = '20260827-quotes-discogs-safe-v40';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -31,51 +31,6 @@ const TOPSTER_CHECKLIST_OVERLAYS = [
 ];
 let topsterLoadingPanel = null;
 let topsterLoadingHideTimer = null;
-let topsterCalibratedLoadingTimer = null;
-let topsterCalibratedLoadingState = null;
-
-const TOPSTER_PUBLIC_LOAD_DURATION_MS = Object.freeze({
-    grid: 7000,
-    ranked: 5000,
-    rate_your_music: 3000,
-    nme_500_albums: 1000,
-    '1001_albums_you_must_hear_before_you_die': 7000,
-    rolling_stone_500_albums_2003: 2000,
-    rolling_stone_500_albums_2012: 2000,
-    rolling_stone_500_albums_2020: 2000,
-    rolling_stone_500_albums_2023: 2000
-});
-
-function getTopsterCalibratedLoadingPercent() {
-    if (!topsterCalibratedLoadingState) return null;
-    const elapsed = Math.max(0, Date.now() - topsterCalibratedLoadingState.startedAt);
-    const ratio = Math.min(1, elapsed / Math.max(1, topsterCalibratedLoadingState.durationMs));
-    return Math.min(99, Math.max(0, Math.round(ratio * 99)));
-}
-
-function startTopsterCalibratedPublicLoadingProgress() {
-    if (!(document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list'))) return;
-    const durationMs = TOPSTER_PUBLIC_LOAD_DURATION_MS[getTopsterStoreSourceKey()];
-    if (!durationMs) return;
-
-    if (topsterCalibratedLoadingTimer) window.clearInterval(topsterCalibratedLoadingTimer);
-    topsterCalibratedLoadingState = { startedAt: Date.now(), durationMs };
-    const tick = () => {
-        const percent = getTopsterCalibratedLoadingPercent();
-        if (percent === null) return;
-        setTopsterLoadingProgress(percent, '', { fromCalibratedTimer: true });
-    };
-    tick();
-    topsterCalibratedLoadingTimer = window.setInterval(tick, 100);
-}
-
-function stopTopsterCalibratedPublicLoadingProgress() {
-    if (topsterCalibratedLoadingTimer) {
-        window.clearInterval(topsterCalibratedLoadingTimer);
-        topsterCalibratedLoadingTimer = null;
-    }
-    topsterCalibratedLoadingState = null;
-}
 let lastMusicBrainzRequestAt = 0;
 let topsterSharedStoreLoaded = false;
 let topsterSharedStoreAvailable = false;
@@ -116,6 +71,85 @@ function safeMarkTopsterPublishDirty() {
 
 
 
+let topsterLoadingQuotesPromise = null;
+let topsterLoadingQuoteSelection = null;
+
+function isTopsterPublicReadOnlyListPage() {
+    const body = document.body;
+    if (!body || !body.dataset) return false;
+    return body.dataset.topsterReadonly === 'true'
+        && body.dataset.topsterMode === 'list'
+        && body.dataset.topsterRequireAdmin !== 'true';
+}
+
+function parseTopsterLoadingQuotes(text) {
+    const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    const quotes = [];
+    let current = null;
+
+    const flush = () => {
+        if (!current) return;
+        const body = current.lines.join('\n').trim();
+        if (current.source && body) quotes.push({ source: current.source, body });
+        current = null;
+    };
+
+    for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+        const heading = line.match(/^(.+?\(\d{4}\)):\s*$/);
+        if (heading && !/^\s/.test(rawLine)) {
+            flush();
+            current = { source: heading[1].trim(), lines: [] };
+            continue;
+        }
+        if (current) current.lines.push(line);
+    }
+    flush();
+    return quotes;
+}
+
+async function getTopsterLoadingQuotes() {
+    if (!topsterLoadingQuotesPromise) {
+        topsterLoadingQuotesPromise = fetch(`quotes.txt?v=${encodeURIComponent(TOPSTER_FRONTEND_VERSION)}`, { cache: 'no-cache' })
+            .then(response => {
+                if (!response.ok) throw new Error(`quotes.txt returned HTTP ${response.status}`);
+                return response.text();
+            })
+            .then(parseTopsterLoadingQuotes)
+            .catch(error => {
+                console.warn('Could not load quotes.txt:', error);
+                return [];
+            });
+    }
+    return topsterLoadingQuotesPromise;
+}
+
+function renderTopsterLoadingQuote(panel, quote) {
+    if (!panel || !quote) return;
+    const quoteBody = panel.querySelector('#topster-loading-quote-body');
+    const quoteSource = panel.querySelector('#topster-loading-quote-source');
+    if (quoteBody) quoteBody.textContent = quote.body;
+    if (quoteSource) quoteSource.textContent = quote.source;
+}
+
+async function ensureTopsterPublicLoadingQuote(panel) {
+    if (!isTopsterPublicReadOnlyListPage() || !panel) return;
+    if (topsterLoadingQuoteSelection) {
+        renderTopsterLoadingQuote(panel, topsterLoadingQuoteSelection);
+        return;
+    }
+    if (panel.dataset.topsterQuoteLoading === 'true') return;
+
+    panel.dataset.topsterQuoteLoading = 'true';
+    const quotes = await getTopsterLoadingQuotes();
+    panel.dataset.topsterQuoteLoading = 'false';
+    if (!quotes.length) return;
+
+    topsterLoadingQuoteSelection = quotes[Math.floor(Math.random() * quotes.length)];
+    renderTopsterLoadingQuote(panel, topsterLoadingQuoteSelection);
+}
+
+
 function ensureTopsterLoadingPanel() {
     if (topsterLoadingPanel && document.body.contains(topsterLoadingPanel)) {
         return topsterLoadingPanel;
@@ -124,6 +158,7 @@ function ensureTopsterLoadingPanel() {
     const existingPanel = document.getElementById('topster-loading-panel');
     if (existingPanel) {
         topsterLoadingPanel = existingPanel;
+        if (isTopsterPublicReadOnlyListPage()) ensureTopsterPublicLoadingQuote(existingPanel);
         return existingPanel;
     }
 
@@ -135,12 +170,24 @@ function ensureTopsterLoadingPanel() {
     panel.id = 'topster-loading-panel';
     panel.setAttribute('role', 'status');
     panel.setAttribute('aria-live', 'polite');
-    panel.innerHTML = `
-        <p class="topster-loading-title">Loading Topster</p>
-        <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
-        <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
-        <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
-    `;
+    if (isTopsterPublicReadOnlyListPage()) {
+        panel.innerHTML = `
+            <p class="topster-loading-title">Loading Topster</p>
+            <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+            <figure class="topster-loading-quote" id="topster-loading-quote">
+                <blockquote id="topster-loading-quote-body">Loading a quote...</blockquote>
+                <figcaption id="topster-loading-quote-source"></figcaption>
+            </figure>
+        `;
+        ensureTopsterPublicLoadingQuote(panel);
+    } else {
+        panel.innerHTML = `
+            <p class="topster-loading-title">Loading Topster</p>
+            <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+            <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
+            <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
+        `;
+    }
 
     const output = document.getElementById('topster-output');
     if (output && output.parentNode === section) {
@@ -165,13 +212,13 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
     const progress = panel.querySelector('.topster-loading-progress');
     const label = panel.querySelector('.topster-loading-text');
     const percentLabel = panel.querySelector('.topster-loading-percent');
-    let safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
-    if (topsterCalibratedLoadingState && !options.complete && !options.error && !options.fromCalibratedTimer) {
-        const calibratedPercent = getTopsterCalibratedLoadingPercent();
-        if (calibratedPercent !== null) safePercent = calibratedPercent;
-    }
+    const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
 
     if (label && text) label.textContent = text;
+    if (isTopsterPublicReadOnlyListPage()) {
+        ensureTopsterPublicLoadingQuote(panel);
+        return;
+    }
     if (progress) {
         progress.value = safePercent;
         progress.textContent = `${safePercent}%`;
@@ -180,7 +227,6 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
 }
 
 function completeTopsterLoading(text = 'Topster loaded.') {
-    stopTopsterCalibratedPublicLoadingProgress();
     setTopsterLoadingProgress(100, text, { complete: true });
     topsterLoadingHideTimer = window.setTimeout(() => {
         if (topsterLoadingPanel) topsterLoadingPanel.hidden = true;
@@ -188,38 +234,15 @@ function completeTopsterLoading(text = 'Topster loaded.') {
 }
 
 function failTopsterLoading(text) {
-    stopTopsterCalibratedPublicLoadingProgress();
     setTopsterLoadingProgress(100, text || 'Topster loading failed.', { error: true });
 }
 
 
-function setTopsterSettingsSaveProgress(status, percent, text, options = {}) {
+function setTopsterSettingsSaveStatus(status, text) {
     if (!status) return;
-    const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
     status.hidden = false;
-    status.classList.add('topster-status-progress-active');
-    status.textContent = '';
-
-    const label = document.createElement('span');
-    label.className = 'topster-status-progress-label';
-    label.textContent = text || 'Saving shared Topster settings...';
-
-    const progress = document.createElement('progress');
-    progress.className = 'topster-loading-progress topster-settings-save-progress';
-    progress.max = 100;
-    progress.value = safePercent;
-    progress.textContent = `${safePercent}%`;
-
-    const percentLabel = document.createElement('span');
-    percentLabel.className = 'topster-loading-percent topster-settings-save-percent';
-    percentLabel.textContent = `${safePercent}%`;
-
-    if (options.complete) status.classList.add('topster-status-progress-complete');
-    else status.classList.remove('topster-status-progress-complete');
-
-    status.appendChild(label);
-    status.appendChild(progress);
-    status.appendChild(percentLabel);
+    status.classList.remove('topster-status-progress-active', 'topster-status-progress-complete');
+    status.textContent = text || 'Saving shared Topster settings...';
 }
 
 function isChecklistTopsterSource() {
@@ -607,6 +630,12 @@ const DISCOGS_OWNED_CROSS_CREDIT_GROUPS = Object.freeze([
         collectionArtists: ['Various'],
         entryTitles: ['A Christmas Gift For You'],
         collectionTitles: ['A Christmas Gift For You From Philles Records']
+    },
+    {
+        entryArtists: ['Jimmy Cliff'],
+        collectionArtists: ['Various'],
+        entryTitles: ['The Harder They Come'],
+        collectionTitles: ['The Harder They Come (Original Soundtrack Recording)']
     }
 ]);
 
@@ -676,6 +705,81 @@ function discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, c
                 || Array.from(artistVariants).some(candidate => candidate.length >= 5 && (candidate.includes(aliasArtist) || aliasArtist.includes(candidate))));
         });
     });
+}
+
+
+function discogsOwnedSafeTitleVariants(title, artist = '') {
+    const clean = discogsOwnedNormalizeRomanVolumes(title);
+    if (!clean) return [];
+
+    const variants = new Set();
+    const add = value => {
+        const normalized = normalizeAlbumTitle(value || '');
+        if (normalized) variants.add(normalized);
+    };
+
+    const addCoreForms = value => {
+        let text = cleanAlbumTitle(value || '');
+        if (!text) return;
+        add(text);
+
+        // Discogs commonly appends edition/translation/soundtrack wording in
+        // parentheses. Removing only a trailing parenthetical is safe when the
+        // artist credit is already compatible.
+        while (/\s*\([^()]*\)\s*$/.test(text)) {
+            text = cleanAlbumTitle(text.replace(/\s*\([^()]*\)\s*$/, ''));
+            add(text);
+        }
+
+        // Explicit Vol./Volume markers are metadata, unlike a bare sequel
+        // numeral such as Pretenders II.
+        const withoutVolume = cleanAlbumTitle(text.replace(
+            /\s*(?:[-–—,:]\s*)?\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i,
+            ''
+        ));
+        add(withoutVolume);
+
+        // Credits sometimes migrate between title and artist fields.
+        add(text.replace(/\s+\b(?:with|featuring|feat\.?|by)\b\s+.+$/i, ''));
+    };
+
+    addCoreForms(clean);
+
+    const artistText = normalizeDiscogsArtistForMatch(artist || '');
+    if (artistText) {
+        const escapedArtist = artistText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const artistPrefix = new RegExp(`^${escapedArtist}(?:\\s*[-–—:]\\s*|\\s+)`, 'i');
+        if (artistPrefix.test(clean)) addCoreForms(clean.replace(artistPrefix, ''));
+    }
+
+    return Array.from(variants);
+}
+
+function discogsOwnedTruncatedTitleMatch(shortTitle, fullTitle) {
+    const rawShort = cleanAlbumTitle(shortTitle || '');
+    if (!/(?:\.{3,}|…)\s*$/.test(rawShort)) return false;
+
+    const prefix = normalizeAlbumTitle(rawShort.replace(/(?:\.{3,}|…)\s*$/, ''));
+    const full = normalizeAlbumTitle(fullTitle || '');
+    return prefix.length >= 10 && full.length > prefix.length && full.startsWith(prefix);
+}
+
+function discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArtist = '', collectionArtists = []) {
+    const entryVariants = discogsOwnedSafeTitleVariants(entryTitle, entryArtist);
+    const rawCollectionArtists = Array.isArray(collectionArtists) ? collectionArtists : [collectionArtists];
+    const collectionVariants = new Set();
+
+    if (rawCollectionArtists.length) {
+        rawCollectionArtists.forEach(artist => {
+            discogsOwnedSafeTitleVariants(collectionTitle, artist).forEach(value => collectionVariants.add(value));
+        });
+    } else {
+        discogsOwnedSafeTitleVariants(collectionTitle, '').forEach(value => collectionVariants.add(value));
+    }
+
+    if (entryVariants.some(value => collectionVariants.has(value))) return true;
+    return discogsOwnedTruncatedTitleMatch(entryTitle, collectionTitle)
+        || discogsOwnedTruncatedTitleMatch(collectionTitle, entryTitle);
 }
 
 function discogsOwnedBareTrailingSequenceMarker(value) {
@@ -749,6 +853,7 @@ function topsterEntryIsInDiscogsCollection(entry) {
         if (artistsMatch) {
             if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return true;
             if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
+            if (discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArtist, collectionArtists)) return true;
 
             const titleScore = discogsOwnedTitleScore(entryTitle, collectionTitle, entryArtist, collectionArtists.join(', '));
             if (titleScore >= 0.68 && discogsOwnedFuzzyTitleMatchIsSafe(entryTitle, collectionTitle)) return true;
@@ -1205,7 +1310,6 @@ async function initTopsterImporter(albumCards) {
         return;
     }
 
-    if (topsterReadOnly && topsterAutoLoad) startTopsterCalibratedPublicLoadingProgress();
     buildButton.textContent = 'Build';
     document.documentElement.dataset.topsterGridJsVersion = TOPSTER_FRONTEND_VERSION;
     setTopsterLoadingProgress(4, 'Connecting to the saved Topster settings and cover cache...');
@@ -1516,7 +1620,7 @@ async function initTopsterImporter(albumCards) {
         const sourceKey = getTopsterStoreSourceKey();
         const publicPageName = getTopsterPublicPageName(sourceKey);
         const sourceDisplayName = getTopsterSourceDisplayName(sourceKey);
-        setTopsterSettingsSaveProgress(status, 12, `Saving ${sourceDisplayName} display settings...`);
+        setTopsterSettingsSaveStatus(status, `Saving ${sourceDisplayName} display settings...`);
         setTopsterLoadingProgress(92, `Publishing ${sourceDisplayName} settings, source text, and cover cache...`);
 
         const sharedPayload = {
@@ -1524,7 +1628,7 @@ async function initTopsterImporter(albumCards) {
             settings: currentSettingsProfiles,
             coverCache: getPublishableCoverCache()
         };
-        setTopsterSettingsSaveProgress(status, 42, 'Prepared Width/Height, Sidebar text, ownership filter, Font, and cover selections...');
+        setTopsterSettingsSaveStatus(status, 'Prepared Width/Height, Sidebar text, ownership filter, Font, and cover selections...');
         if (sourceKey === 'draft' || sourceKey === 'checklist' || sourceKey === 'rate_your_music') {
             if (!currentSourceText && !importedEntries.length) {
                 status.textContent = sourceKey === 'checklist'
@@ -1549,7 +1653,7 @@ async function initTopsterImporter(albumCards) {
             }
         }
 
-        setTopsterSettingsSaveProgress(status, 76, `Uploading shared ${sourceDisplayName} settings and cover selections...`);
+        setTopsterSettingsSaveStatus(status, `Uploading shared ${sourceDisplayName} settings and cover selections...`);
         const ok = await saveTopsterSharedStoreNow(sharedPayload);
 
         if (saveSettingsButton) saveSettingsButton.disabled = false;
@@ -1557,7 +1661,7 @@ async function initTopsterImporter(albumCards) {
         if (ok) {
             topsterHasUnsavedPublishedChanges = false;
             const savedText = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' || sourceKey === 'checklist' || sourceKey === 'rate_your_music' ? ', source snapshot,' : ''} and cover selections. ${publicPageName} will use these values.`;
-            setTopsterSettingsSaveProgress(status, 100, savedText, { complete: true });
+            setTopsterSettingsSaveStatus(status, savedText);
             completeTopsterLoading(`Published ${sourceDisplayName}. ${publicPageName} is ready.`);
         } else {
             status.classList.remove('topster-status-progress-active', 'topster-status-progress-complete');

@@ -1614,6 +1614,31 @@ button:hover {
     margin: 0 0 12px;
 }
 
+.topster-loading-quote {
+    border-left: 3px solid rgba(255, 255, 255, 0.35);
+    margin: 14px auto 0;
+    max-width: 760px;
+    padding: 4px 0 4px 16px;
+    text-align: left;
+}
+
+.topster-loading-quote blockquote {
+    color: #f2f2f2;
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 0;
+    white-space: pre-line;
+}
+
+.topster-loading-quote figcaption {
+    color: #bdbdbd;
+    font-size: 13px;
+    font-style: italic;
+    margin-top: 10px;
+    text-align: right;
+}
+
+
 .topster-loading-progress {
     appearance: none;
     border: 0;
@@ -1672,37 +1697,6 @@ button:hover {
 }
 
 
-
-/* Save Settings progress shown in the normal topster-status location. */
-.topster-status.topster-status-progress-active {
-    box-sizing: border-box;
-    margin: 14px auto 0;
-    max-width: 760px;
-    text-align: center;
-    width: 100%;
-}
-
-.topster-status-progress-label {
-    display: block;
-    margin-bottom: 8px;
-}
-
-.topster-settings-save-progress {
-    display: block;
-    margin: 0 auto;
-}
-
-.topster-settings-save-percent {
-    display: block;
-}
-
-.topster-status-progress-complete .topster-settings-save-progress::-webkit-progress-value {
-    background: #2d9f4a;
-}
-
-.topster-status-progress-complete .topster-settings-save-progress::-moz-progress-bar {
-    background: #2d9f4a;
-}
 
 /* Headphone image overlays used by draft_checklist.html/checklist.html. */
 .topster-tile.has-checklist-overlay {
