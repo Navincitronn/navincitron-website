@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260827-owned-x-public-cover-retry-v38';
+const TOPSTER_FRONTEND_VERSION = '20260827-progress-discogs-strict-v39';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -31,6 +31,51 @@ const TOPSTER_CHECKLIST_OVERLAYS = [
 ];
 let topsterLoadingPanel = null;
 let topsterLoadingHideTimer = null;
+let topsterCalibratedLoadingTimer = null;
+let topsterCalibratedLoadingState = null;
+
+const TOPSTER_PUBLIC_LOAD_DURATION_MS = Object.freeze({
+    grid: 7000,
+    ranked: 5000,
+    rate_your_music: 3000,
+    nme_500_albums: 1000,
+    '1001_albums_you_must_hear_before_you_die': 7000,
+    rolling_stone_500_albums_2003: 2000,
+    rolling_stone_500_albums_2012: 2000,
+    rolling_stone_500_albums_2020: 2000,
+    rolling_stone_500_albums_2023: 2000
+});
+
+function getTopsterCalibratedLoadingPercent() {
+    if (!topsterCalibratedLoadingState) return null;
+    const elapsed = Math.max(0, Date.now() - topsterCalibratedLoadingState.startedAt);
+    const ratio = Math.min(1, elapsed / Math.max(1, topsterCalibratedLoadingState.durationMs));
+    return Math.min(99, Math.max(0, Math.round(ratio * 99)));
+}
+
+function startTopsterCalibratedPublicLoadingProgress() {
+    if (!(document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list'))) return;
+    const durationMs = TOPSTER_PUBLIC_LOAD_DURATION_MS[getTopsterStoreSourceKey()];
+    if (!durationMs) return;
+
+    if (topsterCalibratedLoadingTimer) window.clearInterval(topsterCalibratedLoadingTimer);
+    topsterCalibratedLoadingState = { startedAt: Date.now(), durationMs };
+    const tick = () => {
+        const percent = getTopsterCalibratedLoadingPercent();
+        if (percent === null) return;
+        setTopsterLoadingProgress(percent, '', { fromCalibratedTimer: true });
+    };
+    tick();
+    topsterCalibratedLoadingTimer = window.setInterval(tick, 100);
+}
+
+function stopTopsterCalibratedPublicLoadingProgress() {
+    if (topsterCalibratedLoadingTimer) {
+        window.clearInterval(topsterCalibratedLoadingTimer);
+        topsterCalibratedLoadingTimer = null;
+    }
+    topsterCalibratedLoadingState = null;
+}
 let lastMusicBrainzRequestAt = 0;
 let topsterSharedStoreLoaded = false;
 let topsterSharedStoreAvailable = false;
@@ -120,7 +165,11 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
     const progress = panel.querySelector('.topster-loading-progress');
     const label = panel.querySelector('.topster-loading-text');
     const percentLabel = panel.querySelector('.topster-loading-percent');
-    const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    let safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    if (topsterCalibratedLoadingState && !options.complete && !options.error && !options.fromCalibratedTimer) {
+        const calibratedPercent = getTopsterCalibratedLoadingPercent();
+        if (calibratedPercent !== null) safePercent = calibratedPercent;
+    }
 
     if (label && text) label.textContent = text;
     if (progress) {
@@ -131,6 +180,7 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
 }
 
 function completeTopsterLoading(text = 'Topster loaded.') {
+    stopTopsterCalibratedPublicLoadingProgress();
     setTopsterLoadingProgress(100, text, { complete: true });
     topsterLoadingHideTimer = window.setTimeout(() => {
         if (topsterLoadingPanel) topsterLoadingPanel.hidden = true;
@@ -138,7 +188,38 @@ function completeTopsterLoading(text = 'Topster loaded.') {
 }
 
 function failTopsterLoading(text) {
+    stopTopsterCalibratedPublicLoadingProgress();
     setTopsterLoadingProgress(100, text || 'Topster loading failed.', { error: true });
+}
+
+
+function setTopsterSettingsSaveProgress(status, percent, text, options = {}) {
+    if (!status) return;
+    const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    status.hidden = false;
+    status.classList.add('topster-status-progress-active');
+    status.textContent = '';
+
+    const label = document.createElement('span');
+    label.className = 'topster-status-progress-label';
+    label.textContent = text || 'Saving shared Topster settings...';
+
+    const progress = document.createElement('progress');
+    progress.className = 'topster-loading-progress topster-settings-save-progress';
+    progress.max = 100;
+    progress.value = safePercent;
+    progress.textContent = `${safePercent}%`;
+
+    const percentLabel = document.createElement('span');
+    percentLabel.className = 'topster-loading-percent topster-settings-save-percent';
+    percentLabel.textContent = `${safePercent}%`;
+
+    if (options.complete) status.classList.add('topster-status-progress-complete');
+    else status.classList.remove('topster-status-progress-complete');
+
+    status.appendChild(label);
+    status.appendChild(progress);
+    status.appendChild(percentLabel);
 }
 
 function isChecklistTopsterSource() {
@@ -597,6 +678,51 @@ function discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, c
     });
 }
 
+function discogsOwnedBareTrailingSequenceMarker(value) {
+    const text = cleanAlbumTitle(value || '').toLowerCase();
+    if (!text || /\b(?:vol(?:ume)?|no\.?|number|part)\s*(?:[ivx]+|\d+)\s*$/.test(text)) return '';
+    const match = text.match(/\b([ivx]+|\d+)\s*$/);
+    if (!match) return '';
+    const romanMap = { i:'1', ii:'2', iii:'3', iv:'4', v:'5', vi:'6', vii:'7', viii:'8', ix:'9', x:'10' };
+    return romanMap[match[1]] || match[1];
+}
+
+function discogsOwnedFuzzyTitleMatchIsSafe(entryTitle, collectionTitle) {
+    const entryNormalized = normalizeAlbumTitle(entryTitle || '');
+    const collectionNormalized = normalizeAlbumTitle(collectionTitle || '');
+    if (!entryNormalized || !collectionNormalized) return false;
+    if (entryNormalized === collectionNormalized) return true;
+
+    // A bare sequel/volume marker is substantive: Pretenders II must not match
+    // Pretenders simply because the base title is identical.
+    const entrySequence = discogsOwnedBareTrailingSequenceMarker(entryTitle);
+    const collectionSequence = discogsOwnedBareTrailingSequenceMarker(collectionTitle);
+    if (entrySequence !== collectionSequence && (entrySequence || collectionSequence)) return false;
+
+    // Very short titles such as Time are too collision-prone for fuzzy/subset
+    // matching. They may still match when the normalized titles are exact.
+    if (Math.min(entryNormalized.length, collectionNormalized.length) <= 5) return false;
+
+    const left = discogsOwnedTokenSet(entryTitle);
+    const right = discogsOwnedTokenSet(collectionTitle);
+    if (left.size && right.size) {
+        let intersection = 0;
+        left.forEach(token => { if (right.has(token)) intersection += 1; });
+        const smallerSize = Math.min(left.size, right.size);
+        const largerSize = Math.max(left.size, right.size);
+        const fullContainment = intersection === smallerSize;
+
+        // Do not let a short franchise/base title claim a longer distinct work,
+        // e.g. Star Wars -> Star Wars: The Empire Strikes Back.
+        if (fullContainment && smallerSize <= 2 && largerSize >= 4) return false;
+    }
+
+    const lengthRatio = Math.min(entryNormalized.length, collectionNormalized.length)
+        / Math.max(entryNormalized.length, collectionNormalized.length);
+    if (lengthRatio < 0.52) return false;
+    return true;
+}
+
 function discogsOwnedStrongTitleOnlyMatch(entryTitle, collectionTitle, entryArtist = '', collectionArtist = '') {
     const leftVariants = discogsOwnedTitleVariants(entryTitle, entryArtist);
     const rightVariants = discogsOwnedTitleVariants(collectionTitle, collectionArtist);
@@ -609,34 +735,31 @@ function topsterEntryIsInDiscogsCollection(entry) {
     if (!entry || !Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return false;
     const entryArtist = cleanAlbumTitle(entry.artist || ''), entryTitle = cleanAlbumTitle(entry.title || '');
     if (!entryTitle) return false;
-    let strongTitleOnlyMatches = 0;
+
     for (const album of topsterDiscogsCollectionAlbums) {
         const collectionTitle = cleanAlbumTitle(album.title || '');
         const collectionArtists = Array.isArray(album.artists) && album.artists.length ? album.artists : [album.artist || ''];
         if (!collectionTitle) continue;
         const artistsMatch = discogsOwnedArtistsMatch(entryArtist, collectionArtists);
 
-        // Handle semantic catalog relationships that cannot be derived from the
-        // literal Discogs title/artist fields. These are deliberately explicit
-        // and scoped to avoid turning fuzzy matching into a broad false-positive
-        // source across the collection.
+        // Explicit semantic relationships remain the only permitted exceptions
+        // to normal artist/title compatibility.
         if (discogsOwnedKnownCrossCreditMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
 
-        // Expensive/fuzzy title comparison is only allowed when the artist credit
-        // is compatible. This is both faster and much safer than fuzzy title-only
-        // matching across an entire collection.
         if (artistsMatch) {
             if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return true;
+            if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
+
             const titleScore = discogsOwnedTitleScore(entryTitle, collectionTitle, entryArtist, collectionArtists.join(', '));
-            if (titleScore >= 0.68) return true;
+            if (titleScore >= 0.68 && discogsOwnedFuzzyTitleMatchIsSafe(entryTitle, collectionTitle)) return true;
             if (discogsOwnedIsCompilationLike(entryTitle) && discogsOwnedIsCompilationLike(collectionTitle)) return true;
             if (discogsOwnedIsArtistPresentationTitle(entryTitle, entryArtist) && discogsOwnedIsArtistPresentationTitle(collectionTitle, entryArtist)) return true;
-            if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
-        } else if (discogsOwnedStrongTitleOnlyMatch(entryTitle, collectionTitle, entryArtist, collectionArtists.join(', '))) {
-            strongTitleOnlyMatches += 1;
         }
     }
-    return strongTitleOnlyMatches === 1;
+
+    // Never infer ownership from an exact/fuzzy title alone when the artist is
+    // unrelated. Cross-credit cases must be explicitly mapped above.
+    return false;
 }
 
 function applyOwnedReleaseVisualState(tile, entry, enabled) {
@@ -1063,6 +1186,8 @@ async function initTopsterImporter(albumCards) {
     const excludeOwnedSelect = document.getElementById('topster-exclude-owned');
     const deviceProfileSelect = document.getElementById('topster-device-profile');
     const sourceConfig = getTopsterDataSourceConfig();
+    const topsterReadOnly = document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list');
+    const topsterAutoLoad = document.body && (document.body.dataset.topsterAutoload === 'true' || topsterReadOnly);
     const sourceFileInput = sourceConfig.fileInputId
         ? document.getElementById(sourceConfig.fileInputId)
         : null;
@@ -1080,6 +1205,7 @@ async function initTopsterImporter(albumCards) {
         return;
     }
 
+    if (topsterReadOnly && topsterAutoLoad) startTopsterCalibratedPublicLoadingProgress();
     buildButton.textContent = 'Build';
     document.documentElement.dataset.topsterGridJsVersion = TOPSTER_FRONTEND_VERSION;
     setTopsterLoadingProgress(4, 'Connecting to the saved Topster settings and cover cache...');
@@ -1105,8 +1231,6 @@ async function initTopsterImporter(albumCards) {
     let pickerLookupToken = 0;
     const retryingPublicCoverIndexes = new Set();
     const topsterSourceLabel = getTopsterSourceLabel();
-    const topsterReadOnly = document.body && (document.body.dataset.topsterReadonly === 'true' || document.body.dataset.topsterMode === 'list');
-    const topsterAutoLoad = document.body && (document.body.dataset.topsterAutoload === 'true' || topsterReadOnly);
     const topsterEditorPage = isTopsterEditorPage();
     let currentSettingsProfiles = normalizeTopsterSettingsProfiles(loadTopsterSettings());
     let currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
@@ -1392,7 +1516,7 @@ async function initTopsterImporter(albumCards) {
         const sourceKey = getTopsterStoreSourceKey();
         const publicPageName = getTopsterPublicPageName(sourceKey);
         const sourceDisplayName = getTopsterSourceDisplayName(sourceKey);
-        status.textContent = `Saving ${sourceDisplayName} settings and cover selections to the shared backend...`;
+        setTopsterSettingsSaveProgress(status, 12, `Saving ${sourceDisplayName} display settings...`);
         setTopsterLoadingProgress(92, `Publishing ${sourceDisplayName} settings, source text, and cover cache...`);
 
         const sharedPayload = {
@@ -1400,6 +1524,7 @@ async function initTopsterImporter(albumCards) {
             settings: currentSettingsProfiles,
             coverCache: getPublishableCoverCache()
         };
+        setTopsterSettingsSaveProgress(status, 42, 'Prepared Width/Height, Sidebar text, ownership filter, Font, and cover selections...');
         if (sourceKey === 'draft' || sourceKey === 'checklist' || sourceKey === 'rate_your_music') {
             if (!currentSourceText && !importedEntries.length) {
                 status.textContent = sourceKey === 'checklist'
@@ -1424,15 +1549,18 @@ async function initTopsterImporter(albumCards) {
             }
         }
 
+        setTopsterSettingsSaveProgress(status, 76, `Uploading shared ${sourceDisplayName} settings and cover selections...`);
         const ok = await saveTopsterSharedStoreNow(sharedPayload);
 
         if (saveSettingsButton) saveSettingsButton.disabled = false;
 
         if (ok) {
             topsterHasUnsavedPublishedChanges = false;
-            status.textContent = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' || sourceKey === 'checklist' || sourceKey === 'rate_your_music' ? ', source snapshot,' : ''} and cover selections. ${publicPageName} will use these values.`;
+            const savedText = `Saved shared ${sourceDisplayName} settings${sourceKey === 'draft' || sourceKey === 'checklist' || sourceKey === 'rate_your_music' ? ', source snapshot,' : ''} and cover selections. ${publicPageName} will use these values.`;
+            setTopsterSettingsSaveProgress(status, 100, savedText, { complete: true });
             completeTopsterLoading(`Published ${sourceDisplayName}. ${publicPageName} is ready.`);
         } else {
+            status.classList.remove('topster-status-progress-active', 'topster-status-progress-complete');
             status.textContent = 'Shared save failed. Check that the backend is deployed, the admin session is active, and /api/topster-shared-store is reachable.';
             failTopsterLoading(status.textContent);
         }
