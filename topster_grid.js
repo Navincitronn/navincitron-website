@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260827-discogs-poster-backend-v42';
+const TOPSTER_FRONTEND_VERSION = '20260827-discogs-poster-proxy-v43';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -237,14 +237,16 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
 
     if (!filmTitle) return;
 
-    const posterUrl = quote && quote.poster
-        ? String(quote.poster)
-        : (() => {
-            const url = new URL('/api/movie-poster', getTopsterBackendOrigin() || window.location.origin);
+    const posterUrl = (() => {
+        const url = new URL('/api/movie-poster', getTopsterBackendOrigin() || window.location.origin);
+        if (quote && quote.poster) {
+            url.searchParams.set('url', String(quote.poster));
+        } else {
             url.searchParams.set('title', filmTitle);
-            url.searchParams.set('v', TOPSTER_FRONTEND_VERSION);
-            return url.href;
-        })();
+        }
+        url.searchParams.set('v', TOPSTER_FRONTEND_VERSION);
+        return url.href;
+    })();
 
     posterImage.onload = () => {
         posterWrap.classList.remove('topster-loading-poster-pending');
@@ -788,7 +790,9 @@ const DISCOGS_OWNED_TITLE_ALIAS_GROUPS = Object.freeze([
     { artists: ['Ennio Morricone'], titles: ['Once Upon A Time In The West', "C'Era Una Volta Il West"] },
     { artists: ['David Bowie'], titles: ['Space Oddity', 'David Bowie'] },
     { artists: ['Nick Lowe'], titles: ['Jesus Of Cool', 'Pure Pop For Now People'] },
-    { artists: ['Big Star'], titles: ['Third/Sister Lovers', '3rd/Sister Lovers', '3rd'] },
+    { artists: ['Big Star'], titles: ['Third/Sister Lovers', '3rd/Sister Lovers', 'Third', '3rd'] },
+    { artists: ['Cartola'], titles: ['Cartola II', 'Cartola'] },
+    { artists: ['Keith Jarrett'], titles: ['Sun Bear Concerts Piano Solo: Recorded In Japan', 'Sun Bear Concerts'] },
     { artists: ['Count Basie'], titles: ['The Atomic Mr. Basie', 'Basie'] },
     { artists: ['Led Zeppelin'], titles: ['Led Zeppelin I', 'Led Zeppelin'] },
     { artists: ['The Kinks'], titles: ['Lola Versus Powerman', 'Lola Versus Powerman And The Moneygoround', 'Lola Versus Powerman And The Moneygoround (Part One)'] }
@@ -827,6 +831,39 @@ const DISCOGS_OWNED_CROSS_CREDIT_GROUPS = Object.freeze([
         collectionTitles: ['South Pacific', 'Rodgers & Hammerstein']
     }
 ]);
+
+const DISCOGS_OWNED_MULTI_RELEASE_GROUPS = Object.freeze([
+    {
+        artists: ['Frank Zappa'],
+        entryTitles: ["Joe's Garage"],
+        requires: [
+            { artists: ['Frank Zappa', 'Zappa'], titles: ["Joe's Garage Act I"] },
+            { artists: ['Frank Zappa', 'Zappa'], titles: ["Joe's Garage Acts II & III", "Joe's Garage Acts II And III"] }
+        ]
+    }
+]);
+
+function discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle) {
+    const entryKey = discogsOwnedRelationKey(entryTitle);
+    if (!entryKey || !Array.isArray(topsterDiscogsCollectionAlbums)) return false;
+
+    return DISCOGS_OWNED_MULTI_RELEASE_GROUPS.some(group => {
+        if (!discogsOwnedArtistMatchesScopedGroup(entryArtist, group.artists)) return false;
+        if (!(group.entryTitles || []).some(title => discogsOwnedRelationKey(title) === entryKey)) return false;
+
+        return (group.requires || []).every(requirement => {
+            const requiredTitleKeys = new Set((requirement.titles || []).map(discogsOwnedRelationKey));
+            return topsterDiscogsCollectionAlbums.some(album => {
+                const collectionTitle = cleanAlbumTitle(album && album.title || '');
+                const collectionArtists = album && Array.isArray(album.artists) && album.artists.length
+                    ? album.artists
+                    : [album && album.artist || ''];
+                if (!requiredTitleKeys.has(discogsOwnedRelationKey(collectionTitle))) return false;
+                return collectionArtists.some(artist => discogsOwnedArtistMatchesScopedGroup(artist, requirement.artists || group.artists));
+            });
+        });
+    });
+}
 
 function discogsOwnedRelationKey(value) {
     return cleanAlbumTitle(value || '')
@@ -935,6 +972,20 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
 
         // Trailing parentheticals are commonly translation/edition/soundtrack metadata.
         enqueue(current.replace(/\s*\([^()]*\)\s*$/, ''));
+
+        // Bracketed alternate-name annotations such as [El Indio] are catalog metadata.
+        enqueue(current.replace(/\s*\[[^\[\]]*\]\s*$/, ''));
+
+        // "AKA" joins alternate names for the same release; either substantial side
+        // may identify the owned album when the artist is already compatible.
+        current.split(/\s+\baka\b\s+/i).forEach(part => {
+            const partClean = cleanAlbumTitle(part);
+            if (normalizeAlbumTitle(partClean).length >= 8) enqueue(partClean);
+        });
+
+        // Live/archival suffixes are frequently appended to the base album title.
+        enqueue(current.replace(/\s+\blive\s+at\b.+$/i, ''));
+        enqueue(current.replace(/\s+[—–-]\s+(?:the\s+)?(?:found\s+)?(?:['’]?\d{2,4}\s+)?masters\b.*$/i, ''));
 
         // Explicit volume labels may be omitted by one source. Bare sequel numerals
         // are still protected later by discogsOwnedFuzzyTitleMatchIsSafe().
@@ -1068,6 +1119,8 @@ function topsterEntryIsInDiscogsCollection(entry) {
     if (!entry || !Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return false;
     const entryArtist = cleanAlbumTitle(entry.artist || ''), entryTitle = cleanAlbumTitle(entry.title || '');
     if (!entryTitle) return false;
+
+    if (discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle)) return true;
 
     for (const album of topsterDiscogsCollectionAlbums) {
         const collectionTitle = cleanAlbumTitle(album.title || '');
