@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260827-quotes-discogs-safe-v40';
+const TOPSTER_FRONTEND_VERSION = '20260827-quotes-discogs-poster-v41';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -31,6 +31,15 @@ const TOPSTER_CHECKLIST_OVERLAYS = [
 ];
 let topsterLoadingPanel = null;
 let topsterLoadingHideTimer = null;
+let topsterPublicLoadingDismissTimer = null;
+let topsterPublicLoadingDismissTransitionTimer = null;
+let topsterLoadingQuotePosterRequestId = 0;
+const TOPSTER_LOADING_QUOTE_WIKIPEDIA_TITLE_MAP = Object.freeze({
+    '3 WOMEN': '3 Women',
+    'TRAINSPOTTING': 'Trainspotting (film)',
+    "ALL THE PRESIDENT'S MEN": "All the President's Men (film)",
+    'CRIA!': 'Cría cuervos'
+});
 let lastMusicBrainzRequestAt = 0;
 let topsterSharedStoreLoaded = false;
 let topsterSharedStoreAvailable = false;
@@ -89,8 +98,14 @@ function parseTopsterLoadingQuotes(text) {
 
     const flush = () => {
         if (!current) return;
-        const body = current.lines.join('\n').trim();
-        if (current.source && body) quotes.push({ source: current.source, body });
+        const bodyLines = current.lines.filter((line, index, array) => {
+            if (line.trim()) return true;
+            const prev = array[index - 1] || '';
+            const next = array[index + 1] || '';
+            return Boolean(prev.trim() && next.trim());
+        });
+        const body = bodyLines.join('\n').trim();
+        if (current.source && body) quotes.push({ source: current.source, body, poster: current.poster || '' });
         current = null;
     };
 
@@ -99,10 +114,17 @@ function parseTopsterLoadingQuotes(text) {
         const heading = line.match(/^(.+?\(\d{4}\)):\s*$/);
         if (heading && !/^\s/.test(rawLine)) {
             flush();
-            current = { source: heading[1].trim(), lines: [] };
+            current = { source: heading[1].trim(), lines: [], poster: '' };
             continue;
         }
-        if (current) current.lines.push(line);
+        if (current) {
+            const posterMatch = line.match(/^poster:\s*(.+)$/i);
+            if (posterMatch) {
+                current.poster = posterMatch[1].trim();
+                continue;
+            }
+            current.lines.push(line);
+        }
     }
     flush();
     return quotes;
@@ -124,12 +146,138 @@ async function getTopsterLoadingQuotes() {
     return topsterLoadingQuotesPromise;
 }
 
+function escapeTopsterLoadingQuoteHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatTopsterLoadingQuoteBody(body) {
+    const lines = String(body || '').split('\n');
+    return lines.map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return '<div class="topster-loading-quote-spacer" aria-hidden="true"></div>';
+        const match = trimmed.match(/^([^:]{1,120}):(\s*)(.*)$/);
+        if (match) {
+            return `<p class="topster-loading-quote-line"><strong>${escapeTopsterLoadingQuoteHtml(match[1])}:</strong>${match[2] ? ' ' : ''}${escapeTopsterLoadingQuoteHtml(match[3])}</p>`;
+        }
+        return `<p class="topster-loading-quote-line">${escapeTopsterLoadingQuoteHtml(trimmed)}</p>`;
+    }).join('');
+}
+
+function topsterLoadingQuoteFilmTitle(source) {
+    return cleanAlbumTitle(String(source || '').replace(/\s*\(\d{4}\)\s*$/, ''));
+}
+
+async function fetchTopsterLoadingQuotePoster(quote) {
+    if (!quote) return null;
+    if (quote.poster) return { image: quote.poster, page: '', source: 'custom' };
+
+    const filmTitle = topsterLoadingQuoteFilmTitle(quote.source);
+    if (!filmTitle) return null;
+
+    const upperKey = filmTitle.toUpperCase();
+    const candidates = Array.from(new Set([
+        TOPSTER_LOADING_QUOTE_WIKIPEDIA_TITLE_MAP[upperKey],
+        `${filmTitle} (film)`,
+        filmTitle
+    ].filter(Boolean)));
+
+    for (const candidate of candidates) {
+        try {
+            const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(candidate)}`, { cache: 'force-cache' });
+            if (!response.ok) continue;
+            const payload = await response.json();
+            const image = payload && payload.thumbnail && payload.thumbnail.source
+                ? payload.thumbnail.source
+                : (payload && payload.originalimage && payload.originalimage.source ? payload.originalimage.source : '');
+            if (image) {
+                const page = payload && payload.content_urls && payload.content_urls.desktop && payload.content_urls.desktop.page
+                    ? payload.content_urls.desktop.page
+                    : '';
+                return { image, page, source: 'wikipedia' };
+            }
+        } catch (error) {
+            // Ignore individual poster lookup failures and fall back gracefully.
+        }
+    }
+
+    return null;
+}
+
+async function renderTopsterLoadingQuotePoster(panel, quote) {
+    if (!panel) return;
+    const posterWrap = panel.querySelector('#topster-loading-poster-wrap');
+    const posterImage = panel.querySelector('#topster-loading-poster');
+    const posterFallback = panel.querySelector('#topster-loading-poster-fallback');
+    const posterLink = panel.querySelector('#topster-loading-poster-link');
+    if (!posterWrap || !posterImage || !posterFallback) return;
+
+    const requestId = ++topsterLoadingQuotePosterRequestId;
+    const filmTitle = topsterLoadingQuoteFilmTitle(quote && quote.source);
+    posterWrap.hidden = false;
+    posterWrap.classList.add('topster-loading-poster-pending');
+    posterImage.hidden = true;
+    posterImage.removeAttribute('src');
+    posterImage.alt = filmTitle ? `${filmTitle} poster` : 'Movie poster';
+    posterFallback.hidden = false;
+    posterFallback.textContent = filmTitle || 'Movie Poster';
+    if (posterLink) {
+        posterLink.removeAttribute('href');
+        posterLink.removeAttribute('target');
+        posterLink.removeAttribute('rel');
+    }
+
+    const poster = await fetchTopsterLoadingQuotePoster(quote);
+    if (requestId !== topsterLoadingQuotePosterRequestId) return;
+
+    posterWrap.classList.remove('topster-loading-poster-pending');
+    if (poster && poster.image) {
+        posterImage.src = poster.image;
+        posterImage.hidden = false;
+        posterFallback.hidden = true;
+        if (posterLink && poster.page) {
+            posterLink.href = poster.page;
+            posterLink.target = '_blank';
+            posterLink.rel = 'noopener noreferrer';
+        }
+        return;
+    }
+
+    if (posterLink) {
+        posterLink.removeAttribute('href');
+        posterLink.removeAttribute('target');
+        posterLink.removeAttribute('rel');
+    }
+}
+
+function scheduleTopsterPublicLoadingPanelDismiss(panel) {
+    if (!isTopsterPublicReadOnlyListPage() || !panel) return;
+    if (panel.dataset.topsterDismissed === 'true' || panel.dataset.topsterDismissScheduled === 'true') return;
+    panel.dataset.topsterDismissScheduled = 'true';
+
+    window.clearTimeout(topsterPublicLoadingDismissTimer);
+    window.clearTimeout(topsterPublicLoadingDismissTransitionTimer);
+    topsterPublicLoadingDismissTimer = window.setTimeout(() => {
+        panel.classList.add('topster-loading-panel-fading');
+        topsterPublicLoadingDismissTransitionTimer = window.setTimeout(() => {
+            panel.dataset.topsterDismissed = 'true';
+            panel.hidden = true;
+        }, 700);
+    }, 10000);
+}
+
 function renderTopsterLoadingQuote(panel, quote) {
     if (!panel || !quote) return;
     const quoteBody = panel.querySelector('#topster-loading-quote-body');
     const quoteSource = panel.querySelector('#topster-loading-quote-source');
-    if (quoteBody) quoteBody.textContent = quote.body;
+    if (quoteBody) quoteBody.innerHTML = formatTopsterLoadingQuoteBody(quote.body);
     if (quoteSource) quoteSource.textContent = quote.source;
+    renderTopsterLoadingQuotePoster(panel, quote);
+    scheduleTopsterPublicLoadingPanelDismiss(panel);
 }
 
 async function ensureTopsterPublicLoadingQuote(panel) {
@@ -174,10 +322,18 @@ function ensureTopsterLoadingPanel() {
         panel.innerHTML = `
             <p class="topster-loading-title">Loading Topster</p>
             <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
-            <figure class="topster-loading-quote" id="topster-loading-quote">
-                <blockquote id="topster-loading-quote-body">Loading a quote...</blockquote>
-                <figcaption id="topster-loading-quote-source"></figcaption>
-            </figure>
+            <div class="topster-loading-quote-layout">
+                <figure class="topster-loading-quote" id="topster-loading-quote">
+                    <blockquote id="topster-loading-quote-body">Loading a quote...</blockquote>
+                    <figcaption id="topster-loading-quote-source"></figcaption>
+                </figure>
+                <div class="topster-loading-poster-wrap" id="topster-loading-poster-wrap" hidden>
+                    <a class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Open movie poster source">
+                        <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" loading="eager" decoding="async" hidden>
+                        <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Movie Poster</div>
+                    </a>
+                </div>
+            </div>
         `;
         ensureTopsterPublicLoadingQuote(panel);
     } else {
@@ -204,8 +360,12 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
     const panel = ensureTopsterLoadingPanel();
     if (!panel) return;
 
+    const publicListPage = isTopsterPublicReadOnlyListPage();
+    if (publicListPage && panel.dataset.topsterDismissed === 'true') return;
+
     window.clearTimeout(topsterLoadingHideTimer);
     panel.hidden = false;
+    panel.classList.remove('topster-loading-panel-fading');
     panel.classList.toggle('topster-loading-error', Boolean(options.error));
     panel.classList.toggle('topster-loading-complete', Boolean(options.complete));
 
@@ -215,7 +375,7 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
     const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
 
     if (label && text) label.textContent = text;
-    if (isTopsterPublicReadOnlyListPage()) {
+    if (publicListPage) {
         ensureTopsterPublicLoadingQuote(panel);
         return;
     }
@@ -228,6 +388,7 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
 
 function completeTopsterLoading(text = 'Topster loaded.') {
     setTopsterLoadingProgress(100, text, { complete: true });
+    if (isTopsterPublicReadOnlyListPage()) return;
     topsterLoadingHideTimer = window.setTimeout(() => {
         if (topsterLoadingPanel) topsterLoadingPanel.hidden = true;
     }, 1400);
@@ -608,7 +769,11 @@ const DISCOGS_OWNED_TITLE_ALIAS_GROUPS = Object.freeze([
     { artists: ['Fred Neil'], titles: ['Fred Neil', "Everybody's Talkin' (Theme From Midnight Cowboy)"] },
     { artists: ['Ennio Morricone'], titles: ['Once Upon A Time In The West', "C'Era Una Volta Il West"] },
     { artists: ['David Bowie'], titles: ['Space Oddity', 'David Bowie'] },
-    { artists: ['Nick Lowe'], titles: ['Jesus Of Cool', 'Pure Pop For Now People'] }
+    { artists: ['Nick Lowe'], titles: ['Jesus Of Cool', 'Pure Pop For Now People'] },
+    { artists: ['Big Star'], titles: ['Third/Sister Lovers', '3rd'] },
+    { artists: ['Count Basie'], titles: ['The Atomic Mr. Basie', 'Basie'] },
+    { artists: ['Led Zeppelin'], titles: ['Led Zeppelin I', 'Led Zeppelin'] },
+    { artists: ['The Kinks'], titles: ['Lola Versus Powerman', 'Lola Versus Powerman And The Moneygoround', 'Lola Versus Powerman And The Moneygoround (Part One)'] }
 ]);
 
 // A collection entry can represent a larger package that contains the album in
@@ -636,6 +801,12 @@ const DISCOGS_OWNED_CROSS_CREDIT_GROUPS = Object.freeze([
         collectionArtists: ['Various'],
         entryTitles: ['The Harder They Come'],
         collectionTitles: ['The Harder They Come (Original Soundtrack Recording)']
+    },
+    {
+        entryArtists: ['Various Artists'],
+        collectionArtists: ['Rodgers & Hammerstein'],
+        entryTitles: ['South Pacific'],
+        collectionTitles: ['South Pacific', 'Rodgers & Hammerstein']
     }
 ]);
 
@@ -739,8 +910,33 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
         ));
         add(withoutVolume);
 
+        // Remove trailing year ranges and similar archival date annotations.
+        add(text.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\s*$/g, '').trim());
+
+        // Edition/format wording often appears as append-only metadata.
+        add(text.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
+
         // Credits sometimes migrate between title and artist fields.
         add(text.replace(/\s+\b(?:with|featuring|feat\.?|by)\b\s+.+$/i, ''));
+
+        // Live/tribute/in-concert descriptors are often append-only variants.
+        add(text.replace(/\s+[-–—:]?\s*\b(?:live at|live from|in concert|a tribute to|original soundtrack recording|motion picture soundtrack)\b.+$/i, ''));
+
+        // Combined-title releases sometimes surface either constituent title.
+        text.split(/\s*\/\s*/).forEach(part => {
+            const normalizedPart = cleanAlbumTitle(part);
+            if (normalizedPart && tokenizeTitle(normalizedPart).length >= 3) add(normalizedPart);
+        });
+
+        // Some Discogs titles append a descriptive subtitle after a separator.
+        const segments = text.split(/\s+[—–-]\s+|:\s+/).map(part => cleanAlbumTitle(part)).filter(Boolean);
+        if (segments.length >= 2) {
+            const descriptorPattern = /\b(?:tribute|soundtrack|original|complete|unbelievable|concert|live|club|moneygoround|part|rare|unreleased|golden greats)\b/i;
+            segments.forEach(segment => {
+                const tokenCount = tokenizeTitle(segment).length;
+                if (tokenCount >= 3 && (descriptorPattern.test(text) || tokenCount >= 4)) add(segment);
+            });
+        }
     };
 
     addCoreForms(clean);
@@ -748,7 +944,7 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
     const artistText = normalizeDiscogsArtistForMatch(artist || '');
     if (artistText) {
         const escapedArtist = artistText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const artistPrefix = new RegExp(`^${escapedArtist}(?:\\s*[-–—:]\\s*|\\s+)`, 'i');
+        const artistPrefix = new RegExp(`^(?:the\s+)?${escapedArtist}(?:\s*[-–—:]\s*|\s+)`, 'i');
         if (artistPrefix.test(clean)) addCoreForms(clean.replace(artistPrefix, ''));
     }
 
