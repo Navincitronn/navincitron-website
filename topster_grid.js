@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260827-discogs-poster-proxy-v43';
+const TOPSTER_FRONTEND_VERSION = '20260828-poster-above-ipad-touch-v44';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -217,17 +217,24 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
     if (!posterWrap || !posterImage || !posterFallback) return;
 
     const filmTitle = topsterLoadingQuoteFilmTitle(quote && quote.source);
+    const directPosterUrl = quote && /^https:\/\//i.test(String(quote.poster || '').trim())
+        ? String(quote.poster).trim()
+        : '';
+
+    // Keep a visible, fixed poster slot above the quote from the moment the
+    // loading panel is created. This prevents a failed poster request from
+    // collapsing the area so completely that it looks as if no poster UI exists.
     posterWrap.hidden = false;
     posterWrap.style.display = 'block';
     posterWrap.classList.add('topster-loading-poster-pending');
-
     posterFallback.hidden = false;
     posterFallback.style.display = 'flex';
-    posterFallback.textContent = filmTitle || 'Movie Poster';
-
+    posterFallback.textContent = filmTitle ? `Loading ${filmTitle} Poster...` : 'Loading Poster...';
     posterImage.hidden = true;
     posterImage.style.display = 'none';
     posterImage.alt = filmTitle ? `${filmTitle} poster` : 'Movie poster';
+    posterImage.referrerPolicy = 'no-referrer';
+    delete posterImage.dataset.topsterDirectPosterTried;
 
     if (posterLink) {
         posterLink.removeAttribute('href');
@@ -235,15 +242,16 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
         posterLink.removeAttribute('rel');
     }
 
-    if (!filmTitle) return;
+    if (!filmTitle && !directPosterUrl) {
+        posterWrap.classList.remove('topster-loading-poster-pending');
+        posterFallback.textContent = 'Poster unavailable';
+        return;
+    }
 
-    const posterUrl = (() => {
+    const backendPosterUrl = (() => {
         const url = new URL('/api/movie-poster', getTopsterBackendOrigin() || window.location.origin);
-        if (quote && quote.poster) {
-            url.searchParams.set('url', String(quote.poster));
-        } else {
-            url.searchParams.set('title', filmTitle);
-        }
+        if (directPosterUrl) url.searchParams.set('url', directPosterUrl);
+        else url.searchParams.set('title', filmTitle);
         url.searchParams.set('v', TOPSTER_FRONTEND_VERSION);
         return url.href;
     })();
@@ -257,19 +265,27 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
     };
 
     posterImage.onerror = () => {
+        // If Render/the backend cannot retrieve a user-supplied Poster: URL,
+        // make one final direct browser attempt with the referrer suppressed.
+        // This covers image hosts whose anti-hotlink policy differs between
+        // server-side and browser requests.
+        if (directPosterUrl && posterImage.dataset.topsterDirectPosterTried !== 'true') {
+            posterImage.dataset.topsterDirectPosterTried = 'true';
+            posterFallback.textContent = `Loading ${filmTitle || 'Movie'} Poster...`;
+            posterImage.src = directPosterUrl;
+            return;
+        }
+
         posterWrap.classList.remove('topster-loading-poster-pending');
         posterImage.hidden = true;
         posterImage.style.display = 'none';
         posterFallback.hidden = false;
         posterFallback.style.display = 'flex';
+        posterFallback.textContent = filmTitle ? `${filmTitle} poster unavailable` : 'Poster unavailable';
     };
 
-    // Use the backend as an image redirect/proxy. <img> requests do not require
-    // browser CORS permission, so this is much more reliable than fetching the
-    // Wikipedia REST endpoint directly in JavaScript.
-    posterImage.src = posterUrl;
+    posterImage.src = backendPosterUrl;
 }
-
 function scheduleTopsterPublicLoadingPanelDismiss(panel) {
     if (!isTopsterPublicReadOnlyListPage() || !panel) return;
     if (panel.dataset.topsterDismissed === 'true' || panel.dataset.topsterDismissScheduled === 'true') return;
@@ -338,18 +354,18 @@ function ensureTopsterLoadingPanel() {
         panel.innerHTML = `
             <p class="topster-loading-title">Loading Topster</p>
             <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
-            <div class="topster-loading-quote-layout">
-                <figure class="topster-loading-quote" id="topster-loading-quote">
-                    <blockquote id="topster-loading-quote-body">Loading a quote...</blockquote>
-                    <figcaption id="topster-loading-quote-source"></figcaption>
-                </figure>
-                <div class="topster-loading-poster-wrap" id="topster-loading-poster-wrap" hidden>
-                    <a class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Open movie poster source">
-                        <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" loading="eager" decoding="async" hidden>
-                        <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Movie Poster</div>
+            <div class="topster-loading-poster-stage" aria-live="off">
+                <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
+                    <a class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
+                        <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" loading="eager" decoding="async" referrerpolicy="no-referrer" hidden>
+                        <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Loading Poster...</div>
                     </a>
                 </div>
             </div>
+            <figure class="topster-loading-quote" id="topster-loading-quote">
+                <blockquote id="topster-loading-quote-body">Loading a quote...</blockquote>
+                <figcaption id="topster-loading-quote-source"></figcaption>
+            </figure>
         `;
         ensureTopsterPublicLoadingQuote(panel);
     } else {
@@ -5871,8 +5887,31 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
 }
 
 function isTopsterTouchTooltipDevice() {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-    return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    if (typeof window === 'undefined') return false;
+
+    const nav = typeof navigator !== 'undefined' ? navigator : null;
+    const maxTouchPoints = nav && Number.isFinite(Number(nav.maxTouchPoints))
+        ? Number(nav.maxTouchPoints)
+        : 0;
+    const userAgent = nav ? String(nav.userAgent || '') : '';
+    const platform = nav ? String(nav.platform || '') : '';
+
+    // Modern iPadOS can identify itself as Macintosh and can report a fine
+    // primary pointer when a trackpad/keyboard is attached. In that state the
+    // old `(hover: none) and (pointer: coarse)` test is false even though the
+    // screen itself is still touch-capable, so the tap-to-reveal span was never
+    // created. Detect both classic and desktop-mode iPads explicitly.
+    const isIPadLike = /iPad/i.test(userAgent)
+        || ((/Macintosh/i.test(userAgent) || platform === 'MacIntel') && maxTouchPoints > 1);
+
+    if (isIPadLike) return true;
+    if (typeof window.matchMedia !== 'function') return maxTouchPoints > 0;
+
+    const coarseOrTouchPrimary = window.matchMedia(
+        '(hover: none) and (pointer: coarse), (any-pointer: coarse)'
+    ).matches;
+
+    return maxTouchPoints > 0 && coarseOrTouchPrimary;
 }
 
 function getTopsterMobileInfoLengthClass(label) {
