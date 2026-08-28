@@ -638,9 +638,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function songguesserCorrectCount() {
+        // Result scoring counts only variables the user actually guessed.
+        // Hinted/disclosed variables do not inflate the 0-3 correct count.
         return Number(Boolean(songguesserCorrect.artist))
             + Number(Boolean(songguesserCorrect.album))
             + Number(Boolean(songguesserCorrect.song));
+    }
+
+    function songguesserHintSatisfies(kind) {
+        const hints = songguesserCurrent ? (songguesserCurrent.hints || {}) : {};
+
+        if (kind === "artist") return Boolean(hints.artist);
+        if (kind === "album") return Boolean(hints.album);
+        return false;
+    }
+
+    function songguesserVariableSatisfied(kind) {
+        return Boolean(songguesserCorrect[kind]) || songguesserHintSatisfies(kind);
+    }
+
+    function songguesserAllRequiredVariablesSatisfied() {
+        return songguesserVariableSatisfied("artist")
+            && songguesserVariableSatisfied("album")
+            && songguesserVariableSatisfied("song");
     }
 
     function recordSongguesserRoundResult() {
@@ -826,11 +846,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const answer = songguesserCurrent.answer || {};
         let newlyCorrect = 0;
 
-        if (!songguesserCorrect.artist && answerMatches(answer.artist, guess, "artist")) {
+        // Artist/Album hints are already disclosed answers. Do not require the
+        // user to type them, and do not count them as user-guessed variables.
+        if (!songguesserHintSatisfies("artist")
+            && !songguesserCorrect.artist
+            && answerMatches(answer.artist, guess, "artist")) {
             songguesserCorrect.artist = true;
             newlyCorrect += 1;
         }
-        if (!songguesserCorrect.album && answerMatches(answer.album, guess, "album")) {
+        if (!songguesserHintSatisfies("album")
+            && !songguesserCorrect.album
+            && answerMatches(answer.album, guess, "album")) {
             songguesserCorrect.album = true;
             newlyCorrect += 1;
         }
@@ -856,7 +882,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         updateSongguesserAnswerDisplay(false);
 
-        if (songguesserCorrect.artist && songguesserCorrect.album && songguesserCorrect.song) {
+        if (songguesserAllRequiredVariablesSatisfied()) {
             revealSongguesserAnswer("Correct", 5);
             return;
         }
