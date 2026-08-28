@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260828-poster-left-nonclick-v48';
+const TOPSTER_FRONTEND_VERSION = '20260828-status-box-close-up-v49';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -34,6 +34,7 @@ const TOPSTER_CHECKLIST_OVERLAYS = [
     { keyword: 'Hifiman Sundara', id: 'sundara', imageSrc: 'sundara.png', label: 'Hifiman Sundara' }
 ];
 let topsterLoadingPanel = null;
+let topsterLoadingStatusPanel = null;
 let topsterLoadingHideTimer = null;
 let topsterPublicLoadingDismissTimer = null;
 let topsterPublicLoadingDismissTransitionTimer = null;
@@ -184,8 +185,9 @@ function topsterLoadingQuoteFilmSlug(source) {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[’']/g, '')
         .replace(/\s*&\s*/g, ' and ')
-        .replace(/[^a-zA-Z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
+        .replace(/[^a-zA-Z0-9-]+/g, '_')
+        .replace(/-+/g, '-')
+        .replace(/^[_-]+|[_-]+$/g, '')
         .replace(/_+/g, '_')
         .toLowerCase();
 }
@@ -419,8 +421,50 @@ async function ensureTopsterPublicLoadingQuote(panel) {
 }
 
 
+function ensureTopsterPublicLoadingStatusPanel(quotePanel = null) {
+    if (!isTopsterPublicReadOnlyListPage()) return null;
+
+    if (topsterLoadingStatusPanel && document.body.contains(topsterLoadingStatusPanel)) {
+        return topsterLoadingStatusPanel;
+    }
+
+    let statusPanel = document.getElementById('topster-loading-status-panel');
+    if (!statusPanel) {
+        statusPanel = document.createElement('div');
+        statusPanel.className = 'topster-loading-status-panel';
+        statusPanel.id = 'topster-loading-status-panel';
+        statusPanel.setAttribute('role', 'status');
+        statusPanel.setAttribute('aria-live', 'polite');
+        statusPanel.innerHTML = `
+            <p class="topster-loading-title">Loading...</p>
+            <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+        `;
+
+        const panel = quotePanel || document.getElementById('topster-loading-panel');
+        if (panel && panel.parentNode) {
+            panel.parentNode.insertBefore(statusPanel, panel);
+        } else {
+            const section = document.querySelector('.grid-builder-page');
+            if (section) section.appendChild(statusPanel);
+        }
+    }
+
+    topsterLoadingStatusPanel = statusPanel;
+    return statusPanel;
+}
+
+function hideTopsterPublicLoadingStatusPanel() {
+    const statusPanel = topsterLoadingStatusPanel || document.getElementById('topster-loading-status-panel');
+    if (!statusPanel) return;
+    statusPanel.hidden = true;
+}
+
+
 function ensureTopsterLoadingPanel() {
     if (topsterLoadingPanel && document.body.contains(topsterLoadingPanel)) {
+        if (isTopsterPublicReadOnlyListPage()) {
+            ensureTopsterPublicLoadingStatusPanel(topsterLoadingPanel);
+        }
         return topsterLoadingPanel;
     }
 
@@ -428,6 +472,7 @@ function ensureTopsterLoadingPanel() {
     if (existingPanel) {
         topsterLoadingPanel = existingPanel;
         if (isTopsterPublicReadOnlyListPage()) {
+            ensureTopsterPublicLoadingStatusPanel(existingPanel);
             ensureTopsterPublicLoadingPosterStage(existingPanel);
             ensureTopsterPublicLoadingQuote(existingPanel);
         }
@@ -443,9 +488,9 @@ function ensureTopsterLoadingPanel() {
     panel.setAttribute('role', 'status');
     panel.setAttribute('aria-live', 'polite');
     if (isTopsterPublicReadOnlyListPage()) {
+        panel.setAttribute('role', 'group');
+        panel.setAttribute('aria-live', 'off');
         panel.innerHTML = `
-            <p class="topster-loading-title">Loading Topster</p>
-            <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
             <div class="topster-loading-poster-stage" aria-live="off">
                 <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
                     <div class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
@@ -476,6 +521,10 @@ function ensureTopsterLoadingPanel() {
         section.appendChild(panel);
     }
 
+    if (isTopsterPublicReadOnlyListPage()) {
+        ensureTopsterPublicLoadingStatusPanel(panel);
+    }
+
     topsterLoadingPanel = panel;
     return panel;
 }
@@ -485,7 +534,18 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
     if (!panel) return;
 
     const publicListPage = isTopsterPublicReadOnlyListPage();
-    if (publicListPage && panel.dataset.topsterDismissed === 'true') return;
+    if (publicListPage) {
+        if (panel.dataset.topsterDismissed === 'true') return;
+        const statusPanel = ensureTopsterPublicLoadingStatusPanel(panel);
+        if (statusPanel) {
+            statusPanel.hidden = false;
+            statusPanel.classList.toggle('topster-loading-error', Boolean(options.error));
+            const statusLabel = statusPanel.querySelector('.topster-loading-text');
+            if (statusLabel && text) statusLabel.textContent = text;
+        }
+        ensureTopsterPublicLoadingQuote(panel);
+        return;
+    }
 
     window.clearTimeout(topsterLoadingHideTimer);
     panel.hidden = false;
@@ -499,10 +559,6 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
     const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
 
     if (label && text) label.textContent = text;
-    if (publicListPage) {
-        ensureTopsterPublicLoadingQuote(panel);
-        return;
-    }
     if (progress) {
         progress.value = safePercent;
         progress.textContent = `${safePercent}%`;
@@ -511,11 +567,12 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
 }
 
 function completeTopsterLoading(text = 'Topster loaded.') {
-    setTopsterLoadingProgress(100, text, { complete: true });
     if (isTopsterPublicReadOnlyListPage()) {
+        hideTopsterPublicLoadingStatusPanel();
         scheduleTopsterPublicLoadingPanelDismiss(ensureTopsterLoadingPanel(), 3000);
         return;
     }
+    setTopsterLoadingProgress(100, text, { complete: true });
     topsterLoadingHideTimer = window.setTimeout(() => {
         if (topsterLoadingPanel) topsterLoadingPanel.hidden = true;
     }, 1400);

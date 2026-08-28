@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - RateYourMusic&#39;s Top Albums Of All Time</title>
-    <link rel="stylesheet" href="styles.css?v=20260828-poster-left-quote-v47">
+    <link rel="stylesheet" href="styles.css?v=20260828-status-box-close-up-v49">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
     <style>
         .rym-subtitle {
@@ -107,9 +107,12 @@
             <p class="rym-subtitle"><strong>Updated weekly</strong> &bull; <span id="rym-last-updated">Last updated: Not published yet</span></p>
             <div id="rym-config-summary" class="rym-config-summary">Loading published chart configuration...</div>
             <hr>
-            <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
-                <p class="topster-loading-title">Loading Topster</p>
+            <div class="topster-loading-status-panel" id="topster-loading-status-panel" role="status" aria-live="polite">
+                <p class="topster-loading-title">Loading...</p>
                 <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+            </div>
+
+            <div class="topster-loading-panel" id="topster-loading-panel" role="group" aria-live="off">
                 <div class="topster-loading-poster-stage" aria-live="off">
                     <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
                         <div class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
@@ -138,6 +141,6 @@
             <div class="topster-output" id="topster-output" hidden><div class="topster-pages" id="topster-pages"></div></div>
         </section>
     </main>
-    <script src="topster_grid.js?v=20260828-poster-left-nonclick-v48"></script>
+    <script src="topster_grid.js?v=20260828-status-box-close-up-v49"></script>
 </body>
 </html>
