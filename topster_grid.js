@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260828-local-movie-posters-after-load-v46';
+const TOPSTER_FRONTEND_VERSION = '20260828-poster-left-nonclick-v48';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -183,7 +183,7 @@ function topsterLoadingQuoteFilmSlug(source) {
         .normalize('NFKD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[’']/g, '')
-        .replace(/&/g, ' and ')
+        .replace(/\s*&\s*/g, ' and ')
         .replace(/[^a-zA-Z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '')
         .replace(/_+/g, '_')
@@ -253,10 +253,10 @@ function ensureTopsterPublicLoadingPosterStage(panel) {
         stage.setAttribute('aria-live', 'off');
         stage.innerHTML = `
             <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
-                <a class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
+                <div class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
                     <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" width="132" height="198" loading="eager" decoding="async" referrerpolicy="no-referrer" hidden>
                     <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Loading Poster...</div>
-                </a>
+                </div>
             </div>
         `;
 
@@ -268,6 +268,17 @@ function ensureTopsterPublicLoadingPosterStage(panel) {
         posterImage = stage.querySelector('#topster-loading-poster');
         posterFallback = stage.querySelector('#topster-loading-poster-fallback');
         posterLink = stage.querySelector('#topster-loading-poster-link');
+    }
+
+    if (posterLink && posterLink.tagName && posterLink.tagName.toUpperCase() === 'A') {
+        const posterShell = document.createElement('div');
+        posterShell.className = posterLink.className;
+        posterShell.id = posterLink.id;
+        const ariaLabel = posterLink.getAttribute('aria-label');
+        if (ariaLabel) posterShell.setAttribute('aria-label', ariaLabel);
+        while (posterLink.firstChild) posterShell.appendChild(posterLink.firstChild);
+        posterLink.replaceWith(posterShell);
+        posterLink = posterShell;
     }
 
     return { stage, posterWrap, posterImage, posterFallback, posterLink };
@@ -297,12 +308,6 @@ function renderTopsterLoadingQuotePoster(panel, quote) {
     posterImage.loading = 'eager';
     posterImage.decoding = 'async';
     posterImage.fetchPriority = 'high';
-
-    if (posterLink) {
-        posterLink.removeAttribute('href');
-        posterLink.removeAttribute('target');
-        posterLink.removeAttribute('rel');
-    }
 
     if (!posterCandidates.length) {
         posterWrap.classList.remove('topster-loading-poster-pending');
@@ -340,12 +345,6 @@ function renderTopsterLoadingQuotePoster(panel, quote) {
             }
 
             const candidate = posterCandidates[currentIndex] || {};
-            const href = String(candidate.page || candidate.image || '').trim();
-            if (posterLink && href) {
-                posterLink.href = href;
-                posterLink.target = '_blank';
-                posterLink.rel = 'noopener noreferrer';
-            }
             posterFallback.textContent = filmTitle ? `Loading ${filmTitle} Poster...` : 'Loading Poster...';
             posterImage.src = candidate.image;
         };
@@ -449,10 +448,10 @@ function ensureTopsterLoadingPanel() {
             <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
             <div class="topster-loading-poster-stage" aria-live="off">
                 <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
-                    <a class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
+                    <div class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
                         <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" loading="eager" decoding="async" referrerpolicy="no-referrer" hidden>
                         <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Loading Poster...</div>
-                    </a>
+                    </div>
                 </div>
             </div>
             <figure class="topster-loading-quote" id="topster-loading-quote">
