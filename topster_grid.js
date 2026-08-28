@@ -1,5 +1,9 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260828-poster-hydrate-wait-v45';
+const TOPSTER_FRONTEND_VERSION = '20260828-local-movie-posters-after-load-v46';
+
+const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
+    fallen_angel: 'fallen_angels'
+});
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -172,40 +176,63 @@ function topsterLoadingQuoteFilmTitle(source) {
     return cleanAlbumTitle(String(source || '').replace(/\s*\(\d{4}\)\s*$/, ''));
 }
 
-async function fetchTopsterLoadingQuotePoster(quote) {
-    if (!quote) return null;
-    if (quote.poster) return { image: quote.poster, page: '', source: 'custom' };
+function topsterLoadingQuoteFilmSlug(source) {
+    const filmTitle = topsterLoadingQuoteFilmTitle(source);
+    if (!filmTitle) return '';
+    return String(filmTitle)
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[’']/g, '')
+        .replace(/&/g, ' and ')
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .replace(/_+/g, '_')
+        .toLowerCase();
+}
 
-    const filmTitle = topsterLoadingQuoteFilmTitle(quote.source);
-    if (!filmTitle) return null;
+function buildTopsterLocalMoviePosterUrl(fileName) {
+    const name = String(fileName || '').replace(/^\/+/, '');
+    if (!name) return '';
+    return new URL(`/movie_posters/${name}`, window.location.origin).href;
+}
 
-    const upperKey = filmTitle.toUpperCase();
-    const candidates = Array.from(new Set([
-        TOPSTER_LOADING_QUOTE_WIKIPEDIA_TITLE_MAP[upperKey],
-        `${filmTitle} (film)`,
-        filmTitle
-    ].filter(Boolean)));
+function getTopsterLoadingQuotePosterCandidates(quote) {
+    if (!quote) return [];
 
-    for (const candidate of candidates) {
-        try {
-            const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(candidate)}`, { cache: 'force-cache' });
-            if (!response.ok) continue;
-            const payload = await response.json();
-            const image = payload && payload.thumbnail && payload.thumbnail.source
-                ? payload.thumbnail.source
-                : (payload && payload.originalimage && payload.originalimage.source ? payload.originalimage.source : '');
-            if (image) {
-                const page = payload && payload.content_urls && payload.content_urls.desktop && payload.content_urls.desktop.page
-                    ? payload.content_urls.desktop.page
-                    : '';
-                return { image, page, source: 'wikipedia' };
-            }
-        } catch (error) {
-            // Ignore individual poster lookup failures and fall back gracefully.
+    const candidates = [];
+    const seen = new Set();
+    const addCandidate = (image, page = '', source = '') => {
+        const imageUrl = String(image || '').trim();
+        if (!imageUrl || seen.has(imageUrl)) return;
+        seen.add(imageUrl);
+        candidates.push({ image: imageUrl, page: String(page || '').trim(), source: String(source || '').trim() });
+    };
+
+    const explicitPoster = String((quote && quote.poster) || '').trim();
+    if (explicitPoster) addCandidate(explicitPoster, explicitPoster, 'custom');
+
+    const slug = topsterLoadingQuoteFilmSlug(quote.source);
+    if (slug) {
+        const baseNames = Array.from(new Set([
+            TOPSTER_LOADING_LOCAL_POSTER_ALIASES[slug],
+            slug
+        ].filter(Boolean)));
+
+        for (const baseName of baseNames) {
+            addCandidate(buildTopsterLocalMoviePosterUrl(`${baseName}.jpg`), '', 'local');
+            addCandidate(buildTopsterLocalMoviePosterUrl(`${baseName}.png`), '', 'local');
         }
     }
 
-    return null;
+    const filmTitle = topsterLoadingQuoteFilmTitle(quote.source);
+    if (filmTitle) {
+        const url = new URL('/api/movie-poster', getTopsterBackendOrigin() || window.location.origin);
+        url.searchParams.set('title', filmTitle);
+        url.searchParams.set('v', TOPSTER_FRONTEND_VERSION);
+        addCandidate(url.href, '', 'backend');
+    }
+
+    return candidates;
 }
 
 function ensureTopsterPublicLoadingPosterStage(panel) {
@@ -253,9 +280,7 @@ function renderTopsterLoadingQuotePoster(panel, quote) {
 
     const { posterWrap, posterImage, posterFallback, posterLink } = posterUi;
     const filmTitle = topsterLoadingQuoteFilmTitle(quote && quote.source);
-    const directPosterUrl = quote && /^https:\/\//i.test(String(quote.poster || '').trim())
-        ? String(quote.poster).trim()
-        : '';
+    const posterCandidates = getTopsterLoadingQuotePosterCandidates(quote);
 
     posterWrap.hidden = false;
     posterWrap.style.display = 'block';
@@ -269,7 +294,9 @@ function renderTopsterLoadingQuotePoster(panel, quote) {
     posterImage.height = 198;
     posterImage.alt = filmTitle ? `${filmTitle} poster` : 'Movie poster';
     posterImage.referrerPolicy = 'no-referrer';
-    delete posterImage.dataset.topsterDirectPosterTried;
+    posterImage.loading = 'eager';
+    posterImage.decoding = 'async';
+    posterImage.fetchPriority = 'high';
 
     if (posterLink) {
         posterLink.removeAttribute('href');
@@ -277,28 +304,50 @@ function renderTopsterLoadingQuotePoster(panel, quote) {
         posterLink.removeAttribute('rel');
     }
 
-    if (!filmTitle && !directPosterUrl) {
+    if (!posterCandidates.length) {
         posterWrap.classList.remove('topster-loading-poster-pending');
         posterFallback.textContent = 'Poster unavailable';
         return Promise.resolve('unavailable');
     }
 
-    const backendPosterUrl = (() => {
-        const url = new URL('/api/movie-poster', getTopsterBackendOrigin() || window.location.origin);
-        if (directPosterUrl) url.searchParams.set('url', directPosterUrl);
-        else url.searchParams.set('title', filmTitle);
-        url.searchParams.set('v', TOPSTER_FRONTEND_VERSION);
-        return url.href;
-    })();
-
     return new Promise(resolve => {
         let settled = false;
         let timeoutId = null;
+        let currentIndex = -1;
+
         const finish = result => {
             if (settled) return;
             settled = true;
             if (timeoutId) window.clearTimeout(timeoutId);
             resolve(result);
+        };
+
+        const fail = result => {
+            posterWrap.classList.remove('topster-loading-poster-pending');
+            posterImage.hidden = true;
+            posterImage.style.display = 'none';
+            posterFallback.hidden = false;
+            posterFallback.style.display = 'flex';
+            posterFallback.textContent = filmTitle ? `${filmTitle} poster unavailable` : 'Poster unavailable';
+            finish(result);
+        };
+
+        const tryNextCandidate = () => {
+            currentIndex += 1;
+            if (currentIndex >= posterCandidates.length) {
+                fail('failed');
+                return;
+            }
+
+            const candidate = posterCandidates[currentIndex] || {};
+            const href = String(candidate.page || candidate.image || '').trim();
+            if (posterLink && href) {
+                posterLink.href = href;
+                posterLink.target = '_blank';
+                posterLink.rel = 'noopener noreferrer';
+            }
+            posterFallback.textContent = filmTitle ? `Loading ${filmTitle} Poster...` : 'Loading Poster...';
+            posterImage.src = candidate.image;
         };
 
         posterImage.onload = () => {
@@ -311,41 +360,19 @@ function renderTopsterLoadingQuotePoster(panel, quote) {
         };
 
         posterImage.onerror = () => {
-            if (directPosterUrl && posterImage.dataset.topsterDirectPosterTried !== 'true') {
-                posterImage.dataset.topsterDirectPosterTried = 'true';
-                posterFallback.textContent = `Loading ${filmTitle || 'Movie'} Poster...`;
-                posterImage.src = directPosterUrl;
-                return;
-            }
-
-            posterWrap.classList.remove('topster-loading-poster-pending');
-            posterImage.hidden = true;
-            posterImage.style.display = 'none';
-            posterFallback.hidden = false;
-            posterFallback.style.display = 'flex';
-            posterFallback.textContent = filmTitle ? `${filmTitle} poster unavailable` : 'Poster unavailable';
-            finish('failed');
+            tryNextCandidate();
         };
 
-        // Give the poster a real opportunity to load before the quote panel's
-        // 10-second display countdown can begin. If neither load nor error fires,
-        // keep the reserved slot but stop waiting after 12 seconds.
         timeoutId = window.setTimeout(() => {
             if (settled) return;
-            posterWrap.classList.remove('topster-loading-poster-pending');
-            posterImage.hidden = true;
-            posterImage.style.display = 'none';
-            posterFallback.hidden = false;
-            posterFallback.style.display = 'flex';
-            posterFallback.textContent = filmTitle ? `${filmTitle} poster unavailable` : 'Poster unavailable';
-            finish('timeout');
+            fail('timeout');
         }, 12000);
 
-        posterImage.src = backendPosterUrl;
+        tryNextCandidate();
     });
 }
 
-function scheduleTopsterPublicLoadingPanelDismiss(panel) {
+function scheduleTopsterPublicLoadingPanelDismiss(panel, delayMs = 3000) {
     if (!isTopsterPublicReadOnlyListPage() || !panel) return;
     if (panel.dataset.topsterDismissed === 'true' || panel.dataset.topsterDismissScheduled === 'true') return;
     panel.dataset.topsterDismissScheduled = 'true';
@@ -358,7 +385,7 @@ function scheduleTopsterPublicLoadingPanelDismiss(panel) {
             panel.dataset.topsterDismissed = 'true';
             panel.hidden = true;
         }, 700);
-    }, 10000);
+    }, Math.max(0, Number(delayMs) || 0));
 }
 
 async function renderTopsterLoadingQuote(panel, quote) {
@@ -373,7 +400,6 @@ async function renderTopsterLoadingQuote(panel, quote) {
     // failed, or timed out. This prevents a fast Topster build from consuming
     // the poster's entire visible lifetime before the image request completes.
     await renderTopsterLoadingQuotePoster(panel, quote);
-    scheduleTopsterPublicLoadingPanelDismiss(panel);
 }
 
 async function ensureTopsterPublicLoadingQuote(panel) {
@@ -487,7 +513,10 @@ function setTopsterLoadingProgress(percent, text, options = {}) {
 
 function completeTopsterLoading(text = 'Topster loaded.') {
     setTopsterLoadingProgress(100, text, { complete: true });
-    if (isTopsterPublicReadOnlyListPage()) return;
+    if (isTopsterPublicReadOnlyListPage()) {
+        scheduleTopsterPublicLoadingPanelDismiss(ensureTopsterLoadingPanel(), 3000);
+        return;
+    }
     topsterLoadingHideTimer = window.setTimeout(() => {
         if (topsterLoadingPanel) topsterLoadingPanel.hidden = true;
     }, 1400);
