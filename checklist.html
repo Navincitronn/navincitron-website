@@ -37,6 +37,14 @@
             <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
                 <p class="topster-loading-title">Loading Topster</p>
                 <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
+                <div class="topster-loading-poster-stage" aria-live="off">
+                    <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
+                        <a class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
+                            <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" width="132" height="198" loading="eager" decoding="async" referrerpolicy="no-referrer" hidden>
+                            <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Loading Poster...</div>
+                        </a>
+                    </div>
+                </div>
                 <figure class="topster-loading-quote" id="topster-loading-quote">
                     <blockquote id="topster-loading-quote-body">Loading a quote...</blockquote>
                     <figcaption id="topster-loading-quote-source"></figcaption>
@@ -99,6 +107,6 @@
         </section>
     </main>
 
-    <script src="topster_grid.js?v=20260828-poster-above-ipad-touch-v44"></script>
+    <script src="topster_grid.js?v=20260828-poster-hydrate-wait-v45"></script>
 </body>
 </html>

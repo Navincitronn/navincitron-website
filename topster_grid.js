@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260828-poster-above-ipad-touch-v44';
+const TOPSTER_FRONTEND_VERSION = '20260828-poster-hydrate-wait-v45';
 const TOPSTER_STATE_KEY = 'navincitron-grid-current-topster-v1';
 const TOPSTER_SETTINGS_KEY = 'navincitron-grid-settings-v1';
 const TOPSTER_PRELOOKUP_KEY = 'navincitron-grid-prelookup-v1';
@@ -208,22 +208,55 @@ async function fetchTopsterLoadingQuotePoster(quote) {
     return null;
 }
 
-async function renderTopsterLoadingQuotePoster(panel, quote) {
-    if (!panel) return;
-    const posterWrap = panel.querySelector('#topster-loading-poster-wrap');
-    const posterImage = panel.querySelector('#topster-loading-poster');
-    const posterFallback = panel.querySelector('#topster-loading-poster-fallback');
-    const posterLink = panel.querySelector('#topster-loading-poster-link');
-    if (!posterWrap || !posterImage || !posterFallback) return;
+function ensureTopsterPublicLoadingPosterStage(panel) {
+    if (!panel || !isTopsterPublicReadOnlyListPage()) return null;
 
+    let stage = panel.querySelector('.topster-loading-poster-stage');
+    let posterWrap = panel.querySelector('#topster-loading-poster-wrap');
+    let posterImage = panel.querySelector('#topster-loading-poster');
+    let posterFallback = panel.querySelector('#topster-loading-poster-fallback');
+    let posterLink = panel.querySelector('#topster-loading-poster-link');
+
+    // Most public HTML pages already contain #topster-loading-panel in their
+    // source. Older panel markup did not include the poster nodes. Hydrate that
+    // existing panel in place instead of returning it unchanged.
+    if (!stage || !posterWrap || !posterImage || !posterFallback || !posterLink) {
+        stage = document.createElement('div');
+        stage.className = 'topster-loading-poster-stage';
+        stage.setAttribute('aria-live', 'off');
+        stage.innerHTML = `
+            <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
+                <a class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
+                    <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" width="132" height="198" loading="eager" decoding="async" referrerpolicy="no-referrer" hidden>
+                    <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Loading Poster...</div>
+                </a>
+            </div>
+        `;
+
+        const quote = panel.querySelector('#topster-loading-quote');
+        if (quote) panel.insertBefore(stage, quote);
+        else panel.appendChild(stage);
+
+        posterWrap = stage.querySelector('#topster-loading-poster-wrap');
+        posterImage = stage.querySelector('#topster-loading-poster');
+        posterFallback = stage.querySelector('#topster-loading-poster-fallback');
+        posterLink = stage.querySelector('#topster-loading-poster-link');
+    }
+
+    return { stage, posterWrap, posterImage, posterFallback, posterLink };
+}
+
+function renderTopsterLoadingQuotePoster(panel, quote) {
+    if (!panel) return Promise.resolve('missing-panel');
+    const posterUi = ensureTopsterPublicLoadingPosterStage(panel);
+    if (!posterUi) return Promise.resolve('missing-poster-ui');
+
+    const { posterWrap, posterImage, posterFallback, posterLink } = posterUi;
     const filmTitle = topsterLoadingQuoteFilmTitle(quote && quote.source);
     const directPosterUrl = quote && /^https:\/\//i.test(String(quote.poster || '').trim())
         ? String(quote.poster).trim()
         : '';
 
-    // Keep a visible, fixed poster slot above the quote from the moment the
-    // loading panel is created. This prevents a failed poster request from
-    // collapsing the area so completely that it looks as if no poster UI exists.
     posterWrap.hidden = false;
     posterWrap.style.display = 'block';
     posterWrap.classList.add('topster-loading-poster-pending');
@@ -232,6 +265,8 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
     posterFallback.textContent = filmTitle ? `Loading ${filmTitle} Poster...` : 'Loading Poster...';
     posterImage.hidden = true;
     posterImage.style.display = 'none';
+    posterImage.width = 132;
+    posterImage.height = 198;
     posterImage.alt = filmTitle ? `${filmTitle} poster` : 'Movie poster';
     posterImage.referrerPolicy = 'no-referrer';
     delete posterImage.dataset.topsterDirectPosterTried;
@@ -245,7 +280,7 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
     if (!filmTitle && !directPosterUrl) {
         posterWrap.classList.remove('topster-loading-poster-pending');
         posterFallback.textContent = 'Poster unavailable';
-        return;
+        return Promise.resolve('unavailable');
     }
 
     const backendPosterUrl = (() => {
@@ -256,36 +291,60 @@ async function renderTopsterLoadingQuotePoster(panel, quote) {
         return url.href;
     })();
 
-    posterImage.onload = () => {
-        posterWrap.classList.remove('topster-loading-poster-pending');
-        posterFallback.hidden = true;
-        posterFallback.style.display = 'none';
-        posterImage.hidden = false;
-        posterImage.style.display = 'block';
-    };
+    return new Promise(resolve => {
+        let settled = false;
+        let timeoutId = null;
+        const finish = result => {
+            if (settled) return;
+            settled = true;
+            if (timeoutId) window.clearTimeout(timeoutId);
+            resolve(result);
+        };
 
-    posterImage.onerror = () => {
-        // If Render/the backend cannot retrieve a user-supplied Poster: URL,
-        // make one final direct browser attempt with the referrer suppressed.
-        // This covers image hosts whose anti-hotlink policy differs between
-        // server-side and browser requests.
-        if (directPosterUrl && posterImage.dataset.topsterDirectPosterTried !== 'true') {
-            posterImage.dataset.topsterDirectPosterTried = 'true';
-            posterFallback.textContent = `Loading ${filmTitle || 'Movie'} Poster...`;
-            posterImage.src = directPosterUrl;
-            return;
-        }
+        posterImage.onload = () => {
+            posterWrap.classList.remove('topster-loading-poster-pending');
+            posterFallback.hidden = true;
+            posterFallback.style.display = 'none';
+            posterImage.hidden = false;
+            posterImage.style.display = 'block';
+            finish('loaded');
+        };
 
-        posterWrap.classList.remove('topster-loading-poster-pending');
-        posterImage.hidden = true;
-        posterImage.style.display = 'none';
-        posterFallback.hidden = false;
-        posterFallback.style.display = 'flex';
-        posterFallback.textContent = filmTitle ? `${filmTitle} poster unavailable` : 'Poster unavailable';
-    };
+        posterImage.onerror = () => {
+            if (directPosterUrl && posterImage.dataset.topsterDirectPosterTried !== 'true') {
+                posterImage.dataset.topsterDirectPosterTried = 'true';
+                posterFallback.textContent = `Loading ${filmTitle || 'Movie'} Poster...`;
+                posterImage.src = directPosterUrl;
+                return;
+            }
 
-    posterImage.src = backendPosterUrl;
+            posterWrap.classList.remove('topster-loading-poster-pending');
+            posterImage.hidden = true;
+            posterImage.style.display = 'none';
+            posterFallback.hidden = false;
+            posterFallback.style.display = 'flex';
+            posterFallback.textContent = filmTitle ? `${filmTitle} poster unavailable` : 'Poster unavailable';
+            finish('failed');
+        };
+
+        // Give the poster a real opportunity to load before the quote panel's
+        // 10-second display countdown can begin. If neither load nor error fires,
+        // keep the reserved slot but stop waiting after 12 seconds.
+        timeoutId = window.setTimeout(() => {
+            if (settled) return;
+            posterWrap.classList.remove('topster-loading-poster-pending');
+            posterImage.hidden = true;
+            posterImage.style.display = 'none';
+            posterFallback.hidden = false;
+            posterFallback.style.display = 'flex';
+            posterFallback.textContent = filmTitle ? `${filmTitle} poster unavailable` : 'Poster unavailable';
+            finish('timeout');
+        }, 12000);
+
+        posterImage.src = backendPosterUrl;
+    });
 }
+
 function scheduleTopsterPublicLoadingPanelDismiss(panel) {
     if (!isTopsterPublicReadOnlyListPage() || !panel) return;
     if (panel.dataset.topsterDismissed === 'true' || panel.dataset.topsterDismissScheduled === 'true') return;
@@ -302,13 +361,18 @@ function scheduleTopsterPublicLoadingPanelDismiss(panel) {
     }, 10000);
 }
 
-function renderTopsterLoadingQuote(panel, quote) {
+async function renderTopsterLoadingQuote(panel, quote) {
     if (!panel || !quote) return;
+    ensureTopsterPublicLoadingPosterStage(panel);
     const quoteBody = panel.querySelector('#topster-loading-quote-body');
     const quoteSource = panel.querySelector('#topster-loading-quote-source');
     if (quoteBody) quoteBody.innerHTML = formatTopsterLoadingQuoteBody(quote.body);
     if (quoteSource) quoteSource.textContent = quote.source;
-    renderTopsterLoadingQuotePoster(panel, quote);
+
+    // Do not start the 10-second quote timer until the poster has either loaded,
+    // failed, or timed out. This prevents a fast Topster build from consuming
+    // the poster's entire visible lifetime before the image request completes.
+    await renderTopsterLoadingQuotePoster(panel, quote);
     scheduleTopsterPublicLoadingPanelDismiss(panel);
 }
 
@@ -338,7 +402,10 @@ function ensureTopsterLoadingPanel() {
     const existingPanel = document.getElementById('topster-loading-panel');
     if (existingPanel) {
         topsterLoadingPanel = existingPanel;
-        if (isTopsterPublicReadOnlyListPage()) ensureTopsterPublicLoadingQuote(existingPanel);
+        if (isTopsterPublicReadOnlyListPage()) {
+            ensureTopsterPublicLoadingPosterStage(existingPanel);
+            ensureTopsterPublicLoadingQuote(existingPanel);
+        }
         return existingPanel;
     }
 
