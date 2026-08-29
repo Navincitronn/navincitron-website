@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260829-editor-cover-select-v50';
+const TOPSTER_FRONTEND_VERSION = '20260829-artist-cover-identity-recovery-v52';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -39,6 +39,7 @@ let topsterLoadingHideTimer = null;
 let topsterPublicLoadingDismissTimer = null;
 let topsterPublicLoadingDismissTransitionTimer = null;
 let topsterLoadingQuotePosterRequestId = 0;
+let topsterEditorCoverCachePersistTimer = null;
 const TOPSTER_LOADING_QUOTE_WIKIPEDIA_TITLE_MAP = Object.freeze({
     '3 WOMEN': '3 Women',
     'TRAINSPOTTING': 'Trainspotting (film)',
@@ -1771,6 +1772,51 @@ async function initTopsterImporter(albumCards) {
     let currentGridSignature = '';
     let currentSourceText = '';
     let currentSourceName = '';
+    let lastBuildCompletionStatusText = '';
+    let settingsElapsedTimer = null;
+    let settingsElapsedToken = 0;
+
+    function setBuildCompletionStatus(textValue) {
+        lastBuildCompletionStatusText = String(textValue || '').trim();
+        status.style.whiteSpace = 'pre-line';
+        status.textContent = lastBuildCompletionStatusText;
+    }
+
+    function formatElapsedTime(milliseconds) {
+        const seconds = Math.max(0, Number(milliseconds) || 0) / 1000;
+        if (seconds < 10) return `${seconds.toFixed(1)}s`;
+        if (seconds < 60) return `${seconds.toFixed(0)}s`;
+        const minutes = Math.floor(seconds / 60);
+        const remainder = Math.floor(seconds % 60);
+        return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
+    }
+
+    function beginSettingsElapsedStatus(label = 'Updating Topster display settings') {
+        const token = ++settingsElapsedToken;
+        const startedAt = performance.now();
+        const baseText = lastBuildCompletionStatusText || String(status.textContent || '').trim();
+        window.clearInterval(settingsElapsedTimer);
+        status.style.whiteSpace = 'pre-line';
+
+        const update = () => {
+            if (token !== settingsElapsedToken) return;
+            const elapsed = formatElapsedTime(performance.now() - startedAt);
+            status.textContent = `${baseText}${baseText ? '\n' : ''}${label} — ${elapsed} elapsed`;
+        };
+        update();
+        settingsElapsedTimer = window.setInterval(update, 100);
+        return { token, startedAt, baseText, label };
+    }
+
+    function finishSettingsElapsedStatus(context, suffix = '') {
+        if (!context || context.token !== settingsElapsedToken) return;
+        window.clearInterval(settingsElapsedTimer);
+        settingsElapsedTimer = null;
+        const elapsed = formatElapsedTime(performance.now() - context.startedAt);
+        const completion = `${context.label} finished in ${elapsed}.${suffix ? ` ${suffix}` : ''}`;
+        status.textContent = `${context.baseText}${context.baseText ? '\n' : ''}${completion}`;
+    }
+
     await waitForTopsterSharedStore();
     if (sourceConfig.kind === 'rate-your-music-chart') {
         initializeRateYourMusicUi(topsterSharedSourceText);
@@ -1784,6 +1830,7 @@ async function initTopsterImporter(albumCards) {
     let pickerEntryIndex = null;
     let pickerLookupToken = 0;
     const retryingPublicCoverIndexes = new Set();
+    const brokenCoverRecoveryState = new Map();
     const topsterSourceLabel = getTopsterSourceLabel();
     const topsterEditorPage = isTopsterEditorPage();
     let currentSettingsProfiles = normalizeTopsterSettingsProfiles(loadTopsterSettings());
@@ -1967,6 +2014,14 @@ async function initTopsterImporter(albumCards) {
     }, { passive: true });
 
     async function handleSettingsProfileChange() {
+        const elapsedContext = topsterEditorPage
+            ? beginSettingsElapsedStatus('Updating Topster display settings')
+            : null;
+        if (elapsedContext) {
+            await delay(0);
+            if (elapsedContext.token !== settingsElapsedToken) return;
+        }
+
         const previousSettings = normalizeTopsterSettings(readSettingsControls());
         currentSettingsProfiles[currentSettingsProfile] = previousSettings;
         currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
@@ -1978,20 +2033,41 @@ async function initTopsterImporter(albumCards) {
 
         if (currentSettings.excludeOwnedReleases) {
             await ensureTopsterDiscogsCollectionLoaded();
+            if (elapsedContext && elapsedContext.token !== settingsElapsedToken) return;
         }
 
         if (importedEntries.length) {
             const selectedStart = Number(rangeSelect.value || 0);
             renderTopster(importedEntries, selectedStart, { scroll: false });
+            // Yield so the new layout can paint before serializing a very large
+            // saved-state payload, but keep persistence inside the elapsed task.
+            await delay(0);
+            if (elapsedContext && elapsedContext.token !== settingsElapsedToken) return;
             saveCurrentTopster();
         }
 
-        status.textContent = topsterEditorPage
-            ? `Now configuring ${getTopsterSettingsProfileLabel(currentSettingsProfile)} Topster display settings. Press Save Settings to publish.`
-            : '';
+        if (topsterEditorPage) {
+            await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
+            finishSettingsElapsedStatus(
+                elapsedContext,
+                `Now configuring ${getTopsterSettingsProfileLabel(currentSettingsProfile)}. Press Save Settings to publish.`
+            );
+        } else {
+            status.textContent = '';
+        }
     }
 
     async function handleSettingsChange() {
+        const elapsedContext = topsterEditorPage
+            ? beginSettingsElapsedStatus('Updating Topster display settings')
+            : null;
+        if (elapsedContext) {
+            // Yield once so rapid slider input events collapse onto the newest
+            // settings state and the elapsed line can paint before a large rerender.
+            await delay(0);
+            if (elapsedContext.token !== settingsElapsedToken) return;
+        }
+
         currentSettings = normalizeTopsterSettings(readSettingsControls());
         currentSettingsProfiles[currentSettingsProfile] = currentSettings;
         saveTopsterSettings(currentSettingsProfiles);
@@ -1999,27 +2075,37 @@ async function initTopsterImporter(albumCards) {
         updateSettingsValueLabels(currentSettings);
         safeMarkTopsterPublishDirty();
 
+        let warning = '';
         if (currentSettings.excludeOwnedReleases) {
             const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded();
+            if (elapsedContext && elapsedContext.token !== settingsElapsedToken) return;
             if (!collectionLoaded && topsterEditorPage) {
-                status.textContent = 'Could not load the Discogs collection. Owned releases cannot be dimmed until the collection API is reachable.';
+                warning = 'Discogs collection could not be loaded, so owned-release dimming is temporarily unavailable.';
             }
         }
 
         if (!importedEntries.length) {
             setSingleRangeOption();
-            status.textContent = topsterEditorPage
-                ? 'Updated local Topster display settings. Press Save Settings to publish them.'
-                : '';
+            if (topsterEditorPage) {
+                finishSettingsElapsedStatus(elapsedContext, `${warning}${warning ? ' ' : ''}Press Save Settings to publish.`);
+            } else {
+                status.textContent = '';
+            }
             return;
         }
 
         const selectedStart = populateRangeSelect(importedEntries.length, 0);
         renderTopster(importedEntries, selectedStart, { scroll: false });
+        await delay(0);
+        if (elapsedContext && elapsedContext.token !== settingsElapsedToken) return;
         saveCurrentTopster();
-        status.textContent = topsterEditorPage
-            ? `Updated local Topster display settings to ${currentSettings.width}x${currentSettings.height}. Press Save Settings to publish.`
-            : `Updated Topster display settings to ${currentSettings.width}x${currentSettings.height}.`;
+
+        if (topsterEditorPage) {
+            await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
+            finishSettingsElapsedStatus(elapsedContext, `${warning}${warning ? ' ' : ''}Press Save Settings to publish.`);
+        } else {
+            status.textContent = `Updated Topster display settings to ${currentSettings.width}x${currentSettings.height}.`;
+        }
     }
 
     function getPublishableCoverCache() {
@@ -2255,20 +2341,24 @@ async function initTopsterImporter(albumCards) {
         setCachedCover(buildCoverCacheKey(entry), defaultCover);
         safeMarkTopsterPublishDirty();
 
-        renderTopster(importedEntries, 0, { scroll: false });
-        saveCurrentTopster();
+        if (!refreshRenderedTopsterTile(pickerEntryIndex)) {
+            renderTopster(importedEntries, 0, { scroll: false });
+        }
+        closeCoverPicker();
+        window.setTimeout(saveCurrentTopster, 0);
         syncAllTopsterSidebarHeights();
         window.requestAnimationFrame(syncAllTopsterSidebarHeights);
         status.textContent = `Reset ${entry.title} to the default local artist image. Press Save Settings to publish it to ${getTopsterPublicPageName()}.`;
-        closeCoverPicker();
     }
 
     async function selectManualCover(candidate) {
         if (pickerEntryIndex === null || !importedEntries[pickerEntryIndex] || !candidate || !candidate.imageSrc) return;
         const entry = importedEntries[pickerEntryIndex];
         const selectedCover = {
-            title: candidate.title || entry.title,
-            artist: candidate.artist || entry.artist || '',
+            // A manual choice belongs to this exact Topster entry even if a source
+            // describes the same artwork with a compilation/alias artist credit.
+            title: entry.title || candidate.title || '',
+            artist: entry.artist || candidate.artist || '',
             imageSrc: candidate.imageSrc,
             href: candidate.href || '',
             source: candidate.source || 'Manual',
@@ -2281,16 +2371,20 @@ async function initTopsterImporter(albumCards) {
         setCachedCover(buildCoverCacheKey(entry), selectedCover);
         safeMarkTopsterPublishDirty();
 
-        renderTopster(importedEntries, 0, { scroll: false });
-        saveCurrentTopster();
+        // Replace only the affected tile instead of rebuilding every page. This
+        // makes a manual selection visibly apply immediately even on ~2,000-entry
+        // Topsters. Large localStorage serialization is also deferred separately.
+        if (!refreshRenderedTopsterTile(pickerEntryIndex)) {
+            renderTopster(importedEntries, 0, { scroll: false });
+        }
+        closeCoverPicker();
+        window.setTimeout(saveCurrentTopster, 0);
         syncAllTopsterSidebarHeights();
         window.requestAnimationFrame(syncAllTopsterSidebarHeights);
 
         status.textContent = topsterEditorPage
             ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterPublicPageName()}.`
             : `Updated cover for ${formatEntryName(entry)}.`;
-
-        closeCoverPicker();
     }
 
     async function buildTopsterFromGridFile({ force, source }) {
@@ -2495,7 +2589,7 @@ async function initTopsterImporter(albumCards) {
                 }
 
                 try {
-                    const cached = getPreferredCachedCover(entry) || getCachedCover(buildCoverCacheKey(entry));
+                    const cached = getPreferredCachedCover(entry) || getExactCachedCoverForEntry(entry);
                     if (cached && cached.imageSrc) {
                         foundCount++;
                         entry.status = 'pending';
@@ -2541,8 +2635,9 @@ async function initTopsterImporter(albumCards) {
         stopButton.disabled = true;
         buildButton.disabled = false;
         refreshButton.disabled = false;
-        status.textContent = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters, then Save Settings to publish the updated cache.`;
-        completeTopsterLoading(status.textContent);
+        const completionText = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters, then Save Settings to publish the updated cache.`;
+        setBuildCompletionStatus(completionText);
+        completeTopsterLoading(completionText);
     }
 
     async function resolveVisibleRange(startIndex = 0) {
@@ -2599,8 +2694,9 @@ async function initTopsterImporter(albumCards) {
             refreshButton.disabled = false;
             const missingCount = importedEntries.filter(entry => entry.status === 'missing').length;
             saveCurrentTopster();
-            status.textContent = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.${topsterEditorPage ? ' Press Save Settings to publish the updated source/settings/cache.' : ''}`;
-            completeTopsterLoading(status.textContent);
+            const completionText = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.${topsterEditorPage ? ' Press Save Settings to publish the updated source/settings/cache.' : ''}`;
+            setBuildCompletionStatus(completionText);
+            completeTopsterLoading(completionText);
         }
     }
 
@@ -2647,6 +2743,78 @@ async function initTopsterImporter(albumCards) {
 
         if (options.scroll) {
             output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    function refreshRenderedTopsterTile(absoluteIndex) {
+        const entry = importedEntries[absoluteIndex];
+        if (!entry) return false;
+        const existingTiles = pagesContainer.querySelectorAll(`.topster-tile[data-topster-entry-index="${absoluteIndex}"]`);
+        if (!existingTiles.length) return false;
+
+        const settings = getEffectiveTopsterSettings(currentSettings);
+        existingTiles.forEach(existingTile => {
+            const selectableHandler = topsterReadOnly ? null : () => openCoverPicker(entry, absoluteIndex);
+            const publicRetryHandler = topsterReadOnly && isPublicAlbumCoverRetrySource()
+                ? () => retryPublicAlbumCover(entry, absoluteIndex)
+                : null;
+            const loadErrorHandler = !isRollingStoneSingerTopsterSource()
+                ? failedImageSrc => recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc)
+                : null;
+            const replacement = createTopsterTile(
+                entry,
+                absoluteIndex + 1,
+                selectableHandler,
+                settings.coverOverlay,
+                settings.excludeOwnedReleases,
+                publicRetryHandler,
+                loadErrorHandler
+            );
+            existingTile.replaceWith(replacement);
+        });
+        return true;
+    }
+
+    async function recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc) {
+        if (!entry || entry.cover && entry.cover.selectedManually) return;
+
+        let state = brokenCoverRecoveryState.get(absoluteIndex);
+        if (!state) {
+            state = { failedUrls: new Set(), attempts: 0, running: false };
+            brokenCoverRecoveryState.set(absoluteIndex, state);
+        }
+        const failedKey = normalizeImageUrl(failedImageSrc);
+        if (failedKey) state.failedUrls.add(failedKey);
+        if (state.running || state.attempts >= 4) return;
+
+        state.running = true;
+        state.attempts += 1;
+        invalidateCachedCover(entry, failedImageSrc);
+        entry.cover = null;
+        entry.status = 'loading';
+        refreshRenderedTopsterTile(absoluteIndex);
+
+        try {
+            await maybeLoadLocalIndex();
+            const retryConfig = {
+                ...getSourceConfig(),
+                useCache: false,
+                excludeImageUrls: Array.from(state.failedUrls)
+            };
+            const freshCover = await resolveAlbumCover(entry, albumCatalog, retryConfig);
+            if (freshCover && freshCover.imageSrc) {
+                entry.cover = freshCover;
+                entry.status = 'found';
+                setCachedCover(buildCoverCacheKey(entry), freshCover);
+            } else {
+                entry.status = 'missing';
+            }
+        } catch (error) {
+            entry.status = 'missing';
+        } finally {
+            state.running = false;
+            refreshRenderedTopsterTile(absoluteIndex);
+            window.setTimeout(saveCurrentTopster, 0);
         }
     }
 
@@ -2716,6 +2884,9 @@ async function initTopsterImporter(albumCards) {
             }, settings.coverOverlay, settings.excludeOwnedReleases,
             topsterReadOnly && isPublicAlbumCoverRetrySource() && entry
                 ? () => retryPublicAlbumCover(entry, absoluteIndex)
+                : null,
+            entry && !isRollingStoneSingerTopsterSource()
+                ? failedImageSrc => recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc)
                 : null));
         }
 
@@ -4627,6 +4798,14 @@ function isChecked(id) {
 async function resolveAlbumCover(entry, albumCatalog, config) {
     const cacheKey = buildCoverCacheKey(entry);
     const resolvers = [];
+    const excludedUrls = new Set(
+        (Array.isArray(config && config.excludeImageUrls) ? config.excludeImageUrls : [])
+            .map(normalizeImageUrl)
+            .filter(Boolean)
+    );
+    const isExcluded = cover => Boolean(
+        cover && cover.imageSrc && excludedUrls.has(normalizeImageUrl(cover.imageSrc))
+    );
 
     if (config.useLastfm) {
         resolvers.push(() => resolveLastfmCover(entry, config.lastfmKey));
@@ -4643,15 +4822,15 @@ async function resolveAlbumCover(entry, albumCatalog, config) {
 
     for (const resolver of resolvers) {
         const cover = await resolver();
-        if (cover && cover.imageSrc) {
+        if (cover && cover.imageSrc && !isExcluded(cover)) {
             setCachedCover(cacheKey, cover);
             return cover;
         }
     }
 
     if (config.useCache) {
-        const cached = getPreferredCachedCover(entry) || getCachedCover(cacheKey);
-        if (cached && cached.imageSrc) {
+        const cached = getPreferredCachedCover(entry) || getExactCachedCoverForEntry(entry);
+        if (cached && cached.imageSrc && !isExcluded(cached)) {
             return { ...cached, source: cached.source || 'Cache' };
         }
     }
@@ -4675,8 +4854,13 @@ function resolveLocalIndexCover(entry, catalog) {
 async function resolveMusicBrainzCover(entry) {
     const query = buildMusicBrainzQuery(entry);
     const searchUrl = `https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(query)}&fmt=json&limit=10`;
-    const data = await fetchMusicBrainzJson(searchUrl);
-    const groups = Array.isArray(data['release-groups']) ? data['release-groups'] : [];
+    let data = await fetchMusicBrainzJson(searchUrl);
+    let groups = Array.isArray(data['release-groups']) ? data['release-groups'] : [];
+    if (!groups.length && entry.year) {
+        const fallbackQuery = buildMusicBrainzQuery(entry, false);
+        data = await fetchMusicBrainzJson(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(fallbackQuery)}&fmt=json&limit=10`);
+        groups = Array.isArray(data['release-groups']) ? data['release-groups'] : [];
+    }
     const candidates = groups
         .map(group => ({ group, score: scoreAlbumCandidate(entry, group.title, group['first-release-date'], Number(group.score) || 0, firstArtistCreditName(group['artist-credit'])) }))
         .filter(item => item.score >= 0.58)
@@ -4700,12 +4884,12 @@ async function resolveMusicBrainzCover(entry) {
     return null;
 }
 
-function buildMusicBrainzQuery(entry) {
+function buildMusicBrainzQuery(entry, includeYear = true) {
     const escapedTitle = String(entry.title || '').replace(/"/g, '\\"');
     const escapedArtist = String(entry.artist || '').replace(/"/g, '\\"');
     const parts = [`releasegroup:"${escapedTitle}"`];
     if (escapedArtist) parts.push(`artist:"${escapedArtist}"`);
-    if (entry.year) parts.push(`firstreleasedate:${entry.year}`);
+    if (includeYear && entry.year) parts.push(`firstreleasedate:${entry.year}`);
     return parts.join(' AND ');
 }
 
@@ -4726,14 +4910,19 @@ async function fetchCoverArtArchiveForReleaseGroup(mbid) {
 }
 
 async function resolveItunesCover(entry) {
-    const searchTerm = `${entry.artist ? `${entry.artist} ` : ''}${entry.title}${entry.year ? ` ${entry.year}` : ''}`;
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=album&limit=15`;
-    const data = await fetchJson(url, 12000);
-    const results = Array.isArray(data.results) ? data.results : [];
-    const candidates = results
-        .map(result => ({ result, score: scoreAlbumCandidate(entry, result.collectionName, result.releaseDate, 0, result.artistName) }))
-        .filter(item => item.score >= 0.55)
-        .sort((a, b) => b.score - a.score);
+    async function search(includeYear) {
+        const searchTerm = `${entry.artist ? `${entry.artist} ` : ''}${entry.title}${includeYear && entry.year ? ` ${entry.year}` : ''}`;
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=album&limit=15`;
+        const data = await fetchJson(url, 12000);
+        const results = Array.isArray(data.results) ? data.results : [];
+        return results
+            .map(result => ({ result, score: scoreAlbumCandidate(entry, result.collectionName, result.releaseDate, 0, result.artistName) }))
+            .filter(item => item.score >= 0.55)
+            .sort((a, b) => b.score - a.score);
+    }
+
+    let candidates = await search(true);
+    if (!candidates.length && entry.year) candidates = await search(false);
 
     const best = candidates[0] ? candidates[0].result : null;
     if (!best || !best.artworkUrl100) return null;
@@ -4760,7 +4949,10 @@ async function resolveLastfmCover(entry, apiKey) {
             const album = infoData && infoData.album ? infoData.album : null;
             const images = album && Array.isArray(album.image) ? album.image : [];
             const imageSrc = getLastfmImage(images);
-            if (album && imageSrc && !imageSrc.includes('2a96cbd8b46e442fc41c2b86b821562f')) {
+            const identityScore = album
+                ? scoreAlbumCandidate(entry, album.name || entry.title, '', 0, album.artist || '')
+                : 0;
+            if (album && identityScore >= 0.30 && imageSrc && !imageSrc.includes('2a96cbd8b46e442fc41c2b86b821562f')) {
                 return {
                     title: album.name || entry.title,
                     artist: album.artist || entry.artist || '',
@@ -4804,7 +4996,11 @@ async function resolveLastfmCover(entry, apiKey) {
 
 async function resolveInternetArchiveCover(entry) {
     const url = new URL('https://archive.org/advancedsearch.php');
-    url.searchParams.set('q', `title:("${entry.title.replace(/"/g, '')}") AND mediatype:(audio)`);
+    const safeArchiveTitle = String(entry.title || '').replace(/"/g, '');
+    const safeArchiveArtist = String(entry.artist || '').replace(/"/g, '');
+    const archiveQuery = [`title:("${safeArchiveTitle}")`, 'mediatype:(audio)'];
+    if (safeArchiveArtist) archiveQuery.push(`creator:("${safeArchiveArtist}")`);
+    url.searchParams.set('q', archiveQuery.join(' AND '));
     url.searchParams.append('fl[]', 'identifier');
     url.searchParams.append('fl[]', 'title');
     url.searchParams.append('fl[]', 'creator');
@@ -5242,10 +5438,19 @@ function scoreAlbumCandidate(entry, candidateTitle, candidateDate, sourceScore, 
 
     if (entry.artist && candidateArtist) {
         const similarity = titleSimilarity(entry.artist, candidateArtist);
-        if (similarity >= 0.90) artistScore = 0.18;
-        else if (similarity >= 0.60) artistScore = 0.08;
-        else if (similarity > 0) artistScore = -0.06;
-        else artistScore = -0.12;
+
+        // An exact/common album title is not enough to identify a release. A
+        // candidate credited to a genuinely unrelated artist must never win just
+        // because titles such as "Faith", "Greatest Hits", or "Anthology" match.
+        if (similarity < 0.18) {
+            const apiScore = sourceScore ? Math.min(sourceScore, 100) / 1000 : 0;
+            return Math.min(0.29, titleScore + yearScore + apiScore);
+        }
+
+        if (similarity >= 0.90) artistScore = 0.22;
+        else if (similarity >= 0.60) artistScore = 0.14;
+        else if (similarity >= 0.32) artistScore = 0.05;
+        else artistScore = -0.15;
     }
 
     const apiScore = sourceScore ? Math.min(sourceScore, 100) / 1000 : 0;
@@ -5308,12 +5513,23 @@ function buildCoverCacheAliases(entry) {
     const artistKey = normalizeAlbumTitle(entry.artist || '');
     const titleKey = normalizeAlbumTitle(entry.title || '');
     const yearKey = entry.year || '';
-    const aliases = [
-        `${artistKey}|${titleKey}|${yearKey}`,
-        `${artistKey}|${titleKey}|`,
-        `|${titleKey}|${yearKey}`,
-        `|${titleKey}|`
-    ];
+    if (!titleKey) return [];
+
+    // Artist identity is mandatory whenever the source entry supplies one.
+    // Earlier builds also wrote |title| aliases, which caused different artists
+    // with albums named Faith / Let It Be / Greatest Hits / Anthology to share
+    // one cover. Artistless aliases are retained only for genuinely artistless
+    // source entries (for example some non-album image lists).
+    const aliases = artistKey
+        ? [
+            `${artistKey}|${titleKey}|${yearKey}`,
+            `${artistKey}|${titleKey}|`
+        ]
+        : [
+            `|${titleKey}|${yearKey}`,
+            `|${titleKey}|`
+        ];
+
     return Array.from(new Set(aliases.filter(key => key.replace(/\|/g, ''))));
 }
 
@@ -5336,6 +5552,15 @@ function writeLocalTopsterCoverCache(cache) {
         // working cache so Save Settings can still publish the complete cache to Redis.
         return false;
     }
+}
+
+function scheduleTopsterEditorCoverCachePersist(delayMs = 120) {
+    if (!isTopsterEditorPage()) return;
+    window.clearTimeout(topsterEditorCoverCachePersistTimer);
+    topsterEditorCoverCachePersistTimer = window.setTimeout(() => {
+        topsterEditorCoverCachePersistTimer = null;
+        writeLocalTopsterCoverCache(getTopsterEditorWorkingCoverCache());
+    }, Math.max(0, Number(delayMs) || 0));
 }
 
 function cloneCoverCache(cache) {
@@ -5396,13 +5621,37 @@ function getCachedCover(key) {
     return item;
 }
 
+function cachedCoverMatchesEntryIdentity(entry, item) {
+    if (!entry || !item || !item.imageSrc) return false;
+
+    if (entry.title && item.title) {
+        const titleScore = titleSimilarity(entry.title, item.title);
+        if (titleScore < 0.30) return false;
+    }
+
+    if (entry.artist) {
+        if (!item.artist && !item.selectedManually) return false;
+        if (item.artist) {
+            const artistScore = titleSimilarity(entry.artist, item.artist);
+            if (artistScore < 0.18) return false;
+        }
+    }
+
+    return true;
+}
+
+function getExactCachedCoverForEntry(entry) {
+    const item = getCachedCover(buildCoverCacheKey(entry));
+    return cachedCoverMatchesEntryIdentity(entry, item) ? item : null;
+}
+
 function getPreferredCachedCover(entry) {
     const cache = getCoverCache();
     const aliases = buildCoverCacheAliases(entry);
 
     for (const key of aliases) {
         const item = cache[key];
-        if (item && item.imageSrc && item.selectedManually) {
+        if (item && item.imageSrc && item.selectedManually && cachedCoverMatchesEntryIdentity(entry, item)) {
             return { ...item, source: item.source || 'Cache' };
         }
     }
@@ -5414,7 +5663,7 @@ function getPreferredCachedCover(entry) {
 
     for (const key of aliases) {
         const item = cache[key];
-        if (item && item.imageSrc) {
+        if (item && item.imageSrc && cachedCoverMatchesEntryIdentity(entry, item)) {
             return { ...item, source: item.source || 'Cache' };
         }
     }
@@ -5437,16 +5686,19 @@ function setCachedCover(key, cover) {
 
     cache[key] = cachedCover;
 
-    const titleForAlias = cachedCover.title || (typeof key === 'string' ? key.split('|')[1] : '');
-    const artistForAlias = cachedCover.artist || (typeof key === 'string' ? key.split('|')[0] : '');
-    const yearForAlias = typeof key === 'string' ? key.split('|')[2] : '';
+    const keyParts = typeof key === 'string' ? key.split('|') : [];
+    const artistForAlias = keyParts[0] || cachedCover.artist || '';
+    const titleForAlias = keyParts[1] || cachedCover.title || '';
+    const yearForAlias = keyParts[2] || '';
     buildCoverCacheAliases({ artist: artistForAlias, title: titleForAlias, year: yearForAlias }).forEach(alias => {
         cache[alias] = cachedCover;
     });
 
     if (isTopsterEditorPage()) {
         topsterEditorWorkingCoverCache = cache;
-        writeLocalTopsterCoverCache(cache);
+        // Persisting a 1,000+ album cache requires a large JSON.stringify. Debounce
+        // that work so a manual cover selection can update the visible tile first.
+        scheduleTopsterEditorCoverCachePersist();
         safeMarkTopsterPublishDirty();
         return;
     }
@@ -5465,6 +5717,36 @@ function setCachedCover(key, cover) {
         localStorage.setItem(getTopsterCoverCacheStorageKey(), JSON.stringify(cache));
     } catch (error) {
         // Browser storage can fill up; failing to cache should not prevent the grid from rendering.
+    }
+}
+
+function invalidateCachedCover(entry, failedImageSrc) {
+    if (!entry || !failedImageSrc) return;
+    const failedKey = normalizeImageUrl(failedImageSrc);
+    if (!failedKey) return;
+
+    const cache = getCoverCache();
+    const keys = new Set([buildCoverCacheKey(entry), ...buildCoverCacheAliases(entry)]);
+    let changed = false;
+    keys.forEach(key => {
+        const item = cache[key];
+        if (!item || normalizeImageUrl(item.imageSrc) !== failedKey) return;
+        delete cache[key];
+        changed = true;
+    });
+    if (!changed) return;
+
+    if (isTopsterEditorPage()) {
+        topsterEditorWorkingCoverCache = cache;
+        scheduleTopsterEditorCoverCachePersist();
+    } else if (shouldUseTopsterSharedStore()) {
+        topsterSharedCoverCache = cache;
+    } else if (!isTopsterReadOnlyPage()) {
+        try {
+            localStorage.setItem(getTopsterCoverCacheStorageKey(), JSON.stringify(cache));
+        } catch (error) {
+            // Cache invalidation is best-effort.
+        }
     }
 }
 
@@ -5683,14 +5965,17 @@ async function resolveLastfmCoverCandidates(entry, apiKey) {
             const album = infoData && infoData.album ? infoData.album : null;
             const images = album && Array.isArray(album.image) ? album.image : [];
             const imageSrc = getLastfmImage(images);
-            if (album && isUsefulLastfmImage(imageSrc)) {
+            const identityScore = album
+                ? scoreAlbumCandidate(entry, album.name || entry.title, '', 0, album.artist || '')
+                : 0;
+            if (album && identityScore >= 0.30 && isUsefulLastfmImage(imageSrc)) {
                 candidates.push(makeCoverCandidate({
                     title: album.name || entry.title,
                     artist: album.artist || entry.artist || '',
                     imageSrc,
                     href: album.url || '',
                     source: 'Last.fm',
-                    score: 1
+                    score: identityScore
                 }));
             }
         } catch (error) {
@@ -5808,7 +6093,7 @@ async function resolveItunesCoverCandidates(entry) {
 }
 
 function resolveCacheCoverCandidates(entry) {
-    const exact = getCachedCover(buildCoverCacheKey(entry));
+    const exact = getExactCachedCoverForEntry(entry);
     const candidates = [];
     if (exact && exact.imageSrc) {
         candidates.push(makeCoverCandidate({ ...exact, source: exact.source || 'Cache', score: 1 }));
@@ -5871,9 +6156,10 @@ function isUsefulLastfmImage(imageSrc) {
     return Boolean(imageSrc) && !String(imageSrc).includes('2a96cbd8b46e442fc41c2b86b821562f');
 }
 
-function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none', excludeOwnedReleases = false, onRetryCover = null) {
+function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode = 'none', excludeOwnedReleases = false, onRetryCover = null, onCoverLoadError = null) {
     const tile = document.createElement('div');
     tile.className = 'topster-tile';
+    tile.dataset.topsterEntryIndex = String(Math.max(0, (Number(displayIndex) || 1) - 1));
     let mobileInfoTimer = null;
     const isSelectableTile = typeof onSelectCover === 'function';
 
@@ -5965,6 +6251,9 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
             tile.classList.remove('has-cover-overlay');
             tile.appendChild(placeholder);
             applyOwnedReleaseVisualState(tile, entry, excludeOwnedReleases);
+            if (!cover.selectedManually && typeof onCoverLoadError === 'function') {
+                window.setTimeout(() => onCoverLoadError(cover.imageSrc), 0);
+            }
         };
 
         const rymReleaseHref = !onSelectCover && isRateYourMusicTopsterSource()
