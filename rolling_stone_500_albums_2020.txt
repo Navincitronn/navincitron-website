@@ -375,7 +375,7 @@
 375 | Green Day | Dookie | 1994
 376 | Neutral Milk Hotel | In the Aeroplane Over the Sea | 1998
 377 | Yeah Yeah Yeahs | Fever to Tell | 2003
-378 | Run-D.M.C. | Run-D.M.C. | 1984
+378 | Run-DMC | Run-D.M.C. | 1984
 379 | Rush | Moving Pictures | 1981
 380 | Charles Mingus | Mingus Ah Um | 1959
 381 | Lynyrd Skynyrd | (Pronounced 'Lĕh-'nérd 'Skin-'nérd) | 1973
