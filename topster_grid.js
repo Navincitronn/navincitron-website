@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260828-status-box-close-up-v49';
+const TOPSTER_FRONTEND_VERSION = '20260829-editor-cover-select-v50';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -5875,6 +5875,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     const tile = document.createElement('div');
     tile.className = 'topster-tile';
     let mobileInfoTimer = null;
+    const isSelectableTile = typeof onSelectCover === 'function';
 
     if (!entry) {
         const empty = document.createElement('div');
@@ -5909,7 +5910,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     };
 
     const showMobileInfo = event => {
-        if (!isTopsterTouchTooltipDevice()) return false;
+        if (isSelectableTile || !isTopsterTouchTooltipDevice()) return false;
         event.preventDefault();
         event.stopPropagation();
         toggleTopsterMobileTileInfo(tile, true, () => {
@@ -5931,8 +5932,8 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         tile.setAttribute('tabindex', '0');
         tile.setAttribute('aria-label', `${label}. Click to choose a cover.`);
         tile.addEventListener('click', event => {
-            if (showMobileInfo(event)) return;
             event.preventDefault();
+            event.stopPropagation();
             onSelectCover();
         });
         tile.addEventListener('keydown', event => {
@@ -6027,7 +6028,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
 
     applyOwnedReleaseVisualState(tile, entry, excludeOwnedReleases);
 
-    if (isTopsterTouchTooltipDevice()) {
+    if (!isSelectableTile && isTopsterTouchTooltipDevice()) {
         const mobileInfo = document.createElement('span');
         mobileInfo.className = `topster-mobile-tile-info ${getTopsterMobileInfoLengthClass(label)}`;
         mobileInfo.textContent = label;
