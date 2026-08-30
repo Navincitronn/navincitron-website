@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-rym-native-covers-only-v53';
+const TOPSTER_FRONTEND_VERSION = '20260830-rym-unicode-cover-identity-v54';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -4069,13 +4069,19 @@ function getRateYourMusicImageUrl(element) {
         element.getAttribute && element.getAttribute('data-lazy-src'),
         element.getAttribute && element.getAttribute('src')
     ].filter(Boolean);
-    const srcset = element.getAttribute && element.getAttribute('srcset');
-    if (srcset) {
+
+    // RYM's saved chart pages commonly lazy-load artwork through data-srcset on
+    // <source> elements. Parse both live and lazy srcsets so the snapshot itself
+    // remains the complete source of truth for Build.
+    ['data-srcset', 'data-lazy-srcset', 'srcset'].forEach(attributeName => {
+        const srcset = element.getAttribute && element.getAttribute(attributeName);
+        if (!srcset) return;
         srcset.split(',').forEach(part => {
             const value = part.trim().split(/\s+/)[0];
             if (value) candidates.push(value);
         });
-    }
+    });
+
     const style = element.getAttribute && element.getAttribute('style');
     if (style) {
         const styleMatch = style.match(/background-image\s*:\s*url\(["']?([^"')]+)["']?\)/i);
@@ -5449,7 +5455,10 @@ function normalizeAlbumTitle(title) {
         .replace(/&/g, 'and')
         .replace(/\bvol(?:ume)?\b/g, 'volume')
         .replace(/\bno\.?\b/g, 'number')
-        .replace(/[^a-z0-9]+/g, '');
+        // Preserve Unicode letters/numbers. The old ASCII-only expression turned
+        // titles such as 宇宙 日本 世田谷 into an empty cache identity, causing RYM's
+        // correctly extracted thumbnail to be rejected later as a mismatch.
+        .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
 function tokenizeTitle(title) {
@@ -5459,8 +5468,8 @@ function tokenizeTitle(title) {
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .replace(/&/g, ' and ')
-        .replace(/[^a-z0-9]+/g, ' ')
-        .split(/\s+/)
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .split(/\s+/u)
         .filter(token => token && !stopWords.has(token));
 }
 
