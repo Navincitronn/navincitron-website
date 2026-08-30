@@ -338,7 +338,7 @@ audio {
 }
 
 button {
-    background-color: #1974D2;
+    background-color: #40bcf4;
     color: white;
     padding: 10px 20px;
     margin-top: 10px;
@@ -348,11 +348,11 @@ button {
 }
 
 button:hover {
-    background-color: #145a8a;
+    background-color: #40bcf4;
 }
 
 .albumss-link:hover {
-    color: #87CEEB;
+    color: #40bcf4;
 }
 
 .albumss-link:active {
@@ -366,7 +366,7 @@ button:hover {
 
 
 .track-list span:hover {
-    color: red;
+    color: #ff8000;
     cursor: pointer;
     text-decoration: underline;
 }
@@ -587,11 +587,11 @@ button:hover {
 }
 
 .danger-button {
-    background-color: #9f2f2f;
+    background-color: #ff8000;
 }
 
 .danger-button:hover {
-    background-color: #7a2323;
+    background-color: #ff8000;
 }
 
 .sampler-status {
@@ -810,7 +810,7 @@ button:hover {
 }
 
 .topster-slider-value {
-    color: #a8d7ff;
+    color: #40bcf4;
     font-weight: normal;
     margin-left: 6px;
 }
@@ -986,7 +986,7 @@ button:hover {
 }
 
 .topster-list .topster-missing {
-    color: #ffb3b3;
+    color: #ff8000;
 }
 
 .topster-list .topster-loading {
@@ -994,7 +994,7 @@ button:hover {
 }
 
 .topster-source-label {
-    color: #a8d7ff;
+    color: #40bcf4;
 }
 
 @media only screen and (max-width: 900px) {
@@ -1043,7 +1043,7 @@ button:hover {
 }
 
 .topster-tile-selectable:focus {
-    outline: 2px solid #87ceeb;
+    outline: 2px solid #40bcf4;
     outline-offset: 2px;
 }
 
@@ -1142,7 +1142,7 @@ button:hover {
 .topster-cover-choice:hover,
 .topster-cover-choice:focus {
     background-color: #444;
-    outline: 2px solid #87ceeb;
+    outline: 2px solid #40bcf4;
 }
 
 .topster-cover-choice img {
@@ -1186,11 +1186,11 @@ button:hover {
 }
 
 .topster-cache-actions .danger-button {
-    background-color: #9f2f2f;
+    background-color: #ff8000;
 }
 
 .topster-cache-actions .danger-button:hover {
-    background-color: #7a2323;
+    background-color: #ff8000;
 }
 
 /* The grid pages now always use all cover sources; there is no visible source-settings panel. */
@@ -1256,7 +1256,7 @@ button:hover {
 
 .topster-owned-release-x::before,
 .topster-owned-release-x::after {
-    background: #9f2f2f;
+    background: #ff8000;
     border-radius: 999px;
     box-shadow: 0 0 1px rgba(0, 0, 0, 0.9);
     content: '';
@@ -1540,7 +1540,7 @@ button:hover {
 }
 
 .songguesser-summary-index[data-correct-count="0"] {
-    color: #CD5C5C;
+    color: #ff8000;
 }
 
 .songguesser-summary-index[data-correct-count="1"] {
@@ -1552,7 +1552,7 @@ button:hover {
 }
 
 .songguesser-summary-index[data-correct-count="3"] {
-    color: #3EA055;
+    color: #00e054;
 }
 
 
@@ -1852,13 +1852,13 @@ body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-r
 }
 
 .topster-loading-progress::-webkit-progress-value {
-    background: #1974D2;
+    background: #40bcf4;
     border-radius: 999px;
     transition: width 0.25s ease;
 }
 
 .topster-loading-progress::-moz-progress-bar {
-    background: #1974D2;
+    background: #40bcf4;
     border-radius: 999px;
 }
 
@@ -1869,28 +1869,28 @@ body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-r
 }
 
 .topster-loading-complete .topster-loading-progress::-webkit-progress-value {
-    background: #2d9f4a;
+    background: #00e054;
 }
 
 .topster-loading-complete .topster-loading-progress::-moz-progress-bar {
-    background: #2d9f4a;
+    background: #00e054;
 }
 
 .topster-loading-error {
-    border-color: rgba(255, 128, 128, 0.72);
+    border-color: #ff8000;
 }
 
 .topster-loading-error .topster-loading-text,
 .topster-loading-error .topster-loading-percent {
-    color: #ffb0b0;
+    color: #ff8000;
 }
 
 .topster-loading-error .topster-loading-progress::-webkit-progress-value {
-    background: #b93838;
+    background: #ff8000;
 }
 
 .topster-loading-error .topster-loading-progress::-moz-progress-bar {
-    background: #b93838;
+    background: #ff8000;
 }
 
 

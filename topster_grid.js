@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-rym-unicode-cover-identity-v54';
+const TOPSTER_FRONTEND_VERSION = '20260830-poster-first-fast-manual-discogs-cache-colors-v55';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -22,11 +22,13 @@ const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v2';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 30 * 60 * 1000;
+const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
 let topsterDiscogsCollectionLoadedAt = 0;
 let topsterDiscogsCollectionLoadPromise = null;
+let topsterDiscogsArtistIndex = new Map();
+let topsterDiscogsOwnershipMemo = new Map();
 
 const TOPSTER_CHECKLIST_OVERLAYS = [
     { keyword: 'Hifiman Susvara Unveiled', id: 'susvara', imageSrc: 'susvara.png', label: 'Hifiman Susvara Unveiled' },
@@ -40,6 +42,7 @@ let topsterPublicLoadingDismissTimer = null;
 let topsterPublicLoadingDismissTransitionTimer = null;
 let topsterLoadingQuotePosterRequestId = 0;
 let topsterEditorCoverCachePersistTimer = null;
+let topsterEditorCoverCacheIdleHandle = null;
 const TOPSTER_LOADING_QUOTE_WIKIPEDIA_TITLE_MAP = Object.freeze({
     '3 WOMEN': '3 Women',
     'TRAINSPOTTING': 'Trainspotting (film)',
@@ -88,6 +91,7 @@ function safeMarkTopsterPublishDirty() {
 
 let topsterLoadingQuotesPromise = null;
 let topsterLoadingQuoteSelection = null;
+let topsterLoadingQuoteReadyPromise = null;
 
 function isTopsterPublicReadOnlyListPage() {
     const body = document.body;
@@ -398,27 +402,41 @@ async function renderTopsterLoadingQuote(panel, quote) {
     if (quoteBody) quoteBody.innerHTML = formatTopsterLoadingQuoteBody(quote.body);
     if (quoteSource) quoteSource.textContent = quote.source;
 
-    // Do not start the 10-second quote timer until the poster has either loaded,
-    // failed, or timed out. This prevents a fast Topster build from consuming
-    // the poster's entire visible lifetime before the image request completes.
+    // Finish preparing the poster before the public Topster build begins. The quote/poster
+    // panel is dismissed separately three seconds after Topster loading completes.
     await renderTopsterLoadingQuotePoster(panel, quote);
 }
 
 async function ensureTopsterPublicLoadingQuote(panel) {
-    if (!isTopsterPublicReadOnlyListPage() || !panel) return;
-    if (topsterLoadingQuoteSelection) {
-        renderTopsterLoadingQuote(panel, topsterLoadingQuoteSelection);
-        return;
-    }
-    if (panel.dataset.topsterQuoteLoading === 'true') return;
+    if (!isTopsterPublicReadOnlyListPage() || !panel) return 'not-public';
+    if (topsterLoadingQuoteReadyPromise) return topsterLoadingQuoteReadyPromise;
 
-    panel.dataset.topsterQuoteLoading = 'true';
-    const quotes = await getTopsterLoadingQuotes();
-    panel.dataset.topsterQuoteLoading = 'false';
-    if (!quotes.length) return;
+    topsterLoadingQuoteReadyPromise = (async () => {
+        panel.dataset.topsterQuoteLoading = 'true';
+        const quotes = await getTopsterLoadingQuotes();
+        panel.dataset.topsterQuoteLoading = 'false';
+        if (!quotes.length) return 'no-quotes';
 
-    topsterLoadingQuoteSelection = quotes[Math.floor(Math.random() * quotes.length)];
-    renderTopsterLoadingQuote(panel, topsterLoadingQuoteSelection);
+        if (!topsterLoadingQuoteSelection) {
+            topsterLoadingQuoteSelection = quotes[Math.floor(Math.random() * quotes.length)];
+        }
+        await renderTopsterLoadingQuote(panel, topsterLoadingQuoteSelection);
+        panel.dataset.topsterQuoteReady = 'true';
+        return 'ready';
+    })().catch(error => {
+        panel.dataset.topsterQuoteLoading = 'false';
+        console.warn('Could not prepare Topster loading quote/poster:', error);
+        return 'failed';
+    });
+
+    return topsterLoadingQuoteReadyPromise;
+}
+
+async function waitForTopsterPublicLoadingMedia() {
+    if (!isTopsterPublicReadOnlyListPage()) return;
+    const panel = ensureTopsterLoadingPanel();
+    if (!panel) return;
+    await ensureTopsterPublicLoadingQuote(panel);
 }
 
 
@@ -700,12 +718,80 @@ function normalizeDiscogsCollectionAlbums(rawAlbums) {
     }).filter(item => item.titleVariants.length);
 }
 
+function discogsOwnedArtistIndexKeys(value) {
+    const keys = new Set();
+    const variants = discogsOwnedArtistVariants(value || '');
+    variants.forEach(variant => {
+        if (!variant) return;
+        keys.add(`v:${variant}`);
+        if (variant.length >= 5) keys.add(`p:${variant.slice(0, 5)}`);
+    });
+    discogsOwnedArtistTokenSet(value || '').forEach(token => {
+        if (token.length >= 6) keys.add(`t:${token}`);
+    });
+    DISCOGS_OWNED_ARTIST_ALIAS_GROUPS.forEach((group, index) => {
+        const groupVariants = new Set(group.flatMap(discogsOwnedArtistVariants));
+        if (variants.some(value => groupVariants.has(value))) keys.add(`g:${index}`);
+    });
+    return Array.from(keys);
+}
+
+function rebuildTopsterDiscogsIndexes() {
+    topsterDiscogsArtistIndex = new Map();
+    topsterDiscogsOwnershipMemo = new Map();
+    (topsterDiscogsCollectionAlbums || []).forEach((album, albumIndex) => {
+        const artists = Array.isArray(album.artists) ? album.artists : [];
+        artists.forEach(artist => {
+            discogsOwnedArtistIndexKeys(artist).forEach(key => {
+                if (!topsterDiscogsArtistIndex.has(key)) topsterDiscogsArtistIndex.set(key, new Set());
+                topsterDiscogsArtistIndex.get(key).add(albumIndex);
+            });
+        });
+    });
+}
+
+function installTopsterDiscogsCollection(rawAlbums, options = {}) {
+    const canUseNormalized = Boolean(options.normalized)
+        && Array.isArray(rawAlbums)
+        && rawAlbums.every(item => item && Array.isArray(item.titleVariants) && Array.isArray(item.artists));
+    topsterDiscogsCollectionAlbums = canUseNormalized
+        ? rawAlbums
+        : normalizeDiscogsCollectionAlbums(rawAlbums);
+    rebuildTopsterDiscogsIndexes();
+    return topsterDiscogsCollectionAlbums;
+}
+
+function getTopsterDiscogsCandidateAlbums(entryArtist) {
+    if (!entryArtist || !topsterDiscogsArtistIndex.size) return topsterDiscogsCollectionAlbums || [];
+    const indexes = new Set();
+    discogsOwnedArtistIndexKeys(entryArtist).forEach(key => {
+        const matches = topsterDiscogsArtistIndex.get(key);
+        if (matches) matches.forEach(index => indexes.add(index));
+    });
+    return Array.from(indexes).map(index => topsterDiscogsCollectionAlbums[index]).filter(Boolean);
+}
+
+function discogsOwnedEntryHasCrossCreditRule(entryArtist, entryTitle) {
+    const entryArtistKeys = new Set(discogsOwnedArtistVariants(entryArtist));
+    const entryTitleKey = discogsOwnedRelationKey(entryTitle);
+    if (!entryArtistKeys.size || !entryTitleKey) return false;
+    return DISCOGS_OWNED_CROSS_CREDIT_GROUPS.some(group => {
+        const allowedEntryArtists = new Set(group.entryArtists.flatMap(discogsOwnedArtistVariants));
+        return Array.from(entryArtistKeys).some(value => allowedEntryArtists.has(value))
+            && group.entryTitles.some(title => discogsOwnedRelationKey(title) === entryTitleKey);
+    });
+}
+
 function saveDiscogsCollectionBrowserCache(payload) {
     try {
+        const normalizedAlbums = Array.isArray(topsterDiscogsCollectionAlbums)
+            ? topsterDiscogsCollectionAlbums
+            : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
+            schema: 3,
             savedAt: Date.now(),
-            itemCount: Number(payload && payload.itemCount) || 0,
-            albums: Array.isArray(payload && payload.albums) ? payload.albums : []
+            itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
+            normalizedAlbums
         }));
     } catch (error) {
         // The shared backend remains the source of truth if local storage is unavailable.
@@ -715,11 +801,23 @@ function saveDiscogsCollectionBrowserCache(payload) {
 function loadDiscogsCollectionBrowserCache() {
     try {
         const parsed = JSON.parse(localStorage.getItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY) || 'null');
-        if (!parsed || !Array.isArray(parsed.albums)) return false;
+        if (!parsed) return false;
         const savedAt = Number(parsed.savedAt) || 0;
         if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
-        topsterDiscogsCollectionAlbums = normalizeDiscogsCollectionAlbums(parsed.albums);
-        topsterDiscogsCollectionItemCount = Number(parsed.itemCount) || parsed.albums.length;
+
+        if (Array.isArray(parsed.normalizedAlbums)) {
+            installTopsterDiscogsCollection(parsed.normalizedAlbums, { normalized: true });
+        } else if (Array.isArray(parsed.albums)) {
+            installTopsterDiscogsCollection(parsed.albums);
+            // Upgrade an older browser cache once so subsequent loads skip repeated
+            // normalization of the entire Discogs collection.
+            saveDiscogsCollectionBrowserCache({ itemCount: parsed.itemCount, albums: parsed.albums });
+        } else {
+            return false;
+        }
+
+        topsterDiscogsCollectionItemCount = Number(parsed.itemCount)
+            || (topsterDiscogsCollectionAlbums ? topsterDiscogsCollectionAlbums.length : 0);
         topsterDiscogsCollectionLoadedAt = savedAt;
         return true;
     } catch (error) {
@@ -728,7 +826,7 @@ function loadDiscogsCollectionBrowserCache() {
 }
 
 async function ensureTopsterDiscogsCollectionLoaded(options = {}) {
-    if (Array.isArray(topsterDiscogsCollectionAlbums) && topsterDiscogsCollectionAlbums.length) return true;
+    if (!options.force && Array.isArray(topsterDiscogsCollectionAlbums) && topsterDiscogsCollectionAlbums.length) return true;
     if (!options.force && loadDiscogsCollectionBrowserCache()) return true;
     if (topsterDiscogsCollectionLoadPromise) return topsterDiscogsCollectionLoadPromise;
 
@@ -758,7 +856,7 @@ async function ensureTopsterDiscogsCollectionLoaded(options = {}) {
                 throw new Error('Discogs collection response was invalid.');
             }
 
-            topsterDiscogsCollectionAlbums = normalizeDiscogsCollectionAlbums(payload.albums);
+            installTopsterDiscogsCollection(payload.albums);
             topsterDiscogsCollectionItemCount = Number(payload.itemCount) || payload.albums.length;
             topsterDiscogsCollectionLoadedAt = Date.now();
             saveDiscogsCollectionBrowserCache(payload);
@@ -1289,33 +1387,54 @@ function topsterEntryIsInDiscogsCollection(entry) {
     const entryArtist = cleanAlbumTitle(entry.artist || ''), entryTitle = cleanAlbumTitle(entry.title || '');
     if (!entryTitle) return false;
 
-    if (discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle)) return true;
+    const memoKey = `${discogsOwnedRelationKey(entryArtist)}::${discogsOwnedRelationKey(entryTitle)}`;
+    if (memoKey && topsterDiscogsOwnershipMemo.has(memoKey)) {
+        return topsterDiscogsOwnershipMemo.get(memoKey);
+    }
+    const remember = value => {
+        if (memoKey) topsterDiscogsOwnershipMemo.set(memoKey, Boolean(value));
+        return Boolean(value);
+    };
 
-    for (const album of topsterDiscogsCollectionAlbums) {
+    if (discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle)) return remember(true);
+
+    // Cross-credit exceptions deliberately allow different credited artists, so
+    // evaluate only the handful of entries that can use one of those explicit rules.
+    if (discogsOwnedEntryHasCrossCreditRule(entryArtist, entryTitle)) {
+        for (const album of topsterDiscogsCollectionAlbums) {
+            const collectionTitle = cleanAlbumTitle(album.title || '');
+            const collectionArtists = Array.isArray(album.artists) && album.artists.length ? album.artists : [album.artist || ''];
+            if (collectionTitle && discogsOwnedKnownCrossCreditMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) {
+                return remember(true);
+            }
+        }
+    }
+
+    // Most entries now scan only releases indexed to a compatible artist instead
+    // of every album in the Discogs collection. This removes the old O(topster ×
+    // collection) cost when enabling the owned-release overlay on large Topsters.
+    const candidateAlbums = getTopsterDiscogsCandidateAlbums(entryArtist);
+    for (const album of candidateAlbums) {
         const collectionTitle = cleanAlbumTitle(album.title || '');
         const collectionArtists = Array.isArray(album.artists) && album.artists.length ? album.artists : [album.artist || ''];
         if (!collectionTitle) continue;
         const artistsMatch = discogsOwnedArtistsMatch(entryArtist, collectionArtists);
 
-        // Explicit semantic relationships remain the only permitted exceptions
-        // to normal artist/title compatibility.
-        if (discogsOwnedKnownCrossCreditMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
-
         if (artistsMatch) {
-            if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return true;
-            if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
-            if (discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArtist, collectionArtists)) return true;
+            if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return remember(true);
+            if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return remember(true);
+            if (discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArtist, collectionArtists)) return remember(true);
 
             const titleScore = discogsOwnedTitleScore(entryTitle, collectionTitle, entryArtist, collectionArtists.join(', '));
-            if (titleScore >= 0.68 && discogsOwnedFuzzyTitleMatchIsSafe(entryTitle, collectionTitle)) return true;
-            if (discogsOwnedIsCompilationLike(entryTitle) && discogsOwnedIsCompilationLike(collectionTitle)) return true;
-            if (discogsOwnedIsArtistPresentationTitle(entryTitle, entryArtist) && discogsOwnedIsArtistPresentationTitle(collectionTitle, entryArtist)) return true;
+            if (titleScore >= 0.68 && discogsOwnedFuzzyTitleMatchIsSafe(entryTitle, collectionTitle)) return remember(true);
+            if (discogsOwnedIsCompilationLike(entryTitle) && discogsOwnedIsCompilationLike(collectionTitle)) return remember(true);
+            if (discogsOwnedIsArtistPresentationTitle(entryTitle, entryArtist) && discogsOwnedIsArtistPresentationTitle(collectionTitle, entryArtist)) return remember(true);
         }
     }
 
     // Never infer ownership from an exact/fuzzy title alone when the artist is
     // unrelated. Cross-credit cases must be explicitly mapped above.
-    return false;
+    return remember(false);
 }
 
 function applyOwnedReleaseVisualState(tile, entry, enabled) {
@@ -1326,6 +1445,10 @@ function applyOwnedReleaseVisualState(tile, entry, enabled) {
     const existingOwnedX = tile.querySelector('.topster-owned-release-x');
     if (!owned) {
         if (existingOwnedX) existingOwnedX.remove();
+        tile.querySelectorAll('img, .topster-cover-overlay, .topster-tile-placeholder').forEach(element => {
+            element.style.opacity = '';
+            element.style.filter = '';
+        });
         return;
     }
 
@@ -1791,29 +1914,30 @@ async function initTopsterImporter(albumCards) {
         return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
     }
 
+    function formatSystemClockTime(epochMilliseconds) {
+        return new Date(epochMilliseconds).toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
     function beginSettingsElapsedStatus(label = 'Updating Topster display settings') {
         const token = ++settingsElapsedToken;
-        const startedAt = performance.now();
+        const startedAt = Date.now();
         const baseText = lastBuildCompletionStatusText || String(status.textContent || '').trim();
         window.clearInterval(settingsElapsedTimer);
+        settingsElapsedTimer = null;
         status.style.whiteSpace = 'pre-line';
-
-        const update = () => {
-            if (token !== settingsElapsedToken) return;
-            const elapsed = formatElapsedTime(performance.now() - startedAt);
-            status.textContent = `${baseText}${baseText ? '\n' : ''}${label} — ${elapsed} elapsed`;
-        };
-        update();
-        settingsElapsedTimer = window.setInterval(update, 100);
+        status.textContent = `${baseText}${baseText ? '\n' : ''}${label} started at ${formatSystemClockTime(startedAt)}.`;
         return { token, startedAt, baseText, label };
     }
 
     function finishSettingsElapsedStatus(context, suffix = '') {
         if (!context || context.token !== settingsElapsedToken) return;
-        window.clearInterval(settingsElapsedTimer);
-        settingsElapsedTimer = null;
-        const elapsed = formatElapsedTime(performance.now() - context.startedAt);
-        const completion = `${context.label} finished in ${elapsed}.${suffix ? ` ${suffix}` : ''}`;
+        const finishedAt = Date.now();
+        const elapsed = formatElapsedTime(finishedAt - context.startedAt);
+        const completion = `${context.label} started at ${formatSystemClockTime(context.startedAt)} and finished at ${formatSystemClockTime(finishedAt)} (${elapsed}).${suffix ? ` ${suffix}` : ''}`;
         status.textContent = `${context.baseText}${context.baseText ? '\n' : ''}${completion}`;
     }
 
@@ -1833,6 +1957,22 @@ async function initTopsterImporter(albumCards) {
     const brokenCoverRecoveryState = new Map();
     const topsterSourceLabel = getTopsterSourceLabel();
     const topsterEditorPage = isTopsterEditorPage();
+
+    // Warm the owned-release collection in the background on editor pages. A
+    // valid seven-day browser cache resolves synchronously; otherwise the backend
+    // request starts while the user is working instead of only after they toggle
+    // "Exclude releases that I have".
+    if (topsterEditorPage && excludeOwnedSelect) {
+        const cachedDiscogsCollectionReady = loadDiscogsCollectionBrowserCache();
+        if (!cachedDiscogsCollectionReady) {
+            const prefetchDiscogsCollection = () => { ensureTopsterDiscogsCollectionLoaded().catch(() => {}); };
+            if (typeof window.requestIdleCallback === 'function') {
+                window.requestIdleCallback(prefetchDiscogsCollection, { timeout: 1500 });
+            } else {
+                window.setTimeout(prefetchDiscogsCollection, 250);
+            }
+        }
+    }
     let currentSettingsProfiles = normalizeTopsterSettingsProfiles(loadTopsterSettings());
     let currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
     let currentSettings = normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]);
@@ -2068,7 +2208,11 @@ async function initTopsterImporter(albumCards) {
             if (elapsedContext.token !== settingsElapsedToken) return;
         }
 
+        const previousSettings = { ...currentSettings };
         currentSettings = normalizeTopsterSettings(readSettingsControls());
+        const excludeOwnedOnlyChange = previousSettings.excludeOwnedReleases !== currentSettings.excludeOwnedReleases
+            && ['width', 'height', 'sidebarMode', 'roundCorners', 'albumGap', 'font', 'coverOverlay']
+                .every(key => previousSettings[key] === currentSettings[key]);
         currentSettingsProfiles[currentSettingsProfile] = currentSettings;
         saveTopsterSettings(currentSettingsProfiles);
         applyTopsterSettings(currentSettings);
@@ -2090,6 +2234,17 @@ async function initTopsterImporter(albumCards) {
                 finishSettingsElapsedStatus(elapsedContext, `${warning}${warning ? ' ' : ''}Press Save Settings to publish.`);
             } else {
                 status.textContent = '';
+            }
+            return;
+        }
+
+        if (excludeOwnedOnlyChange) {
+            updateOwnedReleaseVisualStatesInPlace(currentSettings.excludeOwnedReleases);
+            await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
+            if (elapsedContext && elapsedContext.token !== settingsElapsedToken) return;
+            scheduleCurrentTopsterSave();
+            if (topsterEditorPage) {
+                finishSettingsElapsedStatus(elapsedContext, `${warning}${warning ? ' ' : ''}Press Save Settings to publish.`);
             }
             return;
         }
@@ -2345,9 +2500,7 @@ async function initTopsterImporter(albumCards) {
             renderTopster(importedEntries, 0, { scroll: false });
         }
         closeCoverPicker();
-        window.setTimeout(saveCurrentTopster, 0);
-        syncAllTopsterSidebarHeights();
-        window.requestAnimationFrame(syncAllTopsterSidebarHeights);
+        scheduleCurrentTopsterSave();
         status.textContent = `Reset ${entry.title} to the default local artist image. Press Save Settings to publish it to ${getTopsterPublicPageName()}.`;
     }
 
@@ -2378,9 +2531,7 @@ async function initTopsterImporter(albumCards) {
             renderTopster(importedEntries, 0, { scroll: false });
         }
         closeCoverPicker();
-        window.setTimeout(saveCurrentTopster, 0);
-        syncAllTopsterSidebarHeights();
-        window.requestAnimationFrame(syncAllTopsterSidebarHeights);
+        scheduleCurrentTopsterSave();
 
         status.textContent = topsterEditorPage
             ? `Updated local cover for ${formatEntryName(entry)}. Press Save Settings to publish it to the ${getTopsterPublicPageName()}.`
@@ -2554,6 +2705,28 @@ async function initTopsterImporter(albumCards) {
         } catch (error) {
             // Browser storage can fill up. Rendering should continue even if state cannot be saved.
         }
+    }
+
+    let currentTopsterSaveTimer = null;
+    let currentTopsterSaveIdleHandle = null;
+    function scheduleCurrentTopsterSave(delayMs = 650) {
+        window.clearTimeout(currentTopsterSaveTimer);
+        if (currentTopsterSaveIdleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+            window.cancelIdleCallback(currentTopsterSaveIdleHandle);
+            currentTopsterSaveIdleHandle = null;
+        }
+        currentTopsterSaveTimer = window.setTimeout(() => {
+            currentTopsterSaveTimer = null;
+            const persist = () => {
+                currentTopsterSaveIdleHandle = null;
+                saveCurrentTopster();
+            };
+            if (typeof window.requestIdleCallback === 'function') {
+                currentTopsterSaveIdleHandle = window.requestIdleCallback(persist, { timeout: 3000 });
+            } else {
+                window.setTimeout(persist, 0);
+            }
+        }, Math.max(0, Number(delayMs) || 0));
     }
 
     async function maybeLoadLocalIndex() {
@@ -2810,6 +2983,15 @@ async function initTopsterImporter(albumCards) {
             existingTile.replaceWith(replacement);
         });
         return true;
+    }
+
+    function updateOwnedReleaseVisualStatesInPlace(enabled) {
+        const tiles = pagesContainer.querySelectorAll('.topster-tile[data-topster-entry-index]');
+        tiles.forEach(tile => {
+            const index = Number(tile.dataset.topsterEntryIndex);
+            if (!Number.isInteger(index) || index < 0 || !importedEntries[index]) return;
+            applyOwnedReleaseVisualState(tile, importedEntries[index], enabled);
+        });
     }
 
     async function recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc) {
@@ -5605,12 +5787,24 @@ function writeLocalTopsterCoverCache(cache) {
     }
 }
 
-function scheduleTopsterEditorCoverCachePersist(delayMs = 120) {
+function scheduleTopsterEditorCoverCachePersist(delayMs = 650) {
     if (!isTopsterEditorPage()) return;
     window.clearTimeout(topsterEditorCoverCachePersistTimer);
+    if (topsterEditorCoverCacheIdleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(topsterEditorCoverCacheIdleHandle);
+        topsterEditorCoverCacheIdleHandle = null;
+    }
     topsterEditorCoverCachePersistTimer = window.setTimeout(() => {
         topsterEditorCoverCachePersistTimer = null;
-        writeLocalTopsterCoverCache(getTopsterEditorWorkingCoverCache());
+        const persist = () => {
+            topsterEditorCoverCacheIdleHandle = null;
+            writeLocalTopsterCoverCache(getTopsterEditorWorkingCoverCache());
+        };
+        if (typeof window.requestIdleCallback === 'function') {
+            topsterEditorCoverCacheIdleHandle = window.requestIdleCallback(persist, { timeout: 3000 });
+        } else {
+            window.setTimeout(persist, 0);
+        }
     }, Math.max(0, Number(delayMs) || 0));
 }
 
@@ -6318,7 +6512,9 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         const img = document.createElement('img');
         img.src = cover.imageSrc;
         img.alt = formatEntryName(entry) || cover.title || entry.title;
-        img.loading = 'lazy';
+        img.loading = cover.selectedManually ? 'eager' : 'lazy';
+        img.decoding = 'async';
+        if (cover.selectedManually) img.fetchPriority = 'high';
         img.onerror = () => {
             const placeholder = document.createElement('div');
             placeholder.className = 'topster-tile-placeholder';
@@ -6466,6 +6662,13 @@ function getTopsterCoverOverlayText(entry, displayIndex, coverOverlayMode) {
 
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Public Topster pages intentionally prepare the random quote and finish the
+    // poster image request before any source/cache loading begins. This prevents
+    // the Topster build from racing ahead of the movie poster.
+    if (isTopsterPublicReadOnlyListPage()) {
+        await waitForTopsterPublicLoadingMedia();
+    }
+
     const authenticated = await requireTopsterAdminAccess();
     if (!authenticated) return;
 
