@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LAST.FM - Navincitron</title>
-    <link rel="stylesheet" href="styles.css?v=20260830-discogs-rym-parens-ctrls-v56">
+    <link rel="stylesheet" href="styles.css?v=20260830-refresh-staged-controls-v63">
     <style>
         .lastfm-profile-line { text-align: center; margin: 4px 20px 20px; color: #ddd; }
         .lastfm-profile-line a { color: #40bcf4; }
@@ -41,6 +41,12 @@
         .lastfm-listen-clickable { cursor: pointer; }
         .lastfm-listen-clickable:focus-visible { outline: 2px solid #40bcf4; outline-offset: -2px; }
         .lastfm-listen-info { font-size: clamp(10px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.09), 20px); }
+        .lastfm-cover-context-menu {
+            background:#333; border:1px solid rgba(255,255,255,.22); border-radius:6px; box-shadow:0 8px 28px rgba(0,0,0,.5);
+            padding:4px; position:fixed; z-index:1200;
+        }
+        .lastfm-cover-context-menu[hidden] { display:none; }
+        .lastfm-cover-context-menu button { margin:0; white-space:nowrap; }
         @media (max-width: 700px) { .lastfm-time-window { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -103,10 +109,10 @@
                 <details class="topster-settings-panel" open>
                     <summary>Topster display settings</summary>
                     <div class="topster-settings-grid">
-                        <label for="lastfm-width">Width <span class="topster-slider-value" id="lastfm-width-value">10</span></label>
+                        <label for="lastfm-width">Width <input type="number" class="topster-slider-value topster-slider-value-input" id="lastfm-width-value" min="1" max="25" step="1" value="10" inputmode="numeric" aria-label="Width value"></label>
                         <div class="topster-slider-control"><input type="range" id="lastfm-width" min="1" max="25" step="1" value="10"></div>
 
-                        <label for="lastfm-height">Height <span class="topster-slider-value" id="lastfm-height-value">10</span></label>
+                        <label for="lastfm-height">Height <input type="number" class="topster-slider-value topster-slider-value-input" id="lastfm-height-value" min="1" max="10" step="1" value="10" inputmode="numeric" aria-label="Height value"></label>
                         <div class="topster-slider-control"><input type="range" id="lastfm-height" min="1" max="10" step="1" value="10"></div>
 
                         <label for="lastfm-sidebar-mode">Sidebar text</label>
@@ -116,11 +122,11 @@
                             <option value="hidden">Hide sidebar</option>
                         </select>
 
-                        <label for="lastfm-sidebar-width">Sidebar width <span class="topster-slider-value" id="lastfm-sidebar-width-value">20%</span></label>
+                        <label for="lastfm-sidebar-width">Sidebar width (%) <input type="number" class="topster-slider-value topster-slider-value-input" id="lastfm-sidebar-width-value" min="10" max="50" step="1" value="20" inputmode="numeric" aria-label="Sidebar width percent"></label>
                         <div class="topster-slider-control"><input type="range" id="lastfm-sidebar-width" min="10" max="50" step="1" value="20"></div>
 
-                        <label for="lastfm-sidebar-text-size">Sidebar text size (%)</label>
-                        <input type="number" id="lastfm-sidebar-text-size" min="50" max="200" step="5" value="100" inputmode="numeric" aria-label="Sidebar text size percent" style="background-color:#f2f2f2;border:1px solid #aaa;border-radius:5px;box-sizing:border-box;color:#000;font-size:14px;padding:9px;width:100%;">
+                        <label for="lastfm-sidebar-text-size">Sidebar text size (%) <input type="number" class="topster-slider-value topster-slider-value-input" id="lastfm-sidebar-text-size-value" min="50" max="200" step="1" value="100" inputmode="numeric" aria-label="Sidebar text size percent"></label>
+                        <div class="topster-slider-control"><input type="range" id="lastfm-sidebar-text-size" min="50" max="200" step="1" value="100"></div>
 
                         <label for="lastfm-cell-count">Cells shown</label>
                         <input type="text" inputmode="numeric" pattern="[0-9]*" id="lastfm-cell-count" placeholder="Width × Height" aria-describedby="lastfm-cell-count-help">
@@ -132,7 +138,7 @@
                             <option value="0" selected>0 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="6">6 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="24">24 px</option>
                         </select>
 
-                        <label for="lastfm-album-gap">Album cover gap <span class="topster-slider-value" id="lastfm-album-gap-value">4 px</span></label>
+                        <label for="lastfm-album-gap">Album cover gap (px) <input type="number" class="topster-slider-value topster-slider-value-input" id="lastfm-album-gap-value" min="0" max="100" step="1" value="4" inputmode="numeric" aria-label="Album cover gap pixels"></label>
                         <div class="topster-slider-control"><input type="range" id="lastfm-album-gap" min="0" max="100" step="1" value="4"></div>
 
                         <label for="lastfm-cover-overlay">Cover overlay</label>
@@ -150,15 +156,36 @@
                 </details>
 
                 <p class="topster-status" id="lastfm-status">Verifying admin authentication...</p>
-                <p class="lastfm-saved-note">Save Settings stores the selected Last.fm view, display settings, and current chart snapshot in this browser. Ctrl+S / Cmd+S performs the same save.</p>
+                <p class="lastfm-saved-note">Change settings, then press Refresh to apply them. Right-click any populated cell and choose Change Cover for Last.fm-only image options or a direct image link. Save Settings stores the applied Last.fm view and manual covers in this browser; Ctrl+S / Cmd+S performs the same save.</p>
             </div>
 
             <div class="topster-output" id="lastfm-output" hidden>
                 <div class="topster-pages" id="lastfm-pages"></div>
             </div>
         </section>
+
+        <div class="lastfm-cover-context-menu" id="lastfm-cover-context-menu" hidden>
+            <button type="button" id="lastfm-change-cover-button">Change Cover</button>
+        </div>
+
+        <div class="topster-cover-picker" id="lastfm-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lastfm-cover-picker-title">
+            <div class="topster-cover-picker-card">
+                <div class="topster-cover-picker-header">
+                    <h3 id="lastfm-cover-picker-title">Select Last.fm cover</h3>
+                    <button type="button" id="lastfm-cover-picker-close" class="secondary-button">Close</button>
+                </div>
+                <div class="topster-cover-picker-controls">
+                    <label for="lastfm-cover-picker-link">Image Link</label>
+                    <input type="url" id="lastfm-cover-picker-link" placeholder="Paste an image URL, then select Use Image Link">
+                    <button type="button" id="lastfm-cover-picker-link-button" class="secondary-button">Use Image Link</button>
+                    <button type="button" id="lastfm-cover-picker-search">Refresh Results</button>
+                </div>
+                <p class="topster-cover-picker-status" id="lastfm-cover-picker-status"></p>
+                <div class="topster-cover-picker-results" id="lastfm-cover-picker-results"></div>
+            </div>
+        </div>
     </main>
 
-    <script src="last_fm.js?v=20260830-sidebar-controls-v62"></script>
+    <script src="last_fm.js?v=20260830-lastfm-manual-cover-refresh-gated-v63"></script>
 </body>
 </html>

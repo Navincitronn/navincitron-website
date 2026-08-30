@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-sidebar-controls-discogs-v62';
+const TOPSTER_FRONTEND_VERSION = '20260830-refresh-staged-controls-discogs-v63';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -21,7 +21,7 @@ const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v7';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v8';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
@@ -827,7 +827,7 @@ function saveDiscogsCollectionBrowserCache(payload) {
             ? topsterDiscogsCollectionAlbums
             : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
-            schema: 7,
+            schema: 8,
             savedAt: Date.now(),
             itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
             normalizedAlbums
@@ -844,7 +844,7 @@ function loadDiscogsCollectionBrowserCache() {
         const savedAt = Number(parsed.savedAt) || 0;
         if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
 
-        if (Number(parsed.schema) === 7 && Array.isArray(parsed.normalizedAlbums)) {
+        if (Number(parsed.schema) === 8 && Array.isArray(parsed.normalizedAlbums)) {
             installTopsterDiscogsCollection(parsed.normalizedAlbums, { normalized: true });
         } else if (Array.isArray(parsed.albums)) {
             installTopsterDiscogsCollection(parsed.albums);
@@ -873,7 +873,12 @@ async function ensureTopsterDiscogsCollectionLoaded(options = {}) {
         try {
             const url = new URL('/api/discogs-collection', getTopsterBackendOrigin() || window.location.origin);
             url.searchParams.set('username', TOPSTER_DISCOGS_COLLECTION_USERNAME);
-            if (options.force) url.searchParams.set('refresh', '1');
+            // Reaching the network means there was no usable seven-day browser
+            // snapshot. Ask the backend to rebuild its Discogs snapshot too, so
+            // clearing browser data cannot immediately repopulate from a stale
+            // week-old Redis collection. Normal subsequent loads still use the
+            // fast browser cache and do not hit Discogs again.
+            url.searchParams.set('refresh', '1');
 
             const response = await fetch(url.href, {
                 credentials: 'include',
@@ -1916,6 +1921,7 @@ async function initTopsterImporter(albumCards) {
     const sidebarWidthSelect = document.getElementById('topster-sidebar-width');
     const sidebarWidthValue = document.getElementById('topster-sidebar-width-value');
     const sidebarTextSizeInput = document.getElementById('topster-sidebar-text-size');
+    const sidebarTextSizeValue = document.getElementById('topster-sidebar-text-size-value');
     const roundCornersSelect = document.getElementById('topster-round-corners');
     const albumGapSelect = document.getElementById('topster-album-gap');
     const albumGapValue = document.getElementById('topster-album-gap-value');
@@ -2035,6 +2041,7 @@ async function initTopsterImporter(albumCards) {
     let currentSettingsProfiles = normalizeTopsterSettingsProfiles(loadTopsterSettings());
     let currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
     let currentSettings = normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]);
+    let pendingSettingsDirty = false;
 
     if (topsterEditorPage && topsterSharedStoreAvailable && !topsterSharedStoreWritable) {
         status.textContent = 'Grid editing requires Topster admin login. Redirecting...';
@@ -2066,8 +2073,13 @@ async function initTopsterImporter(albumCards) {
         buildTopsterFromGridFile({ force: true, source: 'build' });
     });
 
-    refreshButton.addEventListener('click', () => {
-        buildTopsterFromGridFile({ force: false, source: 'refresh' });
+    refreshButton.addEventListener('click', async () => {
+        const settingsApplied = pendingSettingsDirty;
+        if (settingsApplied) {
+            await handleSettingsChange();
+            pendingSettingsDirty = false;
+        }
+        buildTopsterFromGridFile({ force: false, source: 'refresh', settingsApplied });
     });
 
     if (stopButton) {
@@ -2101,7 +2113,13 @@ async function initTopsterImporter(albumCards) {
     });
 
     if (saveSettingsButton) {
-        saveSettingsButton.addEventListener('click', publishTopsterSettingsAndCovers);
+        saveSettingsButton.addEventListener('click', () => {
+            if (pendingSettingsDirty) {
+                status.textContent = 'Display settings have changed. Press Refresh to apply them before Save Settings.';
+                return;
+            }
+            publishTopsterSettingsAndCovers();
+        });
         if (topsterEditorPage) {
             document.addEventListener('keydown', event => {
                 const key = String(event.key || '').toLowerCase();
@@ -2140,23 +2158,54 @@ async function initTopsterImporter(albumCards) {
         resolveVisibleRange(0);
     });
 
-    [widthSelect, heightSelect, albumGapSelect, sidebarWidthSelect].forEach(element => {
-        if (!element) return;
-        element.addEventListener('input', handleSettingsChange);
-        element.addEventListener('change', handleSettingsChange);
-    });
-
-    if (sidebarTextSizeInput) {
-        sidebarTextSizeInput.addEventListener('input', handleSettingsChange);
-        sidebarTextSizeInput.addEventListener('change', handleSettingsChange);
+    function markSettingsPending() {
+        pendingSettingsDirty = true;
+        const pending = normalizeTopsterSettings(readSettingsControls());
+        updateSettingsValueLabels(pending);
+        status.textContent = 'Display settings changed. Press Refresh to apply them.';
     }
 
+    function bindEditableSliderValue(rangeInput, valueInput, min, max) {
+        if (!rangeInput || !valueInput || valueInput.tagName !== 'INPUT') return;
+        const commit = () => {
+            const next = clampInteger(valueInput.value, min, max, Number(rangeInput.value));
+            rangeInput.value = String(next);
+            valueInput.value = String(next);
+            markSettingsPending();
+        };
+        valueInput.addEventListener('change', commit);
+        valueInput.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            commit();
+            valueInput.blur();
+        });
+    }
+
+    [widthSelect, heightSelect, albumGapSelect, sidebarWidthSelect, sidebarTextSizeInput].forEach(element => {
+        if (!element) return;
+        element.addEventListener('input', markSettingsPending);
+        element.addEventListener('change', markSettingsPending);
+    });
+
+    bindEditableSliderValue(widthSelect, widthValue, 1, 25);
+    bindEditableSliderValue(heightSelect, heightValue, 1, 10);
+    bindEditableSliderValue(sidebarWidthSelect, sidebarWidthValue, 10, 50);
+    bindEditableSliderValue(sidebarTextSizeInput, sidebarTextSizeValue, 50, 200);
+    bindEditableSliderValue(albumGapSelect, albumGapValue, 0, 100);
+
     [sidebarModeSelect, roundCornersSelect, fontSelect, coverOverlaySelect, excludeOwnedSelect].forEach(element => {
-        if (element) element.addEventListener('change', handleSettingsChange);
+        if (element) element.addEventListener('change', markSettingsPending);
     });
 
     if (deviceProfileSelect) {
-        deviceProfileSelect.addEventListener('change', handleSettingsProfileChange);
+        deviceProfileSelect.addEventListener('change', () => {
+            currentSettingsProfiles[currentSettingsProfile] = normalizeTopsterSettings(readSettingsControls());
+            currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
+            setSettingsControls(normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]));
+            pendingSettingsDirty = true;
+            status.textContent = `Now editing ${getTopsterSettingsProfileLabel(currentSettingsProfile)} settings. Press Refresh to apply them.`;
+        });
     }
 
     function getEffectiveTopsterSettings(settings = currentSettings) {
@@ -2614,7 +2663,7 @@ async function initTopsterImporter(albumCards) {
             : `Updated cover for ${formatEntryName(entry)}.`;
     }
 
-    async function buildTopsterFromGridFile({ force, source }) {
+    async function buildTopsterFromGridFile({ force, source, settingsApplied = false }) {
         activeLookupToken++;
         const token = activeLookupToken;
 
@@ -2630,7 +2679,9 @@ async function initTopsterImporter(albumCards) {
             if (token !== activeLookupToken) return;
 
             if (!force && importedEntries.length && currentGridSignature && loaded.signature === currentGridSignature) {
-                status.textContent = `${topsterSourceLabel} has not changed. Current Topsters grid was kept.`;
+                status.textContent = settingsApplied
+                    ? `Applied the pending display settings. ${topsterSourceLabel} has not changed.`
+                    : `${topsterSourceLabel} has not changed. Current Topsters grid was kept.`;
                 completeTopsterLoading(status.textContent);
                 buildButton.disabled = false;
                 refreshButton.disabled = false;
@@ -3329,11 +3380,21 @@ async function initTopsterImporter(albumCards) {
         updateSettingsValueLabels(settings);
     }
 
+    function setSettingsValueLabel(element, value, suffix = '') {
+        if (!element) return;
+        if (element.tagName === 'INPUT') {
+            element.value = String(value);
+        } else {
+            element.textContent = `${value}${suffix}`;
+        }
+    }
+
     function updateSettingsValueLabels(settings) {
-        widthValue.textContent = String(settings.width);
-        heightValue.textContent = String(settings.height);
-        if (sidebarWidthValue) sidebarWidthValue.textContent = `${settings.sidebarWidth}%`;
-        albumGapValue.textContent = `${settings.albumGap} px`;
+        setSettingsValueLabel(widthValue, settings.width);
+        setSettingsValueLabel(heightValue, settings.height);
+        setSettingsValueLabel(sidebarWidthValue, settings.sidebarWidth, '%');
+        setSettingsValueLabel(sidebarTextSizeValue, settings.sidebarTextScale, '%');
+        setSettingsValueLabel(albumGapValue, settings.albumGap, ' px');
     }
 
     function applyTopsterSettings(settings) {

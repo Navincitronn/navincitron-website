@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Rolling Stone&#39;s 500 Greatest Albums Of All Time (2023)</title>
-    <link rel="stylesheet" href="styles.css?v=20260830-discogs-rym-parens-ctrls-v56">
+    <link rel="stylesheet" href="styles.css?v=20260830-refresh-staged-controls-v63">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
 <body data-topster-require-admin="true" data-topster-store-source="rolling_stone_500_albums_2023" data-topster-source="rolling-stone-500-albums-2023-file">
@@ -62,12 +62,12 @@
                             <option value="mobile">Mobile / Tablet</option>
                         </select>
 
-                        <label for="topster-width">Width <span class="topster-slider-value" id="topster-width-value">10</span></label>
+                        <label for="topster-width">Width <input type="number" class="topster-slider-value topster-slider-value-input" id="topster-width-value" min="1" max="25" step="1" value="10" inputmode="numeric" aria-label="Width value"></label>
                         <div class="topster-slider-control">
                             <input type="range" id="topster-width" min="1" max="25" step="1" value="10">
                         </div>
 
-                        <label for="topster-height">Height <span class="topster-slider-value" id="topster-height-value">10</span></label>
+                        <label for="topster-height">Height <input type="number" class="topster-slider-value topster-slider-value-input" id="topster-height-value" min="1" max="10" step="1" value="10" inputmode="numeric" aria-label="Height value"></label>
                         <div class="topster-slider-control">
                             <input type="range" id="topster-height" min="1" max="10" step="1" value="10">
                         </div>
@@ -79,13 +79,15 @@
                             <option value="hidden">Hide sidebar</option>
                         </select>
 
-                        <label for="topster-sidebar-width">Sidebar width <span class="topster-slider-value" id="topster-sidebar-width-value">20%</span></label>
+                        <label for="topster-sidebar-width">Sidebar width (%) <input type="number" class="topster-slider-value topster-slider-value-input" id="topster-sidebar-width-value" min="10" max="50" step="1" value="20" inputmode="numeric" aria-label="Sidebar width percent"></label>
                         <div class="topster-slider-control">
                             <input type="range" id="topster-sidebar-width" min="10" max="50" step="1" value="20">
                         </div>
 
-                        <label for="topster-sidebar-text-size">Sidebar text size (%)</label>
-                        <input type="number" id="topster-sidebar-text-size" min="50" max="200" step="5" value="100" inputmode="numeric" aria-label="Sidebar text size percent" style="background-color:#f2f2f2;border:1px solid #aaa;border-radius:5px;box-sizing:border-box;color:#000;font-size:14px;padding:9px;width:100%;">
+                        <label for="topster-sidebar-text-size">Sidebar text size (%) <input type="number" class="topster-slider-value topster-slider-value-input" id="topster-sidebar-text-size-value" min="50" max="200" step="1" value="100" inputmode="numeric" aria-label="Sidebar text size percent"></label>
+                        <div class="topster-slider-control">
+                            <input type="range" id="topster-sidebar-text-size" min="50" max="200" step="1" value="100">
+                        </div>
 
 
                         <label for="topster-round-corners">Round corners</label>
@@ -102,7 +104,7 @@
                             <option value="24">24 px</option>
                         </select>
 
-                        <label for="topster-album-gap">Album cover gap <span class="topster-slider-value" id="topster-album-gap-value">4 px</span></label>
+                        <label for="topster-album-gap">Album cover gap (px) <input type="number" class="topster-slider-value topster-slider-value-input" id="topster-album-gap-value" min="0" max="100" step="1" value="4" inputmode="numeric" aria-label="Album cover gap pixels"></label>
                         <div class="topster-slider-control">
                             <input type="range" id="topster-album-gap" min="0" max="100" step="1" value="4">
                         </div>
@@ -169,7 +171,7 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260830-discogs-rym-parens-ctrls-v56';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260830-refresh-staged-controls-discogs-v63';
 
         function markTopsterPublishDirty() {
             window.__navincitronTopsterPublishDirty = true;
@@ -196,6 +198,6 @@
             });
         })();
     </script>
-    <script src="topster_grid.js?v=20260830-sidebar-controls-discogs-v62"></script>
+    <script src="topster_grid.js?v=20260830-refresh-staged-controls-discogs-v63"></script>
 </body>
 </html>

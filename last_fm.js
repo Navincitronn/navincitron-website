@@ -23,11 +23,18 @@
             font: 'Arial'
         },
         items: [],
-        meta: null
+        meta: null,
+        coverOverrides: {}
     };
 
     let state = structuredCloneSafe(defaults);
     let busy = false;
+    let controlsDirty = false;
+    let coverContextItem = null;
+    let coverContextIndex = -1;
+    let coverPickerItem = null;
+    let coverPickerIndex = -1;
+    let coverPickerRequestToken = 0;
 
     const $ = id => document.getElementById(id);
     const main = $('lastfm-main');
@@ -51,11 +58,22 @@
     const sidebarWidthInput = $('lastfm-sidebar-width');
     const sidebarWidthValue = $('lastfm-sidebar-width-value');
     const sidebarTextSizeInput = $('lastfm-sidebar-text-size');
+    const sidebarTextSizeValue = $('lastfm-sidebar-text-size-value');
     const cornersSelect = $('lastfm-round-corners');
     const gapInput = $('lastfm-album-gap');
     const gapValue = $('lastfm-album-gap-value');
     const overlaySelect = $('lastfm-cover-overlay');
     const fontSelect = $('lastfm-font');
+    const coverContextMenu = $('lastfm-cover-context-menu');
+    const changeCoverButton = $('lastfm-change-cover-button');
+    const coverPicker = $('lastfm-cover-picker');
+    const coverPickerTitle = $('lastfm-cover-picker-title');
+    const coverPickerClose = $('lastfm-cover-picker-close');
+    const coverPickerLink = $('lastfm-cover-picker-link');
+    const coverPickerLinkButton = $('lastfm-cover-picker-link-button');
+    const coverPickerSearch = $('lastfm-cover-picker-search');
+    const coverPickerStatus = $('lastfm-cover-picker-status');
+    const coverPickerResults = $('lastfm-cover-picker-results');
 
     function structuredCloneSafe(value) {
         if (typeof structuredClone === 'function') {
@@ -104,7 +122,10 @@
                 font: allowedFonts.has(settings.font) ? settings.font : defaults.settings.font
             },
             items: Array.isArray(source.items) ? source.items.slice(0, MAX_ITEMS) : [],
-            meta: source.meta && typeof source.meta === 'object' ? source.meta : null
+            meta: source.meta && typeof source.meta === 'object' ? source.meta : null,
+            coverOverrides: source.coverOverrides && typeof source.coverOverrides === 'object' && !Array.isArray(source.coverOverrides)
+                ? Object.fromEntries(Object.entries(source.coverOverrides).filter(([key, value]) => key && /^https?:\/\//i.test(String(value || ''))))
+                : {}
         };
     }
 
@@ -118,7 +139,10 @@
     }
 
     function saveState() {
-        readInputsIntoState();
+        if (controlsDirty) {
+            status.textContent = 'Settings have changed. Press Refresh to apply them before Save Settings.';
+            return;
+        }
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             status.textContent = `Saved Last.fm settings and ${state.items.length} cached chart item${state.items.length === 1 ? '' : 's'}.`;
@@ -164,11 +188,18 @@
         state.settings.font = fontSelect.value;
     }
 
+    function setValueLabel(element, value, suffix = '') {
+        if (!element) return;
+        if (element.tagName === 'INPUT') element.value = String(value);
+        else element.textContent = `${value}${suffix}`;
+    }
+
     function updateValueLabels() {
-        widthValue.textContent = String(widthInput.value);
-        heightValue.textContent = String(heightInput.value);
-        gapValue.textContent = `${gapInput.value} px`;
-        if (sidebarWidthValue && sidebarWidthInput) sidebarWidthValue.textContent = `${sidebarWidthInput.value}%`;
+        setValueLabel(widthValue, widthInput.value);
+        setValueLabel(heightValue, heightInput.value);
+        setValueLabel(gapValue, gapInput.value, ' px');
+        if (sidebarWidthValue && sidebarWidthInput) setValueLabel(sidebarWidthValue, sidebarWidthInput.value, '%');
+        if (sidebarTextSizeValue && sidebarTextSizeInput) setValueLabel(sidebarTextSizeValue, sidebarTextSizeInput.value, '%');
     }
 
     function updateCustomWindowVisibility() {
@@ -266,18 +297,27 @@
         return url.href;
     }
 
+    function coverOverrideKey(item, mode = state.config.mode) {
+        if (!item) return '';
+        return [mode, item.artist || '', item.title || '', item.album || '']
+            .map(value => String(value).trim().toLocaleLowerCase())
+            .join('\u241f');
+    }
+
     function imageUrlForItem(item) {
         if (!item) return '';
+        const override = state.coverOverrides && state.coverOverrides[coverOverrideKey(item)];
+        if (override) return String(override).trim();
         if (state.config.mode === 'artists') return artistImageProxyUrl(item);
         return String(item.image || '').trim();
     }
 
-    function createTile(item, index) {
-        const tile = document.createElement('div');
-        tile.className = 'topster-tile';
-        tile.style.setProperty('--topster-radius', `${state.settings.roundCorners}px`);
-
+    function renderTileArtwork(tile, item, index) {
+        tile.querySelectorAll(':scope > img, :scope > .topster-tile-placeholder, :scope > .topster-tile-empty').forEach(node => node.remove());
+        const beforeNode = tile.querySelector('.topster-cover-overlay, .topster-mobile-tile-info');
+        const insert = node => tile.insertBefore(node, beforeNode || null);
         const imageUrl = imageUrlForItem(item);
+
         if (item && imageUrl) {
             const img = document.createElement('img');
             img.src = imageUrl;
@@ -290,26 +330,151 @@
                     const placeholder = document.createElement('div');
                     placeholder.className = 'topster-tile-placeholder';
                     placeholder.textContent = placeholderText(item);
-                    tile.insertBefore(placeholder, tile.firstChild);
+                    insert(placeholder);
                 }
             };
-            tile.appendChild(img);
+            insert(img);
         } else if (item) {
             const placeholder = document.createElement('div');
             placeholder.className = 'topster-tile-placeholder';
             placeholder.textContent = placeholderText(item);
-            tile.appendChild(placeholder);
+            insert(placeholder);
         } else {
             const empty = document.createElement('div');
             empty.className = 'topster-tile-empty';
-            tile.appendChild(empty);
+            insert(empty);
         }
+    }
+
+    function createTile(item, index) {
+        const tile = document.createElement('div');
+        tile.className = 'topster-tile';
+        tile.style.setProperty('--topster-radius', `${state.settings.roundCorners}px`);
+        if (item) tile.dataset.lastfmCoverKey = coverOverrideKey(item);
+        renderTileArtwork(tile, item, index);
 
         if (item) {
             addOverlay(tile, item, index);
             addListenReveal(tile, item);
+            tile.addEventListener('contextmenu', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                openCoverContextMenu(item, index - 1, event.clientX, event.clientY);
+            });
         }
         return tile;
+    }
+
+    function hideCoverContextMenu() {
+        if (coverContextMenu) coverContextMenu.hidden = true;
+    }
+
+    function openCoverContextMenu(item, index, clientX, clientY) {
+        if (!coverContextMenu || !item) return;
+        coverContextItem = item;
+        coverContextIndex = index;
+        coverContextMenu.hidden = false;
+        coverContextMenu.style.left = '0px';
+        coverContextMenu.style.top = '0px';
+        const rect = coverContextMenu.getBoundingClientRect();
+        const x = Math.max(4, Math.min(Number(clientX) || 0, window.innerWidth - rect.width - 4));
+        const y = Math.max(4, Math.min(Number(clientY) || 0, window.innerHeight - rect.height - 4));
+        coverContextMenu.style.left = `${Math.round(x)}px`;
+        coverContextMenu.style.top = `${Math.round(y)}px`;
+    }
+
+    function closeCoverPicker() {
+        coverPickerRequestToken += 1;
+        coverPickerItem = null;
+        coverPickerIndex = -1;
+        if (coverPicker) coverPicker.hidden = true;
+        if (coverPickerResults) coverPickerResults.innerHTML = '';
+        if (coverPickerStatus) coverPickerStatus.textContent = '';
+    }
+
+    function openCoverPicker(item, index) {
+        if (!coverPicker || !item) return;
+        hideCoverContextMenu();
+        coverPickerItem = item;
+        coverPickerIndex = index;
+        if (coverPickerTitle) coverPickerTitle.textContent = `Select cover — ${placeholderText(item)}`;
+        if (coverPickerLink) coverPickerLink.value = '';
+        if (coverPickerResults) coverPickerResults.innerHTML = '';
+        coverPicker.hidden = false;
+        loadCoverPickerCandidates();
+    }
+
+    function renderCoverPickerCandidates(candidates) {
+        if (!coverPickerResults) return;
+        coverPickerResults.innerHTML = '';
+        const usable = Array.isArray(candidates) ? candidates.filter(candidate => candidate && /^https?:\/\//i.test(String(candidate.imageSrc || ''))) : [];
+        if (!usable.length) {
+            if (coverPickerStatus) coverPickerStatus.textContent = 'No alternate Last.fm images were found for this page. You can still paste an image address above.';
+            return;
+        }
+
+        usable.forEach((candidate, candidateIndex) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'topster-cover-choice';
+            const img = document.createElement('img');
+            img.src = candidate.imageSrc;
+            img.alt = `Last.fm cover option ${candidateIndex + 1}`;
+            img.loading = 'lazy';
+            const label = document.createElement('span');
+            label.textContent = candidate.source || 'Last.fm';
+            button.appendChild(img);
+            button.appendChild(label);
+            button.addEventListener('click', () => applyManualCover(candidate.imageSrc, candidate.source || 'Last.fm'));
+            coverPickerResults.appendChild(button);
+        });
+        if (coverPickerStatus) coverPickerStatus.textContent = `Found ${usable.length} Last.fm image option${usable.length === 1 ? '' : 's'}.`;
+    }
+
+    async function loadCoverPickerCandidates() {
+        if (!coverPickerItem || !coverPickerStatus || !coverPickerResults) return;
+        const requestToken = ++coverPickerRequestToken;
+        coverPickerStatus.textContent = 'Loading image options from Last.fm...';
+        coverPickerResults.innerHTML = '';
+        try {
+            const url = new URL('/api/lastfm-cover-options', BACKEND_ORIGIN);
+            url.searchParams.set('user', USERNAME);
+            url.searchParams.set('mode', state.config.mode);
+            url.searchParams.set('artist', String(coverPickerItem.artist || ''));
+            url.searchParams.set('title', String(coverPickerItem.title || ''));
+            url.searchParams.set('album', String(coverPickerItem.album || ''));
+            if (coverPickerItem.url) url.searchParams.set('url', String(coverPickerItem.url));
+            const response = await fetch(url.href, { credentials: 'include', cache: 'no-store' });
+            const payload = await response.json().catch(() => ({}));
+            if (requestToken !== coverPickerRequestToken) return;
+            if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
+            }
+            renderCoverPickerCandidates(payload.candidates);
+        } catch (error) {
+            if (requestToken !== coverPickerRequestToken) return;
+            coverPickerStatus.textContent = `Last.fm cover lookup failed: ${error && error.message ? error.message : error}`;
+        }
+    }
+
+    function refreshManualCoverTiles(item) {
+        const key = coverOverrideKey(item);
+        pages.querySelectorAll('.topster-tile[data-lastfm-cover-key]').forEach((tile, tileIndex) => {
+            if (tile.dataset.lastfmCoverKey !== key) return;
+            const oneBasedIndex = Number(tile.querySelector('.topster-cover-overlay')?.textContent) || (tileIndex + 1);
+            renderTileArtwork(tile, item, oneBasedIndex);
+        });
+    }
+
+    function applyManualCover(imageUrl, sourceLabel) {
+        if (!coverPickerItem || !/^https?:\/\//i.test(String(imageUrl || ''))) return;
+        const key = coverOverrideKey(coverPickerItem);
+        if (!state.coverOverrides || typeof state.coverOverrides !== 'object') state.coverOverrides = {};
+        state.coverOverrides[key] = String(imageUrl).trim();
+        const item = coverPickerItem;
+        refreshManualCoverTiles(item);
+        closeCoverPicker();
+        status.textContent = `Updated the cover for ${placeholderText(item)} from ${sourceLabel || 'Last.fm'}. Press Save Settings to keep this manual cover.`;
     }
 
     function addOverlay(tile, item, index) {
@@ -344,7 +509,6 @@
     }
 
     function render() {
-        readInputsIntoState();
         updateValueLabels();
         const settings = state.settings;
         const requestedCells = configuredCellCount();
@@ -501,6 +665,7 @@
     async function refreshData() {
         if (busy) return;
         readInputsIntoState();
+        controlsDirty = false;
         updateCustomWindowVisibility();
         const config = state.config;
         let from = 0;
@@ -545,38 +710,79 @@
         }
     }
 
-    function onDisplaySettingChanged() {
-        readInputsIntoState();
-        render();
-        status.textContent = 'Display settings changed. Press Save Settings to keep them after refresh.';
+    function onSettingEdited() {
+        controlsDirty = true;
+        updateValueLabels();
+        status.textContent = 'Settings changed. Press Refresh to apply them.';
+    }
+
+    function bindEditableSliderValue(rangeInput, valueInput, min, max) {
+        if (!rangeInput || !valueInput || valueInput.tagName !== 'INPUT') return;
+        const commit = () => {
+            const value = clamp(valueInput.value, min, max, Number(rangeInput.value));
+            rangeInput.value = String(value);
+            valueInput.value = String(value);
+            onSettingEdited();
+        };
+        valueInput.addEventListener('change', commit);
+        valueInput.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            commit();
+            valueInput.blur();
+        });
     }
 
     function bindEvents() {
         refreshButton.addEventListener('click', refreshData);
         saveButton.addEventListener('click', saveState);
-        modeSelect.addEventListener('change', () => { readInputsIntoState(); refreshData(); });
-        periodSelect.addEventListener('change', () => {
-            updateCustomWindowVisibility();
-            readInputsIntoState();
-            if (periodSelect.value !== 'custom') refreshData();
+        modeSelect.addEventListener('change', onSettingEdited);
+        periodSelect.addEventListener('change', () => { updateCustomWindowVisibility(); onSettingEdited(); });
+        startInput.addEventListener('change', onSettingEdited);
+        endInput.addEventListener('change', onSettingEdited);
+        [widthInput, heightInput, gapInput, sidebarWidthInput, sidebarTextSizeInput].forEach(input => {
+            if (!input) return;
+            input.addEventListener('input', onSettingEdited);
+            input.addEventListener('change', onSettingEdited);
         });
-        startInput.addEventListener('change', () => { readInputsIntoState(); });
-        endInput.addEventListener('change', () => { readInputsIntoState(); });
-        [widthInput, heightInput, gapInput, sidebarWidthInput].forEach(input => {
-            if (input) input.addEventListener('input', onDisplaySettingChanged);
+        cellCountInput.addEventListener('input', onSettingEdited);
+        cellCountInput.addEventListener('change', onSettingEdited);
+        [sidebarSelect, cornersSelect, overlaySelect, fontSelect].forEach(input => input.addEventListener('change', onSettingEdited));
+
+        bindEditableSliderValue(widthInput, widthValue, 1, 25);
+        bindEditableSliderValue(heightInput, heightValue, 1, 10);
+        bindEditableSliderValue(sidebarWidthInput, sidebarWidthValue, 10, 50);
+        bindEditableSliderValue(sidebarTextSizeInput, sidebarTextSizeValue, 50, 200);
+        bindEditableSliderValue(gapInput, gapValue, 0, 100);
+
+        if (changeCoverButton) changeCoverButton.addEventListener('click', () => {
+            if (coverContextItem) openCoverPicker(coverContextItem, coverContextIndex);
         });
-        if (sidebarTextSizeInput) {
-            sidebarTextSizeInput.addEventListener('input', onDisplaySettingChanged);
-            sidebarTextSizeInput.addEventListener('change', onDisplaySettingChanged);
-        }
-        cellCountInput.addEventListener('input', onDisplaySettingChanged);
-        cellCountInput.addEventListener('change', () => {
-            readInputsIntoState();
-            if (configuredCellCount() > state.items.length && !busy) refreshData();
+        if (coverPickerClose) coverPickerClose.addEventListener('click', closeCoverPicker);
+        if (coverPickerSearch) coverPickerSearch.addEventListener('click', loadCoverPickerCandidates);
+        if (coverPickerLinkButton) coverPickerLinkButton.addEventListener('click', () => {
+            const imageUrl = String(coverPickerLink && coverPickerLink.value || '').trim();
+            if (!/^https?:\/\//i.test(imageUrl)) {
+                if (coverPickerStatus) coverPickerStatus.textContent = 'Enter a complete http:// or https:// image address.';
+                return;
+            }
+            applyManualCover(imageUrl, 'Image link');
         });
-        [sidebarSelect, cornersSelect, overlaySelect, fontSelect].forEach(input => input.addEventListener('change', onDisplaySettingChanged));
-        window.addEventListener('resize', () => requestAnimationFrame(syncAllSidebarHeights));
+        if (coverPicker) coverPicker.addEventListener('click', event => { if (event.target === coverPicker) closeCoverPicker(); });
+        document.addEventListener('pointerdown', event => {
+            if (coverContextMenu && !coverContextMenu.hidden && !coverContextMenu.contains(event.target)) hideCoverContextMenu();
+        });
+        document.addEventListener('contextmenu', event => {
+            if (coverContextMenu && !coverContextMenu.hidden && !event.target.closest('.topster-tile')) hideCoverContextMenu();
+        });
+
+        window.addEventListener('resize', () => { hideCoverContextMenu(); requestAnimationFrame(syncAllSidebarHeights); });
         document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                hideCoverContextMenu();
+                closeCoverPicker();
+                return;
+            }
             if ((event.ctrlKey || event.metaKey) && String(event.key || '').toLowerCase() === 's') {
                 event.preventDefault();
                 if (!saveButton.disabled) saveButton.click();
