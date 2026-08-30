@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LastFM - Navincitron</title>
+    <link rel="stylesheet" href="styles.css?v=20260830-discogs-rym-parens-ctrls-v56">
+    <style>
+        .lastfm-profile-line { text-align: center; margin: 4px 20px 20px; color: #ddd; }
+        .lastfm-profile-line a { color: #40bcf4; }
+        .lastfm-config-grid input[type="datetime-local"] {
+            box-sizing: border-box;
+            width: 100%;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+            background: #f2f2f2;
+            color: #000;
+            font-size: 14px;
+            padding: 9px;
+        }
+        .lastfm-time-window {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .lastfm-time-window label { display: grid; gap: 5px; font-weight: normal; }
+        .lastfm-topster-title { margin: 0 0 10px; text-align: center; }
+        .lastfm-saved-note { color: #ccc; font-size: 13px; text-align: center; margin: 8px 0 0; }
+        .lastfm-now-playing { color: #00e054; }
+        @media (max-width: 700px) { .lastfm-time-window { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left"><img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" /><div class="brand"><h1>NAVINCITRON</h1><br><p>proper music isolation</p></div></div>
+        <nav class="topnav">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="album_list.html">List</a>
+            <a href="ranked_album_list.html">Rank</a>
+        </nav>
+    </header>
+
+    <main id="lastfm-main" hidden>
+        <section class="grid-builder-page">
+            <div class="title-bar"><br><h2 class="center">LASTFM</h2></div>
+            <p class="lastfm-profile-line">Listening data for <a href="https://www.last.fm/user/Navincitron" target="_blank" rel="noopener noreferrer">Navincitron</a></p>
+            <hr>
+
+            <div class="topster-import-panel">
+                <div class="topster-controls topster-file-controls">
+                    <button type="button" id="lastfm-refresh-button">Refresh</button>
+                    <button type="button" id="lastfm-save-button" class="secondary-button">Save Settings</button>
+                </div>
+
+                <details class="topster-settings-panel" open>
+                    <summary>LastFM chart settings</summary>
+                    <div class="topster-settings-grid lastfm-config-grid">
+                        <label for="lastfm-mode">Display</label>
+                        <select id="lastfm-mode">
+                            <option value="albums" selected>Albums</option>
+                            <option value="songs">Songs</option>
+                            <option value="artists">Artists</option>
+                            <option value="recent">Recently Played</option>
+                        </select>
+
+                        <label for="lastfm-period">Period</label>
+                        <select id="lastfm-period">
+                            <option value="1day">1 day</option>
+                            <option value="7day" selected>1 week</option>
+                            <option value="14day">2 weeks</option>
+                            <option value="1month">1 month</option>
+                            <option value="3month">3 months</option>
+                            <option value="6month">6 months</option>
+                            <option value="12month">1 year</option>
+                            <option value="overall">Overall</option>
+                            <option value="custom">Time window</option>
+                        </select>
+
+                        <label id="lastfm-window-label" for="lastfm-start" hidden>Time window</label>
+                        <div class="lastfm-time-window" id="lastfm-window" hidden>
+                            <label>Start<input type="datetime-local" id="lastfm-start"></label>
+                            <label>End<input type="datetime-local" id="lastfm-end"></label>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="topster-settings-panel" open>
+                    <summary>Topster display settings</summary>
+                    <div class="topster-settings-grid">
+                        <label for="lastfm-width">Width <span class="topster-slider-value" id="lastfm-width-value">10</span></label>
+                        <div class="topster-slider-control"><input type="range" id="lastfm-width" min="1" max="25" step="1" value="10"></div>
+
+                        <label for="lastfm-height">Height <span class="topster-slider-value" id="lastfm-height-value">10</span></label>
+                        <div class="topster-slider-control"><input type="range" id="lastfm-height" min="1" max="10" step="1" value="10"></div>
+
+                        <label for="lastfm-sidebar-mode">Sidebar text</label>
+                        <select id="lastfm-sidebar-mode">
+                            <option value="artist-title-count" selected>Show Artist - Album/Song - Listens</option>
+                            <option value="artist-title">Show Artist - Album/Song</option>
+                            <option value="title-count">Show Album/Song - Listens</option>
+                            <option value="title-only">Show Album/Song only</option>
+                            <option value="hidden">Hide sidebar</option>
+                        </select>
+
+                        <label for="lastfm-round-corners">Round corners</label>
+                        <select id="lastfm-round-corners">
+                            <option value="0" selected>0 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="6">6 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="24">24 px</option>
+                        </select>
+
+                        <label for="lastfm-album-gap">Album cover gap <span class="topster-slider-value" id="lastfm-album-gap-value">4 px</span></label>
+                        <div class="topster-slider-control"><input type="range" id="lastfm-album-gap" min="0" max="100" step="1" value="4"></div>
+
+                        <label for="lastfm-cover-overlay">Cover overlay</label>
+                        <select id="lastfm-cover-overlay">
+                            <option value="none">Off</option>
+                            <option value="index" selected>Show index</option>
+                            <option value="listens">Show listens</option>
+                        </select>
+
+                        <label for="lastfm-font">Font</label>
+                        <select id="lastfm-font">
+                            <option value="Arial" selected>Arial</option><option value="Verdana">Verdana</option><option value="Helvetica Neue">Helvetica Neue</option><option value="Sans-serif">Sans-serif</option><option value="Monospace">Monospace</option><option value="Open Sans">Open Sans</option><option value="Helvetica">Helvetica</option><option value="Georgia">Georgia</option><option value="Tahoma">Tahoma</option><option value="Calibri">Calibri</option>
+                        </select>
+                    </div>
+                </details>
+
+                <p class="topster-status" id="lastfm-status">Verifying admin authentication...</p>
+                <p class="lastfm-saved-note">Save Settings stores the selected LastFM view, display settings, and current chart snapshot in this browser. Ctrl+S / Cmd+S performs the same save.</p>
+            </div>
+
+            <div class="topster-output" id="lastfm-output" hidden>
+                <div class="topster-pages" id="lastfm-pages"></div>
+            </div>
+        </section>
+    </main>
+
+    <script src="last_fm.js?v=20260830-lastfm-v57"></script>
+</body>
+</html>

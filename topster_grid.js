@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-discogs-rym-parens-ctrls-v56';
+const TOPSTER_FRONTEND_VERSION = '20260830-discogs-lastfm-v57';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -21,7 +21,7 @@ const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v3';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v4';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
@@ -788,7 +788,7 @@ function saveDiscogsCollectionBrowserCache(payload) {
             ? topsterDiscogsCollectionAlbums
             : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
-            schema: 4,
+            schema: 5,
             savedAt: Date.now(),
             itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
             normalizedAlbums
@@ -805,7 +805,7 @@ function loadDiscogsCollectionBrowserCache() {
         const savedAt = Number(parsed.savedAt) || 0;
         if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
 
-        if (Array.isArray(parsed.normalizedAlbums)) {
+        if (Number(parsed.schema) === 5 && Array.isArray(parsed.normalizedAlbums)) {
             installTopsterDiscogsCollection(parsed.normalizedAlbums, { normalized: true });
         } else if (Array.isArray(parsed.albums)) {
             installTopsterDiscogsCollection(parsed.albums);
@@ -888,6 +888,7 @@ function discogsOwnedTitleVariants(title, artist = '') {
     add(clean.replace(/\s*\([^)]*\)\s*/g, ' '));
     add(clean.replace(/\s*["“][^"”]+["”]\s*/g, ' '));
     clean.split(/\s+[—–-]\s+|:\s+/).forEach(add);
+    clean.split(/\s+=\s+/).forEach(add);
     add(clean.replace(/\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/gi, ' '));
     add(clean.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
     add(clean.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\b/g, ' '));
@@ -1251,6 +1252,13 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
         current.split(/\s+\baka\b\s+/i).forEach(part => {
             const partClean = cleanAlbumTitle(part);
             if (normalizeAlbumTitle(partClean).length >= 8) enqueue(partClean);
+        });
+
+        // Discogs frequently places a translated/Japanese title after an equals
+        // sign. Either substantial side can identify the same owned release.
+        current.split(/\s+=\s+/).forEach(part => {
+            const partClean = cleanAlbumTitle(part);
+            if (normalizeAlbumIdentityKey(partClean).length >= 6) enqueue(partClean);
         });
 
         // Live/archival suffixes are frequently appended to the base album title.
