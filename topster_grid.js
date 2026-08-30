@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-discogs-lastfm-v57';
+const TOPSTER_FRONTEND_VERSION = '20260830-discogs-lastfm-v60';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -21,7 +21,7 @@ const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v4';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v5';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
@@ -29,6 +29,7 @@ let topsterDiscogsCollectionLoadedAt = 0;
 let topsterDiscogsCollectionLoadPromise = null;
 let topsterDiscogsArtistIndex = new Map();
 let topsterDiscogsOwnershipMemo = new Map();
+let topsterDiscogsExactIndex = new Set();
 
 const TOPSTER_CHECKLIST_OVERLAYS = [
     { keyword: 'Hifiman Susvara Unveiled', id: 'susvara', imageSrc: 'susvara.png', label: 'Hifiman Susvara Unveiled' },
@@ -739,6 +740,7 @@ function discogsOwnedArtistIndexKeys(value) {
 function rebuildTopsterDiscogsIndexes() {
     topsterDiscogsArtistIndex = new Map();
     topsterDiscogsOwnershipMemo = new Map();
+    topsterDiscogsExactIndex = new Set();
     (topsterDiscogsCollectionAlbums || []).forEach((album, albumIndex) => {
         const artists = Array.isArray(album.artists) ? album.artists : [];
         artists.forEach(artist => {
@@ -746,8 +748,28 @@ function rebuildTopsterDiscogsIndexes() {
                 if (!topsterDiscogsArtistIndex.has(key)) topsterDiscogsArtistIndex.set(key, new Set());
                 topsterDiscogsArtistIndex.get(key).add(albumIndex);
             });
+
+            // Keep a second, strict artist+safe-title index. This avoids routing
+            // straightforward owned releases through the fuzzy matcher and also
+            // protects recurring Discogs forms such as a trailing artist "*" or
+            // a self-titled "- Vol. 1" catalog suffix.
+            const artistVariants = discogsOwnedArtistVariants(artist);
+            const titleVariants = discogsOwnedSafeTitleVariants(album.title || '', artist);
+            artistVariants.forEach(artistVariant => {
+                titleVariants.forEach(titleVariant => {
+                    if (artistVariant && titleVariant) topsterDiscogsExactIndex.add(`${artistVariant}::${titleVariant}`);
+                });
+            });
         });
     });
+}
+
+function discogsOwnedDirectIndexedMatch(entryArtist, entryTitle) {
+    if (!entryArtist || !entryTitle || !topsterDiscogsExactIndex.size) return false;
+    const artistVariants = discogsOwnedArtistVariants(entryArtist);
+    const titleVariants = discogsOwnedSafeTitleVariants(entryTitle, entryArtist);
+    return artistVariants.some(artistVariant => titleVariants.some(titleVariant =>
+        topsterDiscogsExactIndex.has(`${artistVariant}::${titleVariant}`)));
 }
 
 function installTopsterDiscogsCollection(rawAlbums, options = {}) {
@@ -788,7 +810,7 @@ function saveDiscogsCollectionBrowserCache(payload) {
             ? topsterDiscogsCollectionAlbums
             : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
-            schema: 5,
+            schema: 6,
             savedAt: Date.now(),
             itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
             normalizedAlbums
@@ -805,7 +827,7 @@ function loadDiscogsCollectionBrowserCache() {
         const savedAt = Number(parsed.savedAt) || 0;
         if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
 
-        if (Number(parsed.schema) === 5 && Array.isArray(parsed.normalizedAlbums)) {
+        if (Number(parsed.schema) === 6 && Array.isArray(parsed.normalizedAlbums)) {
             installTopsterDiscogsCollection(parsed.normalizedAlbums, { normalized: true });
         } else if (Array.isArray(parsed.albums)) {
             installTopsterDiscogsCollection(parsed.albums);
@@ -1406,6 +1428,11 @@ function topsterEntryIsInDiscogsCollection(entry) {
         if (memoKey) topsterDiscogsOwnershipMemo.set(memoKey, Boolean(value));
         return Boolean(value);
     };
+
+    // Exact normalized artist + safe title equivalence comes first. This is
+    // intentionally independent of the fuzzy score path so exact Discogs credit
+    // punctuation (including a trailing *) cannot be lost in later heuristics.
+    if (discogsOwnedDirectIndexedMatch(entryArtist, entryTitle)) return remember(true);
 
     if (discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle)) return remember(true);
 

@@ -6,7 +6,7 @@
     const BACKEND_ORIGIN = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
         ? window.location.origin
         : 'https://api.navincitron.com';
-    const MAX_ITEMS = 250;
+    const MAX_ITEMS = 1000;
 
     const defaults = {
         config: { mode: 'albums', period: '7day', start: '', end: '' },
@@ -240,14 +240,32 @@
         });
     }
 
+    function artistImageProxyUrl(item) {
+        const artist = String((item && (item.artist || item.title)) || '').trim();
+        if (!artist) return '';
+        const url = new URL('/api/lastfm-artist-image', BACKEND_ORIGIN);
+        url.searchParams.set('user', USERNAME);
+        url.searchParams.set('artist', artist);
+        const artistUrl = String((item && item.url) || '').trim();
+        if (artistUrl) url.searchParams.set('url', artistUrl);
+        return url.href;
+    }
+
+    function imageUrlForItem(item) {
+        if (!item) return '';
+        if (state.config.mode === 'artists') return artistImageProxyUrl(item);
+        return String(item.image || '').trim();
+    }
+
     function createTile(item, index) {
         const tile = document.createElement('div');
         tile.className = 'topster-tile';
         tile.style.setProperty('--topster-radius', `${state.settings.roundCorners}px`);
 
-        if (item && item.image) {
+        const imageUrl = imageUrlForItem(item);
+        if (item && imageUrl) {
             const img = document.createElement('img');
-            img.src = item.image;
+            img.src = imageUrl;
             img.alt = placeholderText(item);
             img.loading = index <= 24 ? 'eager' : 'lazy';
             img.decoding = 'async';
@@ -292,94 +310,138 @@
         tile.appendChild(overlay);
     }
 
+    function pageCellCapacity() {
+        return clamp(state.settings.width * state.settings.height, 1, MAX_ITEMS, 100);
+    }
+
     function configuredCellCount() {
         const raw = String(state.settings.cellCount || '').trim();
-        if (/^\d+$/.test(raw)) return clamp(raw, 1, MAX_ITEMS, 100);
-        return clamp(state.settings.width * state.settings.height, 1, MAX_ITEMS, 100);
+        if (/^\d+$/.test(raw)) return clamp(raw, 1, MAX_ITEMS, pageCellCapacity());
+        return pageCellCapacity();
+    }
+
+    function preferredSidebarFontSize(width) {
+        // Wider Topsters put more entries into every sidebar row, so begin with
+        // a smaller font before the exact per-row overflow fit below.
+        return Math.max(3.5, Math.min(12, 14 - (Number(width) * 0.65)));
     }
 
     function render() {
         readInputsIntoState();
         updateValueLabels();
         const settings = state.settings;
-        const capacity = configuredCellCount();
-        const rows = Math.max(1, Math.ceil(capacity / settings.width));
-        const visible = state.items.slice(0, capacity);
+        const requestedCells = configuredCellCount();
+        const pageCapacity = pageCellCapacity();
+        const pageCount = Math.max(1, Math.ceil(requestedCells / pageCapacity));
+        const visible = state.items.slice(0, requestedCells);
         pages.innerHTML = '';
         output.style.fontFamily = settings.font;
         output.classList.toggle('topster-sidebar-hidden', settings.sidebarMode === 'hidden');
         output.style.setProperty('--topster-frame-gap', '4px');
 
-        const page = document.createElement('section');
-        page.className = 'topster-page';
-        const layout = document.createElement('div');
-        layout.className = 'topster-layout';
-        const chartWrap = document.createElement('div');
-        chartWrap.className = 'topster-chart-wrap';
-        const chart = document.createElement('div');
-        chart.className = 'topster-chart-grid';
-        chart.style.setProperty('--topster-columns', String(settings.width));
-        chart.style.setProperty('--topster-rows', String(rows));
-        chart.style.setProperty('--topster-radius', `${settings.roundCorners}px`);
-        chart.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
-        chart.setAttribute('aria-label', `${capacity}-cell Last.fm grid with ${settings.width} columns`);
+        for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+            const pageStart = pageIndex * pageCapacity;
+            const page = document.createElement('section');
+            page.className = 'topster-page';
+            page.dataset.lastfmPage = String(pageIndex + 1);
 
-        for (let i = 0; i < capacity; i += 1) {
-            chart.appendChild(createTile(visible[i] || null, i + 1));
-        }
-        chartWrap.appendChild(chart);
-        layout.appendChild(chartWrap);
+            const layout = document.createElement('div');
+            layout.className = 'topster-layout';
+            const chartWrap = document.createElement('div');
+            chartWrap.className = 'topster-chart-wrap';
+            const chart = document.createElement('div');
+            chart.className = 'topster-chart-grid';
+            chart.style.setProperty('--topster-columns', String(settings.width));
+            chart.style.setProperty('--topster-rows', String(settings.height));
+            chart.style.setProperty('--topster-radius', `${settings.roundCorners}px`);
+            chart.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
+            chart.setAttribute('aria-label', `Last.fm grid page ${pageIndex + 1} of ${pageCount}, ${settings.width} columns by ${settings.height} rows`);
 
-        if (settings.sidebarMode !== 'hidden') {
-            const list = document.createElement('div');
-            list.className = 'topster-list';
-            list.style.setProperty('--topster-rows', String(rows));
-            list.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
-
-            for (let row = 0; row < rows; row += 1) {
-                const ol = document.createElement('ol');
-                ol.className = 'topster-list-row';
-                ol.start = (row * settings.width) + 1;
-                for (let col = 0; col < settings.width; col += 1) {
-                    const offset = (row * settings.width) + col;
-                    const item = visible[offset];
-                    if (!item) continue;
-                    const li = document.createElement('li');
-                    if (item.nowPlaying) li.classList.add('lastfm-now-playing');
-                    const indexSpan = document.createElement('span');
-                    indexSpan.className = 'topster-list-index';
-                    indexSpan.textContent = `${offset + 1}.`;
-                    const textSpan = document.createElement('span');
-                    textSpan.className = 'topster-list-text';
-                    textSpan.textContent = sidebarText(item);
-                    if (item.nowPlaying) textSpan.textContent += ' [now playing]';
-                    li.appendChild(indexSpan);
-                    li.appendChild(textSpan);
-                    ol.appendChild(li);
-                }
-                list.appendChild(ol);
+            for (let localIndex = 0; localIndex < pageCapacity; localIndex += 1) {
+                const globalOffset = pageStart + localIndex;
+                const item = globalOffset < requestedCells ? visible[globalOffset] : null;
+                chart.appendChild(createTile(item || null, globalOffset + 1));
             }
-            layout.appendChild(list);
+            chartWrap.appendChild(chart);
+            layout.appendChild(chartWrap);
+
+            if (settings.sidebarMode !== 'hidden') {
+                const list = document.createElement('div');
+                list.className = 'topster-list';
+                list.style.setProperty('--topster-rows', String(settings.height));
+                list.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
+                list.style.fontSize = `${preferredSidebarFontSize(settings.width)}px`;
+
+                for (let row = 0; row < settings.height; row += 1) {
+                    const ol = document.createElement('ol');
+                    ol.className = 'topster-list-row';
+                    ol.start = pageStart + (row * settings.width) + 1;
+                    for (let col = 0; col < settings.width; col += 1) {
+                        const localOffset = (row * settings.width) + col;
+                        const globalOffset = pageStart + localOffset;
+                        if (globalOffset >= requestedCells) continue;
+                        const item = visible[globalOffset];
+                        if (!item) continue;
+                        const li = document.createElement('li');
+                        if (item.nowPlaying) li.classList.add('lastfm-now-playing');
+                        const indexSpan = document.createElement('span');
+                        indexSpan.className = 'topster-list-index';
+                        indexSpan.textContent = `${globalOffset + 1}.`;
+                        const textSpan = document.createElement('span');
+                        textSpan.className = 'topster-list-text';
+                        textSpan.textContent = sidebarText(item);
+                        if (item.nowPlaying) textSpan.textContent += ' [now playing]';
+                        li.appendChild(indexSpan);
+                        li.appendChild(textSpan);
+                        ol.appendChild(li);
+                    }
+                    list.appendChild(ol);
+                }
+                layout.appendChild(list);
+            }
+
+            page.appendChild(layout);
+            pages.appendChild(page);
         }
 
-        page.appendChild(layout);
-        pages.appendChild(page);
         output.hidden = false;
-        requestAnimationFrame(syncSidebarHeight);
+        requestAnimationFrame(syncAllSidebarHeights);
     }
 
-    function syncSidebarHeight() {
-        const chart = pages.querySelector('.topster-chart-grid');
-        const list = pages.querySelector('.topster-list');
+    function sidebarRowsFit(list) {
+        return Array.from(list.querySelectorAll('.topster-list-row')).every(row =>
+            row.scrollHeight <= row.clientHeight + 1 && row.scrollWidth <= row.clientWidth + 1
+        );
+    }
+
+    function syncSidebarHeightForPage(page) {
+        const chart = page.querySelector('.topster-chart-grid');
+        const list = page.querySelector('.topster-list');
         if (!chart || !list) return;
+
+        let fontSize = preferredSidebarFontSize(state.settings.width);
+        list.style.fontSize = `${fontSize}px`;
+        list.style.lineHeight = state.settings.width >= 10 ? '1.04' : '1.14';
+
+        const stackedLayout = window.matchMedia('(max-width: 1180px), (hover: none) and (pointer: coarse)').matches;
+        if (stackedLayout) {
+            list.style.removeProperty('height');
+            return;
+        }
+
         const height = Math.max(1, Math.round(chart.getBoundingClientRect().height));
         list.style.height = `${height}px`;
-        let fontSize = 12;
-        list.style.fontSize = `${fontSize}px`;
-        while (fontSize > 5 && list.scrollHeight > height + 1) {
+
+        // Test each clipped sidebar row, not only the list as a whole. The old
+        // check missed overflow because each row itself uses overflow:hidden.
+        while (fontSize > 2.5 && !sidebarRowsFit(list)) {
             fontSize -= 0.5;
             list.style.fontSize = `${fontSize}px`;
         }
+    }
+
+    function syncAllSidebarHeights() {
+        pages.querySelectorAll('.topster-page').forEach(syncSidebarHeightForPage);
     }
 
     function periodLabel(period) {
@@ -394,8 +456,8 @@
     }
 
     function chartRequestLimit() {
-        // Keep enough cached rows for ordinary layout changes without making the
-        // artist-image fallback scrape hundreds of artist pages unnecessarily.
+        // Cache at least one ordinary 10x10 page, but allow a requested chart
+        // to span multiple Width × Height pages up to the 1,000-item ceiling.
         return Math.min(MAX_ITEMS, Math.max(100, configuredCellCount()));
     }
 
@@ -486,7 +548,7 @@
             if (configuredCellCount() > state.items.length && !busy) refreshData();
         });
         [sidebarSelect, cornersSelect, overlaySelect, fontSelect].forEach(input => input.addEventListener('change', onDisplaySettingChanged));
-        window.addEventListener('resize', () => requestAnimationFrame(syncSidebarHeight));
+        window.addEventListener('resize', () => requestAnimationFrame(syncAllSidebarHeights));
         document.addEventListener('keydown', event => {
             if ((event.ctrlKey || event.metaKey) && String(event.key || '').toLowerCase() === 's') {
                 event.preventDefault();
