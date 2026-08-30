@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-poster-first-fast-manual-discogs-cache-colors-v55';
+const TOPSTER_FRONTEND_VERSION = '20260830-discogs-rym-parens-ctrls-v56';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -21,7 +21,7 @@ const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v2';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v3';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
@@ -692,7 +692,7 @@ function topsterOwnedTextVariants(value, options = {}) {
     candidates.push(raw.replace(/^(?:the|a|an)\s+/i, '').trim());
 
     return Array.from(new Set(candidates
-        .map(item => normalizeAlbumTitle(item))
+        .map(item => normalizeAlbumIdentityKey(item))
         .filter(Boolean)));
 }
 
@@ -788,7 +788,7 @@ function saveDiscogsCollectionBrowserCache(payload) {
             ? topsterDiscogsCollectionAlbums
             : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
-            schema: 3,
+            schema: 4,
             savedAt: Date.now(),
             itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
             normalizedAlbums
@@ -883,7 +883,7 @@ function discogsOwnedTitleVariants(title, artist = '') {
     const clean = discogsOwnedNormalizeRomanVolumes(title);
     if (!clean) return [];
     const variants = new Set();
-    const add = value => { const normalized = normalizeAlbumTitle(value || ''); if (normalized) variants.add(normalized); };
+    const add = value => { const normalized = normalizeAlbumIdentityKey(value || ''); if (normalized) variants.add(normalized); };
     add(clean);
     add(clean.replace(/\s*\([^)]*\)\s*/g, ' '));
     add(clean.replace(/\s*["“][^"”]+["”]\s*/g, ' '));
@@ -1048,8 +1048,10 @@ function discogsOwnedIsArtistPresentationTitle(title, artist) {
 // known equivalences explicit and artist-scoped so they do not become global
 // title-only matches.
 const DISCOGS_OWNED_TITLE_ALIAS_GROUPS = Object.freeze([
+    { artists: ['Tyler, The Creator'], titles: ['Flower Boy', 'Scum Fuck Flower Boy'] },
+    { artists: ['Grateful Dead'], titles: ['Sunshine Daydream: Veneta, Oregon, August 27, 1972', 'Veneta, Oregon 8/27/72 (Sunshine Daydream)'] },
     { artists: ['Led Zeppelin'], titles: ['Led Zeppelin IV', 'Untitled'] },
-    { artists: ['Herbert Von Karajan', 'Berliner Philharmoniker'], titles: ['Beethoven: Symphony No. 9', 'IX. Symphony D-moll Op. 125'] },
+    { artists: ['Ludwig van Beethoven', 'Beethoven', 'Herbert Von Karajan', 'Berliner Philharmoniker'], titles: ['Beethoven: Symphony No. 9', 'IX. Symphonie', 'IX. Symphony D-moll Op. 125'] },
     { artists: ['Jerry Lee Lewis'], titles: ['Live At The Star Club, Hamburg', "Enregistrement Public Au Star-Club D'Hambourg"] },
     { artists: ['Jacques Brel'], titles: ['Ces Gens-Là', 'Jacques Brel'] },
     { artists: ['The Yardbirds'], titles: ['Roger The Engineer', 'The Yardbirds'] },
@@ -1133,13 +1135,14 @@ function discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle) {
 }
 
 function discogsOwnedRelationKey(value) {
-    return cleanAlbumTitle(value || '')
+    const normalized = cleanAlbumTitle(value || '')
         .normalize('NFKD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLocaleLowerCase()
         .replace(/&/g, ' and ')
         .replace(/[^\p{L}\p{N}]+/gu, '')
         .trim();
+    return normalized || normalizeAlbumIdentityKey(value);
 }
 
 function discogsOwnedArtistMatchesScopedGroup(entryArtist, groupArtists) {
@@ -1214,7 +1217,7 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
         if (!raw || rawVariants.has(raw)) return;
         rawVariants.add(raw);
         queue.push(raw);
-        const normalized = normalizeAlbumTitle(raw);
+        const normalized = normalizeAlbumIdentityKey(raw);
         if (normalized) normalizedVariants.add(normalized);
     };
 
@@ -1421,6 +1424,7 @@ function topsterEntryIsInDiscogsCollection(entry) {
         const artistsMatch = discogsOwnedArtistsMatch(entryArtist, collectionArtists);
 
         if (artistsMatch) {
+            if (normalizeAlbumIdentityKey(entryTitle) === normalizeAlbumIdentityKey(collectionTitle)) return remember(true);
             if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return remember(true);
             if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return remember(true);
             if (discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArtist, collectionArtists)) return remember(true);
@@ -1880,7 +1884,7 @@ async function initTopsterImporter(albumCards) {
     const coverPickerStatus = document.getElementById('topster-cover-picker-status');
     const coverPickerResults = document.getElementById('topster-cover-picker-results');
 
-    if (!buildButton || !refreshButton || !stopButton || !clearButton || !cacheClearButton || !rangeSelect || !status || !output || !pagesContainer || !widthSelect || !heightSelect || !widthValue || !heightValue || !sidebarModeSelect || !roundCornersSelect || !albumGapSelect || !albumGapValue || !fontSelect) {
+    if (!buildButton || !refreshButton || !clearButton || !cacheClearButton || !rangeSelect || !status || !output || !pagesContainer || !widthSelect || !heightSelect || !widthValue || !heightValue || !sidebarModeSelect || !roundCornersSelect || !albumGapSelect || !albumGapValue || !fontSelect) {
         return;
     }
 
@@ -2011,14 +2015,16 @@ async function initTopsterImporter(albumCards) {
         buildTopsterFromGridFile({ force: false, source: 'refresh' });
     });
 
-    stopButton.addEventListener('click', () => {
-        activeLookupToken++;
-        stopButton.disabled = true;
-        buildButton.disabled = false;
-        refreshButton.disabled = false;
-        saveCurrentTopster();
-        status.textContent = 'Cover lookup stopped. Current Topsters grid was kept.';
-    });
+    if (stopButton) {
+        stopButton.addEventListener('click', () => {
+            activeLookupToken++;
+            if (stopButton) stopButton.disabled = true;
+            buildButton.disabled = false;
+            refreshButton.disabled = false;
+            saveCurrentTopster();
+            status.textContent = 'Cover lookup stopped. Current Topsters grid was kept.';
+        });
+    }
 
     clearButton.addEventListener('click', () => {
         activeLookupToken++;
@@ -2027,7 +2033,7 @@ async function initTopsterImporter(albumCards) {
         pagesContainer.innerHTML = '';
         output.hidden = true;
         setSingleRangeOption();
-        stopButton.disabled = true;
+        if (stopButton) stopButton.disabled = true;
         buildButton.disabled = false;
         refreshButton.disabled = false;
         clearSavedTopsterState();
@@ -2041,6 +2047,15 @@ async function initTopsterImporter(albumCards) {
 
     if (saveSettingsButton) {
         saveSettingsButton.addEventListener('click', publishTopsterSettingsAndCovers);
+        if (topsterEditorPage) {
+            document.addEventListener('keydown', event => {
+                const key = String(event.key || '').toLowerCase();
+                if (!(event.ctrlKey || event.metaKey) || event.altKey || key !== 's') return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (!saveSettingsButton.disabled) saveSettingsButton.click();
+            });
+        }
     }
 
     if (sourceFileInput) {
@@ -2542,7 +2557,7 @@ async function initTopsterImporter(albumCards) {
         activeLookupToken++;
         const token = activeLookupToken;
 
-        stopButton.disabled = true;
+        if (stopButton) stopButton.disabled = true;
         buildButton.disabled = true;
         refreshButton.disabled = true;
         status.textContent = `Reading ${topsterSourceLabel}...`;
@@ -2637,7 +2652,7 @@ async function initTopsterImporter(albumCards) {
             });
             renderTopster(importedEntries, selectedStart, { scroll: false });
             saveCurrentTopster();
-            stopButton.disabled = true;
+            if (stopButton) stopButton.disabled = true;
             buildButton.disabled = false;
             refreshButton.disabled = false;
 
@@ -2756,7 +2771,7 @@ async function initTopsterImporter(albumCards) {
         let foundCount = 0;
         let missedCount = 0;
 
-        stopButton.disabled = false;
+        if (stopButton) stopButton.disabled = false;
         buildButton.disabled = true;
         refreshButton.disabled = true;
 
@@ -2823,7 +2838,7 @@ async function initTopsterImporter(albumCards) {
         });
 
         saveCurrentTopster();
-        stopButton.disabled = true;
+        if (stopButton) stopButton.disabled = true;
         buildButton.disabled = false;
         refreshButton.disabled = false;
         const completionText = `Finished all ${total} album line${total === 1 ? '' : 's'}. Found/cached ${foundCount} cover${foundCount === 1 ? '' : 's'} and missed ${missedCount}. Press Build again to load the cached covers into the Topsters, then Save Settings to publish the updated cache.`;
@@ -2842,7 +2857,7 @@ async function initTopsterImporter(albumCards) {
             });
             renderTopster(importedEntries, startIndex, { scroll: false });
             saveCurrentTopster();
-            stopButton.disabled = true;
+            if (stopButton) stopButton.disabled = true;
             buildButton.disabled = false;
             refreshButton.disabled = false;
             const foundCount = importedEntries.filter(entry => entry.status === 'found').length;
@@ -2857,7 +2872,7 @@ async function initTopsterImporter(albumCards) {
         const config = getSourceConfig();
         let resolvedCount = importedEntries.filter(entry => entry.cover).length;
 
-        stopButton.disabled = false;
+        if (stopButton) stopButton.disabled = false;
         buildButton.disabled = true;
         refreshButton.disabled = true;
 
@@ -2899,7 +2914,7 @@ async function initTopsterImporter(albumCards) {
         }
 
         if (token === activeLookupToken) {
-            stopButton.disabled = true;
+            if (stopButton) stopButton.disabled = true;
             buildButton.disabled = false;
             refreshButton.disabled = false;
             const missingCount = importedEntries.filter(entry => entry.status === 'missing').length;
@@ -5643,6 +5658,25 @@ function normalizeAlbumTitle(title) {
         .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
+// Most album identities are naturally represented by letters/numbers. Some real
+// titles, however, are punctuation-only (notably Sigur Rós - "( )"). Preserve
+// those as a deterministic code-point key instead of collapsing them to an empty
+// string, while keeping ordinary fuzzy/title matching behavior unchanged.
+function normalizeAlbumIdentityKey(value) {
+    const normal = normalizeAlbumTitle(value || '');
+    if (normal) return normal;
+
+    const punctuation = cleanAlbumTitle(value || '')
+        .normalize('NFKC')
+        .toLocaleLowerCase()
+        .replace(/\s+/gu, '');
+    if (!punctuation) return '';
+
+    return `__punct_${Array.from(punctuation)
+        .map(character => character.codePointAt(0).toString(16))
+        .join('_')}`;
+}
+
 function tokenizeTitle(title) {
     const stopWords = new Set(['the', 'a', 'an', 'and', 'of', 'in', 'to', 'with', 'for']);
     return cleanAlbumTitle(title)
@@ -5691,10 +5725,11 @@ function scoreAlbumCandidate(entry, candidateTitle, candidateDate, sourceScore, 
 }
 
 function titleSimilarity(a, b) {
-    const compactA = normalizeAlbumTitle(a);
-    const compactB = normalizeAlbumTitle(b);
+    const compactA = normalizeAlbumIdentityKey(a);
+    const compactB = normalizeAlbumIdentityKey(b);
     if (!compactA || !compactB) return 0;
     if (compactA === compactB) return 1;
+    if (compactA.startsWith('__punct_') || compactB.startsWith('__punct_')) return 0;
     if (compactA.length >= 8 && compactB.length >= 8 && (compactA.includes(compactB) || compactB.includes(compactA))) return 0.82;
 
     const tokensA = new Set(tokenizeTitle(a));
@@ -5739,12 +5774,12 @@ function getLastfmImage(images) {
 }
 
 function buildCoverCacheKey(entry) {
-    return `${normalizeAlbumTitle(entry.artist || '')}|${normalizeAlbumTitle(entry.title)}|${entry.year || ''}`;
+    return `${normalizeAlbumTitle(entry.artist || '')}|${normalizeAlbumIdentityKey(entry.title)}|${entry.year || ''}`;
 }
 
 function buildCoverCacheAliases(entry) {
     const artistKey = normalizeAlbumTitle(entry.artist || '');
-    const titleKey = normalizeAlbumTitle(entry.title || '');
+    const titleKey = normalizeAlbumIdentityKey(entry.title || '');
     const yearKey = entry.year || '';
     if (!titleKey) return [];
 
@@ -5870,8 +5905,13 @@ function cachedCoverMatchesEntryIdentity(entry, item) {
     if (!entry || !item || !item.imageSrc) return false;
 
     if (entry.title && item.title) {
-        const titleScore = titleSimilarity(entry.title, item.title);
-        if (titleScore < 0.30) return false;
+        const entryTitleIdentity = normalizeAlbumIdentityKey(entry.title);
+        const itemTitleIdentity = normalizeAlbumIdentityKey(item.title);
+        if (!entryTitleIdentity || !itemTitleIdentity) return false;
+        if (entryTitleIdentity !== itemTitleIdentity) {
+            const titleScore = titleSimilarity(entry.title, item.title);
+            if (titleScore < 0.30) return false;
+        }
     }
 
     if (entry.artist) {

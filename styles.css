@@ -1256,7 +1256,7 @@ button:hover {
 
 .topster-owned-release-x::before,
 .topster-owned-release-x::after {
-    background: #ff8000;
+    background: #9f2f2f;
     border-radius: 999px;
     box-shadow: 0 0 1px rgba(0, 0, 0, 0.9);
     content: '';
