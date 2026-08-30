@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260829-artist-cover-identity-recovery-v52';
+const TOPSTER_FRONTEND_VERSION = '20260830-rym-native-covers-only-v53';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -2456,7 +2456,7 @@ async function initTopsterImporter(albumCards) {
         const prelookupOnly = Boolean(options.prelookupOnly);
 
         importedEntries = parsed.map((entry, index) => {
-            const cachedCover = prelookupOnly ? null : getPreferredCachedCover(entry);
+            const cachedCover = prelookupOnly ? null : (isRateYourMusicTopsterSource() ? getPreferredRateYourMusicCover(entry) : getPreferredCachedCover(entry));
             return {
                 ...entry,
                 originalIndex: index + 1,
@@ -2480,6 +2480,24 @@ async function initTopsterImporter(albumCards) {
         }
 
         const actionText = source === 'refresh' ? 'Refreshed' : 'Built';
+        if (isRateYourMusicTopsterSource()) {
+            importedEntries.forEach(entry => {
+                entry.status = entry.cover && entry.cover.imageSrc ? 'found' : 'missing';
+            });
+            renderTopster(importedEntries, selectedStart, { scroll: false });
+            saveCurrentTopster();
+            stopButton.disabled = true;
+            buildButton.disabled = false;
+            refreshButton.disabled = false;
+
+            const foundCount = importedEntries.filter(entry => entry.status === 'found').length;
+            const missingCount = importedEntries.length - foundCount;
+            const completionText = `${actionText} all ${importedEntries.length} RateYourMusic release${importedEntries.length === 1 ? '' : 's'}. Using ${foundCount} RYM/manual cover${foundCount === 1 ? '' : 's'} directly from the supplied snapshot/cache and missing ${missingCount}. No automatic external cover lookup was performed.${topsterEditorPage ? ' Click any release to choose an alternate cover manually, then press Save Settings to publish.' : ''}`;
+            setBuildCompletionStatus(completionText);
+            completeTopsterLoading(completionText);
+            return;
+        }
+
         status.textContent = `${actionText} ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} from ${topsterSourceLabel}. Loading cached covers and looking up any missing covers...`;
         resolveVisibleRange(selectedStart);
     }
@@ -2643,6 +2661,25 @@ async function initTopsterImporter(albumCards) {
     async function resolveVisibleRange(startIndex = 0) {
         if (!importedEntries.length) return;
 
+        if (isRateYourMusicTopsterSource()) {
+            importedEntries.forEach(entry => {
+                if (!entry) return;
+                entry.cover = getPreferredRateYourMusicCover(entry);
+                entry.status = entry.cover && entry.cover.imageSrc ? 'found' : 'missing';
+            });
+            renderTopster(importedEntries, startIndex, { scroll: false });
+            saveCurrentTopster();
+            stopButton.disabled = true;
+            buildButton.disabled = false;
+            refreshButton.disabled = false;
+            const foundCount = importedEntries.filter(entry => entry.status === 'found').length;
+            const missingCount = importedEntries.length - foundCount;
+            const completionText = `Finished all ${importedEntries.length} RateYourMusic release${importedEntries.length === 1 ? '' : 's'}. Using ${foundCount} RYM/manual cover${foundCount === 1 ? '' : 's'} and missing ${missingCount}. No automatic external cover lookup was performed.${topsterEditorPage ? ' Click a release to choose an alternate cover manually, then press Save Settings to publish.' : ''}`;
+            setBuildCompletionStatus(completionText);
+            completeTopsterLoading(completionText);
+            return;
+        }
+
         const token = ++activeLookupToken;
         const config = getSourceConfig();
         let resolvedCount = importedEntries.filter(entry => entry.cover).length;
@@ -2758,7 +2795,7 @@ async function initTopsterImporter(albumCards) {
             const publicRetryHandler = topsterReadOnly && isPublicAlbumCoverRetrySource()
                 ? () => retryPublicAlbumCover(entry, absoluteIndex)
                 : null;
-            const loadErrorHandler = !isRollingStoneSingerTopsterSource()
+            const loadErrorHandler = !isRollingStoneSingerTopsterSource() && !isRateYourMusicTopsterSource()
                 ? failedImageSrc => recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc)
                 : null;
             const replacement = createTopsterTile(
@@ -2777,6 +2814,11 @@ async function initTopsterImporter(albumCards) {
 
     async function recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc) {
         if (!entry || entry.cover && entry.cover.selectedManually) return;
+        if (isRateYourMusicTopsterSource()) {
+            entry.status = 'missing';
+            refreshRenderedTopsterTile(absoluteIndex);
+            return;
+        }
 
         let state = brokenCoverRecoveryState.get(absoluteIndex);
         if (!state) {
@@ -2885,7 +2927,7 @@ async function initTopsterImporter(albumCards) {
             topsterReadOnly && isPublicAlbumCoverRetrySource() && entry
                 ? () => retryPublicAlbumCover(entry, absoluteIndex)
                 : null,
-            entry && !isRollingStoneSingerTopsterSource()
+            entry && !isRollingStoneSingerTopsterSource() && !isRateYourMusicTopsterSource()
                 ? failedImageSrc => recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc)
                 : null));
         }
@@ -5665,6 +5707,32 @@ function getPreferredCachedCover(entry) {
         const item = cache[key];
         if (item && item.imageSrc && cachedCoverMatchesEntryIdentity(entry, item)) {
             return { ...item, source: item.source || 'Cache' };
+        }
+    }
+
+    return null;
+}
+
+function getPreferredRateYourMusicCover(entry) {
+    const cache = getCoverCache();
+    const aliases = buildCoverCacheAliases(entry);
+
+    // A user's explicit choice always wins, including over a newly imported RYM thumbnail.
+    for (const key of aliases) {
+        const item = cache[key];
+        if (item && item.imageSrc && item.selectedManually && cachedCoverMatchesEntryIdentity(entry, item)) {
+            return { ...item, source: item.source || 'Manual' };
+        }
+    }
+
+    // RYM Build is intentionally snapshot-driven. Automatic Last.fm / Archive /
+    // MusicBrainz / iTunes covers left in an older cache are not valid defaults here.
+    for (const key of aliases) {
+        const item = cache[key];
+        if (!item || !item.imageSrc || !cachedCoverMatchesEntryIdentity(entry, item)) continue;
+        const source = String(item.source || '').trim().toLocaleLowerCase();
+        if (source === 'rateyourmusic thumbnail') {
+            return { ...item, source: 'RateYourMusic thumbnail' };
         }
     }
 

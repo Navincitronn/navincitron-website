@@ -172,7 +172,7 @@
 
                 <div class="rym-import-box">
                     <strong>RateYourMusic snapshot import</strong>
-                    <p>Choose how many chart pages belong to this snapshot, then use the generated page links to open those RYM pages. Select all saved HTML result pages at once below; Build combines them into one ranked Topster, keeps each RYM release-page link, and defaults to the RYM thumbnail when one is present.</p>
+                    <p>Choose how many chart pages belong to this snapshot, then use the generated page links to open those RYM pages. Select all saved HTML result pages at once below; Build combines them into one ranked Topster, keeps each RYM release-page link, and uses the RYM thumbnail from the supplied HTML as the default cover. Build does not run automatic external cover lookups; click a release afterward if you want to manually choose an alternate cover.</p>
                     <div class="rym-import-actions">
                         <label for="rym-page-count">Chart pages to import</label>
                         <input type="number" id="rym-page-count" min="1" max="100" step="1" value="25" data-rym-config-control="true">
@@ -256,13 +256,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260829-artist-cover-identity-recovery-v52';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260830-rym-native-covers-only-v53';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260829-artist-cover-identity-recovery-v52"></script>
+    <script src="topster_grid.js?v=20260830-rym-native-covers-only-v53"></script>
 </body>
 </html>
