@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LastFM - Navincitron</title>
+    <title>LAST.FM - Navincitron</title>
     <link rel="stylesheet" href="styles.css?v=20260830-discogs-rym-parens-ctrls-v56">
     <style>
         .lastfm-profile-line { text-align: center; margin: 4px 20px 20px; color: #ddd; }
@@ -27,6 +27,20 @@
         .lastfm-topster-title { margin: 0 0 10px; text-align: center; }
         .lastfm-saved-note { color: #ccc; font-size: 13px; text-align: center; margin: 8px 0 0; }
         .lastfm-now-playing { color: #00e054; }
+        #lastfm-cell-count {
+            box-sizing: border-box;
+            width: 100%;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+            background: #f2f2f2;
+            color: #000;
+            font-size: 14px;
+            padding: 9px;
+        }
+        .lastfm-setting-help { color: #bbb; font-size: 12px; line-height: 1.35; }
+        .lastfm-listen-clickable { cursor: pointer; }
+        .lastfm-listen-clickable:focus-visible { outline: 2px solid #40bcf4; outline-offset: -2px; }
+        .lastfm-listen-info { font-size: clamp(10px, calc(var(--topster-actual-cover-size, var(--topster-cover-size, 200px)) * 0.09), 20px); }
         @media (max-width: 700px) { .lastfm-time-window { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -44,8 +58,8 @@
 
     <main id="lastfm-main" hidden>
         <section class="grid-builder-page">
-            <div class="title-bar"><br><h2 class="center">LASTFM</h2></div>
-            <p class="lastfm-profile-line">Listening data for <a href="https://www.last.fm/user/Navincitron" target="_blank" rel="noopener noreferrer">Navincitron</a></p>
+            <div class="title-bar"><br><h2 class="center">LAST.FM</h2></div>
+            <p class="lastfm-profile-line"><a href="https://www.last.fm/user/Navincitron" target="_blank" rel="noopener noreferrer">https://www.last.fm/user/Navincitron</a></p>
             <hr>
 
             <div class="topster-import-panel">
@@ -97,12 +111,15 @@
 
                         <label for="lastfm-sidebar-mode">Sidebar text</label>
                         <select id="lastfm-sidebar-mode">
-                            <option value="artist-title-count" selected>Show Artist - Album/Song - Listens</option>
-                            <option value="artist-title">Show Artist - Album/Song</option>
-                            <option value="title-count">Show Album/Song - Listens</option>
+                            <option value="artist-title" selected>Show Artist - Album/Song</option>
                             <option value="title-only">Show Album/Song only</option>
                             <option value="hidden">Hide sidebar</option>
                         </select>
+
+                        <label for="lastfm-cell-count">Cells shown</label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="lastfm-cell-count" placeholder="Width × Height" aria-describedby="lastfm-cell-count-help">
+                        <span></span>
+                        <span class="lastfm-setting-help" id="lastfm-cell-count-help">Leave blank to use Width × Height. Enter 1–250 to show exactly that many cells.</span>
 
                         <label for="lastfm-round-corners">Round corners</label>
                         <select id="lastfm-round-corners">
@@ -127,7 +144,7 @@
                 </details>
 
                 <p class="topster-status" id="lastfm-status">Verifying admin authentication...</p>
-                <p class="lastfm-saved-note">Save Settings stores the selected LastFM view, display settings, and current chart snapshot in this browser. Ctrl+S / Cmd+S performs the same save.</p>
+                <p class="lastfm-saved-note">Save Settings stores the selected Last.fm view, display settings, and current chart snapshot in this browser. Ctrl+S / Cmd+S performs the same save.</p>
             </div>
 
             <div class="topster-output" id="lastfm-output" hidden>
@@ -136,6 +153,6 @@
         </section>
     </main>
 
-    <script src="last_fm.js?v=20260830-lastfm-v57"></script>
+    <script src="last_fm.js?v=20260830-lastfm-artists-listens-cells-v58"></script>
 </body>
 </html>

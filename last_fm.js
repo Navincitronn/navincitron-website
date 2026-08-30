@@ -13,7 +13,8 @@
         settings: {
             width: 10,
             height: 10,
-            sidebarMode: 'artist-title-count',
+            sidebarMode: 'artist-title',
+            cellCount: '',
             roundCorners: 0,
             albumGap: 4,
             coverOverlay: 'index',
@@ -43,6 +44,7 @@
     const heightInput = $('lastfm-height');
     const widthValue = $('lastfm-width-value');
     const heightValue = $('lastfm-height-value');
+    const cellCountInput = $('lastfm-cell-count');
     const sidebarSelect = $('lastfm-sidebar-mode');
     const cornersSelect = $('lastfm-round-corners');
     const gapInput = $('lastfm-album-gap');
@@ -69,7 +71,7 @@
         const settings = source.settings && typeof source.settings === 'object' ? source.settings : {};
         const allowedModes = new Set(['albums', 'songs', 'artists', 'recent']);
         const allowedPeriods = new Set(['1day', '7day', '14day', '1month', '3month', '6month', '12month', 'overall', 'custom']);
-        const allowedSidebars = new Set(['artist-title-count', 'artist-title', 'title-count', 'title-only', 'hidden']);
+        const allowedSidebars = new Set(['artist-title', 'title-only', 'hidden']);
         const allowedOverlays = new Set(['none', 'index', 'listens']);
         const allowedFonts = new Set(['Arial', 'Verdana', 'Helvetica Neue', 'Sans-serif', 'Monospace', 'Open Sans', 'Helvetica', 'Georgia', 'Tahoma', 'Calibri']);
 
@@ -83,7 +85,12 @@
             settings: {
                 width: clamp(settings.width, 1, 25, defaults.settings.width),
                 height: clamp(settings.height, 1, 10, defaults.settings.height),
-                sidebarMode: allowedSidebars.has(settings.sidebarMode) ? settings.sidebarMode : defaults.settings.sidebarMode,
+                sidebarMode: allowedSidebars.has(settings.sidebarMode)
+                    ? settings.sidebarMode
+                    : (settings.sidebarMode === 'title-count' ? 'title-only' : defaults.settings.sidebarMode),
+                cellCount: /^\d+$/.test(String(settings.cellCount || '').trim())
+                    ? String(clamp(settings.cellCount, 1, MAX_ITEMS, defaults.settings.width * defaults.settings.height))
+                    : '',
                 roundCorners: clamp(settings.roundCorners, 0, 24, defaults.settings.roundCorners),
                 albumGap: clamp(settings.albumGap, 0, 100, defaults.settings.albumGap),
                 coverOverlay: allowedOverlays.has(settings.coverOverlay) ? settings.coverOverlay : defaults.settings.coverOverlay,
@@ -107,9 +114,9 @@
         readInputsIntoState();
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-            status.textContent = `Saved LastFM settings and ${state.items.length} cached chart item${state.items.length === 1 ? '' : 's'}.`;
+            status.textContent = `Saved Last.fm settings and ${state.items.length} cached chart item${state.items.length === 1 ? '' : 's'}.`;
         } catch (error) {
-            status.textContent = `Could not save LastFM settings locally: ${error && error.message ? error.message : error}`;
+            status.textContent = `Could not save Last.fm settings locally: ${error && error.message ? error.message : error}`;
         }
     }
 
@@ -120,6 +127,7 @@
         endInput.value = state.config.end || '';
         widthInput.value = String(state.settings.width);
         heightInput.value = String(state.settings.height);
+        cellCountInput.value = state.settings.cellCount || '';
         sidebarSelect.value = state.settings.sidebarMode;
         cornersSelect.value = String(state.settings.roundCorners);
         gapInput.value = String(state.settings.albumGap);
@@ -136,6 +144,8 @@
         state.config.end = endInput.value;
         state.settings.width = clamp(widthInput.value, 1, 25, 10);
         state.settings.height = clamp(heightInput.value, 1, 10, 10);
+        const rawCellCount = String(cellCountInput.value || '').trim();
+        state.settings.cellCount = /^\d+$/.test(rawCellCount) ? String(clamp(rawCellCount, 1, MAX_ITEMS, 100)) : '';
         state.settings.sidebarMode = sidebarSelect.value;
         state.settings.roundCorners = clamp(cornersSelect.value, 0, 24, 0);
         state.settings.albumGap = clamp(gapInput.value, 0, 100, 4);
@@ -190,27 +200,44 @@
     function sidebarText(item) {
         const artist = String(item.artist || '').trim();
         const title = titleForItem(item);
-        const listens = formatListens(item.playcount);
         const mode = state.config.mode;
         const sidebarMode = state.settings.sidebarMode;
 
-        if (mode === 'artists') {
-            if (sidebarMode === 'hidden') return '';
-            if (sidebarMode === 'title-only' || sidebarMode === 'artist-title') return artist || title;
-            return `${artist || title} - ${listens}`;
-        }
-
-        const base = artist ? `${artist} - ${title}` : title;
-        if (sidebarMode === 'artist-title-count') return `${base} - ${listens}`;
-        if (sidebarMode === 'artist-title') return base;
-        if (sidebarMode === 'title-count') return `${title} - ${listens}`;
-        return title;
+        if (mode === 'artists') return artist || title;
+        if (sidebarMode === 'title-only') return title;
+        return artist ? `${artist} - ${title}` : title;
     }
 
     function placeholderText(item) {
         const artist = String(item.artist || '').trim();
         const title = titleForItem(item);
         return artist && artist !== title ? `${artist} - ${title}` : title;
+    }
+
+    function addListenReveal(tile, item) {
+        if (!item || tile.querySelector('.lastfm-listen-info')) return;
+        const info = document.createElement('div');
+        info.className = 'topster-mobile-tile-info lastfm-listen-info';
+        info.textContent = formatListens(item.playcount);
+        tile.appendChild(info);
+        tile.classList.add('lastfm-listen-clickable');
+        tile.tabIndex = 0;
+        tile.setAttribute('role', 'button');
+        tile.setAttribute('aria-label', `${placeholderText(item)} — ${formatListens(item.playcount)}. Click to show listens.`);
+
+        let hideTimer = 0;
+        const reveal = () => {
+            window.clearTimeout(hideTimer);
+            tile.classList.add('topster-mobile-info-active');
+            hideTimer = window.setTimeout(() => tile.classList.remove('topster-mobile-info-active'), 10000);
+        };
+        tile.addEventListener('click', reveal);
+        tile.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                reveal();
+            }
+        });
     }
 
     function createTile(item, index) {
@@ -225,12 +252,13 @@
             img.loading = index <= 24 ? 'eager' : 'lazy';
             img.decoding = 'async';
             img.onerror = () => {
-                tile.innerHTML = '';
-                const placeholder = document.createElement('div');
-                placeholder.className = 'topster-tile-placeholder';
-                placeholder.textContent = placeholderText(item);
-                tile.appendChild(placeholder);
-                addOverlay(tile, item, index);
+                img.remove();
+                if (!tile.querySelector('.topster-tile-placeholder')) {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'topster-tile-placeholder';
+                    placeholder.textContent = placeholderText(item);
+                    tile.insertBefore(placeholder, tile.firstChild);
+                }
             };
             tile.appendChild(img);
         } else if (item) {
@@ -244,7 +272,10 @@
             tile.appendChild(empty);
         }
 
-        if (item) addOverlay(tile, item, index);
+        if (item) {
+            addOverlay(tile, item, index);
+            addListenReveal(tile, item);
+        }
         return tile;
     }
 
@@ -261,11 +292,18 @@
         tile.appendChild(overlay);
     }
 
+    function configuredCellCount() {
+        const raw = String(state.settings.cellCount || '').trim();
+        if (/^\d+$/.test(raw)) return clamp(raw, 1, MAX_ITEMS, 100);
+        return clamp(state.settings.width * state.settings.height, 1, MAX_ITEMS, 100);
+    }
+
     function render() {
         readInputsIntoState();
         updateValueLabels();
         const settings = state.settings;
-        const capacity = settings.width * settings.height;
+        const capacity = configuredCellCount();
+        const rows = Math.max(1, Math.ceil(capacity / settings.width));
         const visible = state.items.slice(0, capacity);
         pages.innerHTML = '';
         output.style.fontFamily = settings.font;
@@ -281,10 +319,10 @@
         const chart = document.createElement('div');
         chart.className = 'topster-chart-grid';
         chart.style.setProperty('--topster-columns', String(settings.width));
-        chart.style.setProperty('--topster-rows', String(settings.height));
+        chart.style.setProperty('--topster-rows', String(rows));
         chart.style.setProperty('--topster-radius', `${settings.roundCorners}px`);
         chart.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
-        chart.setAttribute('aria-label', `${settings.width} by ${settings.height} LastFM grid`);
+        chart.setAttribute('aria-label', `${capacity}-cell Last.fm grid with ${settings.width} columns`);
 
         for (let i = 0; i < capacity; i += 1) {
             chart.appendChild(createTile(visible[i] || null, i + 1));
@@ -295,10 +333,10 @@
         if (settings.sidebarMode !== 'hidden') {
             const list = document.createElement('div');
             list.className = 'topster-list';
-            list.style.setProperty('--topster-rows', String(settings.height));
+            list.style.setProperty('--topster-rows', String(rows));
             list.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
 
-            for (let row = 0; row < settings.height; row += 1) {
+            for (let row = 0; row < rows; row += 1) {
                 const ol = document.createElement('ol');
                 ol.className = 'topster-list-row';
                 ol.start = (row * settings.width) + 1;
@@ -355,6 +393,12 @@
         return { albums: 'albums', songs: 'songs', artists: 'artists', recent: 'recently played tracks' }[mode] || mode;
     }
 
+    function chartRequestLimit() {
+        // Keep enough cached rows for ordinary layout changes without making the
+        // artist-image fallback scrape hundreds of artist pages unnecessarily.
+        return Math.min(MAX_ITEMS, Math.max(100, configuredCellCount()));
+    }
+
     async function verifyAdmin() {
         try {
             const response = await fetch(`${BACKEND_ORIGIN}/api/topster-admin-status`, { credentials: 'include', cache: 'no-store' });
@@ -395,7 +439,7 @@
             url.searchParams.set('user', USERNAME);
             url.searchParams.set('mode', config.mode);
             url.searchParams.set('period', config.period);
-            url.searchParams.set('limit', String(MAX_ITEMS));
+            url.searchParams.set('limit', String(chartRequestLimit()));
             if (config.period === 'custom') {
                 url.searchParams.set('from', String(from));
                 url.searchParams.set('to', String(to));
@@ -436,6 +480,11 @@
         startInput.addEventListener('change', () => { readInputsIntoState(); });
         endInput.addEventListener('change', () => { readInputsIntoState(); });
         [widthInput, heightInput, gapInput].forEach(input => input.addEventListener('input', onDisplaySettingChanged));
+        cellCountInput.addEventListener('input', onDisplaySettingChanged);
+        cellCountInput.addEventListener('change', () => {
+            readInputsIntoState();
+            if (configuredCellCount() > state.items.length && !busy) refreshData();
+        });
         [sidebarSelect, cornersSelect, overlaySelect, fontSelect].forEach(input => input.addEventListener('change', onDisplaySettingChanged));
         window.addEventListener('resize', () => requestAnimationFrame(syncSidebarHeight));
         document.addEventListener('keydown', event => {
@@ -455,7 +504,7 @@
         main.hidden = false;
         if (state.items.length) {
             render();
-            status.textContent = `Loaded saved LastFM view with ${state.items.length} cached chart item${state.items.length === 1 ? '' : 's'}. Press Refresh to update from Last.fm.`;
+            status.textContent = `Loaded saved Last.fm view with ${state.items.length} cached chart item${state.items.length === 1 ? '' : 's'}. Press Refresh to update from Last.fm.`;
         } else {
             await refreshData();
         }
