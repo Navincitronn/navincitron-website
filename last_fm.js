@@ -246,6 +246,9 @@
         const url = new URL('/api/lastfm-artist-image', BACKEND_ORIGIN);
         url.searchParams.set('user', USERNAME);
         url.searchParams.set('artist', artist);
+        // v61: force a fresh artist-image request so browsers cannot reuse the
+        // cached v60 redirect that incorrectly pointed at the profile avatar.
+        url.searchParams.set('imagev', '61');
         const artistUrl = String((item && item.url) || '').trim();
         if (artistUrl) url.searchParams.set('url', artistUrl);
         return url.href;
