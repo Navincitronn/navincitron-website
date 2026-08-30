@@ -116,6 +116,12 @@
                             <option value="hidden">Hide sidebar</option>
                         </select>
 
+                        <label for="lastfm-sidebar-width">Sidebar width <span class="topster-slider-value" id="lastfm-sidebar-width-value">20%</span></label>
+                        <div class="topster-slider-control"><input type="range" id="lastfm-sidebar-width" min="10" max="50" step="1" value="20"></div>
+
+                        <label for="lastfm-sidebar-text-size">Sidebar text size (%)</label>
+                        <input type="number" id="lastfm-sidebar-text-size" min="50" max="200" step="5" value="100" inputmode="numeric" aria-label="Sidebar text size percent" style="background-color:#f2f2f2;border:1px solid #aaa;border-radius:5px;box-sizing:border-box;color:#000;font-size:14px;padding:9px;width:100%;">
+
                         <label for="lastfm-cell-count">Cells shown</label>
                         <input type="text" inputmode="numeric" pattern="[0-9]*" id="lastfm-cell-count" placeholder="Width × Height" aria-describedby="lastfm-cell-count-help">
                         <span></span>
@@ -153,6 +159,6 @@
         </section>
     </main>
 
-    <script src="last_fm.js?v=20260830-artist-page-image-v61"></script>
+    <script src="last_fm.js?v=20260830-sidebar-controls-v62"></script>
 </body>
 </html>

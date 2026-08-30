@@ -14,6 +14,8 @@
             width: 10,
             height: 10,
             sidebarMode: 'artist-title',
+            sidebarWidth: 20,
+            sidebarTextScale: 100,
             cellCount: '',
             roundCorners: 0,
             albumGap: 4,
@@ -46,6 +48,9 @@
     const heightValue = $('lastfm-height-value');
     const cellCountInput = $('lastfm-cell-count');
     const sidebarSelect = $('lastfm-sidebar-mode');
+    const sidebarWidthInput = $('lastfm-sidebar-width');
+    const sidebarWidthValue = $('lastfm-sidebar-width-value');
+    const sidebarTextSizeInput = $('lastfm-sidebar-text-size');
     const cornersSelect = $('lastfm-round-corners');
     const gapInput = $('lastfm-album-gap');
     const gapValue = $('lastfm-album-gap-value');
@@ -88,6 +93,8 @@
                 sidebarMode: allowedSidebars.has(settings.sidebarMode)
                     ? settings.sidebarMode
                     : (settings.sidebarMode === 'title-count' ? 'title-only' : defaults.settings.sidebarMode),
+                sidebarWidth: clamp(settings.sidebarWidth, 10, 50, defaults.settings.sidebarWidth),
+                sidebarTextScale: clamp(settings.sidebarTextScale, 50, 200, defaults.settings.sidebarTextScale),
                 cellCount: /^\d+$/.test(String(settings.cellCount || '').trim())
                     ? String(clamp(settings.cellCount, 1, MAX_ITEMS, defaults.settings.width * defaults.settings.height))
                     : '',
@@ -129,6 +136,8 @@
         heightInput.value = String(state.settings.height);
         cellCountInput.value = state.settings.cellCount || '';
         sidebarSelect.value = state.settings.sidebarMode;
+        if (sidebarWidthInput) sidebarWidthInput.value = String(state.settings.sidebarWidth);
+        if (sidebarTextSizeInput) sidebarTextSizeInput.value = String(state.settings.sidebarTextScale);
         cornersSelect.value = String(state.settings.roundCorners);
         gapInput.value = String(state.settings.albumGap);
         overlaySelect.value = state.settings.coverOverlay;
@@ -147,6 +156,8 @@
         const rawCellCount = String(cellCountInput.value || '').trim();
         state.settings.cellCount = /^\d+$/.test(rawCellCount) ? String(clamp(rawCellCount, 1, MAX_ITEMS, 100)) : '';
         state.settings.sidebarMode = sidebarSelect.value;
+        state.settings.sidebarWidth = sidebarWidthInput ? clamp(sidebarWidthInput.value, 10, 50, 20) : 20;
+        state.settings.sidebarTextScale = sidebarTextSizeInput ? clamp(sidebarTextSizeInput.value, 50, 200, 100) : 100;
         state.settings.roundCorners = clamp(cornersSelect.value, 0, 24, 0);
         state.settings.albumGap = clamp(gapInput.value, 0, 100, 4);
         state.settings.coverOverlay = overlaySelect.value;
@@ -157,6 +168,7 @@
         widthValue.textContent = String(widthInput.value);
         heightValue.textContent = String(heightInput.value);
         gapValue.textContent = `${gapInput.value} px`;
+        if (sidebarWidthValue && sidebarWidthInput) sidebarWidthValue.textContent = `${sidebarWidthInput.value}%`;
     }
 
     function updateCustomWindowVisibility() {
@@ -323,10 +335,12 @@
         return pageCellCapacity();
     }
 
-    function preferredSidebarFontSize(width) {
-        // Wider Topsters put more entries into every sidebar row, so begin with
-        // a smaller font before the exact per-row overflow fit below.
-        return Math.max(3.5, Math.min(12, 14 - (Number(width) * 0.65)));
+    function preferredSidebarFontSize(width, textScale = state.settings.sidebarTextScale) {
+        // Preserve the automatic width-aware baseline, then let the user scale it.
+        // The overflow fitter can still reduce this requested maximum when a row
+        // would otherwise clip.
+        const automaticBase = Math.max(3.5, Math.min(12, 14 - (Number(width) * 0.65)));
+        return Math.max(2.5, Math.min(30, automaticBase * (clamp(textScale, 50, 200, 100) / 100)));
     }
 
     function render() {
@@ -350,6 +364,10 @@
 
             const layout = document.createElement('div');
             layout.className = 'topster-layout';
+            if (settings.sidebarMode !== 'hidden') {
+                const sidebarWidth = clamp(settings.sidebarWidth, 10, 50, 20);
+                layout.style.gridTemplateColumns = `minmax(0, ${100 - sidebarWidth}fr) minmax(0, ${sidebarWidth}fr)`;
+            }
             const chartWrap = document.createElement('div');
             chartWrap.className = 'topster-chart-wrap';
             const chart = document.createElement('div');
@@ -373,7 +391,7 @@
                 list.className = 'topster-list';
                 list.style.setProperty('--topster-rows', String(settings.height));
                 list.style.setProperty('--topster-album-gap', `${settings.albumGap}px`);
-                list.style.fontSize = `${preferredSidebarFontSize(settings.width)}px`;
+                list.style.fontSize = `${preferredSidebarFontSize(settings.width, settings.sidebarTextScale)}px`;
 
                 for (let row = 0; row < settings.height; row += 1) {
                     const ol = document.createElement('ol');
@@ -422,7 +440,7 @@
         const list = page.querySelector('.topster-list');
         if (!chart || !list) return;
 
-        let fontSize = preferredSidebarFontSize(state.settings.width);
+        let fontSize = preferredSidebarFontSize(state.settings.width, state.settings.sidebarTextScale);
         list.style.fontSize = `${fontSize}px`;
         list.style.lineHeight = state.settings.width >= 10 ? '1.04' : '1.14';
 
@@ -544,7 +562,13 @@
         });
         startInput.addEventListener('change', () => { readInputsIntoState(); });
         endInput.addEventListener('change', () => { readInputsIntoState(); });
-        [widthInput, heightInput, gapInput].forEach(input => input.addEventListener('input', onDisplaySettingChanged));
+        [widthInput, heightInput, gapInput, sidebarWidthInput].forEach(input => {
+            if (input) input.addEventListener('input', onDisplaySettingChanged);
+        });
+        if (sidebarTextSizeInput) {
+            sidebarTextSizeInput.addEventListener('input', onDisplaySettingChanged);
+            sidebarTextSizeInput.addEventListener('change', onDisplaySettingChanged);
+        }
         cellCountInput.addEventListener('input', onDisplaySettingChanged);
         cellCountInput.addEventListener('change', () => {
             readInputsIntoState();

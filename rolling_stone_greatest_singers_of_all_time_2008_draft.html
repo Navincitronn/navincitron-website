@@ -79,6 +79,15 @@
                             <option value="hidden">Hide sidebar</option>
                         </select>
 
+                        <label for="topster-sidebar-width">Sidebar width <span class="topster-slider-value" id="topster-sidebar-width-value">20%</span></label>
+                        <div class="topster-slider-control">
+                            <input type="range" id="topster-sidebar-width" min="10" max="50" step="1" value="20">
+                        </div>
+
+                        <label for="topster-sidebar-text-size">Sidebar text size (%)</label>
+                        <input type="number" id="topster-sidebar-text-size" min="50" max="200" step="5" value="100" inputmode="numeric" aria-label="Sidebar text size percent" style="background-color:#f2f2f2;border:1px solid #aaa;border-radius:5px;box-sizing:border-box;color:#000;font-size:14px;padding:9px;width:100%;">
+
+
                         <label for="topster-round-corners">Round corners</label>
                         <select id="topster-round-corners">
                             <option value="0" selected>0 px</option>
@@ -182,6 +191,6 @@
             });
         })();
     </script>
-    <script src="topster_grid.js?v=20260830-discogs-lastfm-v60"></script>
+    <script src="topster_grid.js?v=20260830-sidebar-controls-discogs-v62"></script>
 </body>
 </html>

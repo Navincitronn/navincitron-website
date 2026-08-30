@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-discogs-lastfm-v60';
+const TOPSTER_FRONTEND_VERSION = '20260830-sidebar-controls-discogs-v62';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -21,7 +21,7 @@ const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v5';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v7';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
@@ -776,8 +776,25 @@ function installTopsterDiscogsCollection(rawAlbums, options = {}) {
     const canUseNormalized = Boolean(options.normalized)
         && Array.isArray(rawAlbums)
         && rawAlbums.every(item => item && Array.isArray(item.titleVariants) && Array.isArray(item.artists));
+    // Even browser-cached "normalized" Discogs data is normalized again here.
+    // Older cache schemas could preserve a trailing Discogs artist '*' or stale
+    // title variants, which made exact owned releases fail after the matcher was
+    // otherwise fixed. Rebuilding these fields is cheap compared with a network
+    // collection refresh and makes exact artist/title matching deterministic.
     topsterDiscogsCollectionAlbums = canUseNormalized
-        ? rawAlbums
+        ? rawAlbums.map(item => {
+            const artists = (Array.isArray(item.artists) ? item.artists : [])
+                .map(name => normalizeDiscogsArtistForMatch(name))
+                .filter(Boolean);
+            const title = cleanAlbumTitle(item.title || '');
+            return {
+                ...item,
+                title,
+                titleVariants: topsterOwnedTextVariants(title),
+                artists,
+                artistVariants: Array.from(new Set(artists.flatMap(name => topsterOwnedTextVariants(name, { artist: true }))))
+            };
+        }).filter(item => item.titleVariants.length)
         : normalizeDiscogsCollectionAlbums(rawAlbums);
     rebuildTopsterDiscogsIndexes();
     return topsterDiscogsCollectionAlbums;
@@ -810,7 +827,7 @@ function saveDiscogsCollectionBrowserCache(payload) {
             ? topsterDiscogsCollectionAlbums
             : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
-            schema: 6,
+            schema: 7,
             savedAt: Date.now(),
             itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
             normalizedAlbums
@@ -827,7 +844,7 @@ function loadDiscogsCollectionBrowserCache() {
         const savedAt = Number(parsed.savedAt) || 0;
         if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
 
-        if (Number(parsed.schema) === 6 && Array.isArray(parsed.normalizedAlbums)) {
+        if (Number(parsed.schema) === 7 && Array.isArray(parsed.normalizedAlbums)) {
             installTopsterDiscogsCollection(parsed.normalizedAlbums, { normalized: true });
         } else if (Array.isArray(parsed.albums)) {
             installTopsterDiscogsCollection(parsed.albums);
@@ -1896,6 +1913,9 @@ async function initTopsterImporter(albumCards) {
     const widthValue = document.getElementById('topster-width-value');
     const heightValue = document.getElementById('topster-height-value');
     const sidebarModeSelect = document.getElementById('topster-sidebar-mode');
+    const sidebarWidthSelect = document.getElementById('topster-sidebar-width');
+    const sidebarWidthValue = document.getElementById('topster-sidebar-width-value');
+    const sidebarTextSizeInput = document.getElementById('topster-sidebar-text-size');
     const roundCornersSelect = document.getElementById('topster-round-corners');
     const albumGapSelect = document.getElementById('topster-album-gap');
     const albumGapValue = document.getElementById('topster-album-gap-value');
@@ -2120,10 +2140,16 @@ async function initTopsterImporter(albumCards) {
         resolveVisibleRange(0);
     });
 
-    [widthSelect, heightSelect, albumGapSelect].forEach(element => {
+    [widthSelect, heightSelect, albumGapSelect, sidebarWidthSelect].forEach(element => {
+        if (!element) return;
         element.addEventListener('input', handleSettingsChange);
         element.addEventListener('change', handleSettingsChange);
     });
+
+    if (sidebarTextSizeInput) {
+        sidebarTextSizeInput.addEventListener('input', handleSettingsChange);
+        sidebarTextSizeInput.addEventListener('change', handleSettingsChange);
+    }
 
     [sidebarModeSelect, roundCornersSelect, fontSelect, coverOverlaySelect, excludeOwnedSelect].forEach(element => {
         if (element) element.addEventListener('change', handleSettingsChange);
@@ -2261,7 +2287,7 @@ async function initTopsterImporter(albumCards) {
         const previousSettings = { ...currentSettings };
         currentSettings = normalizeTopsterSettings(readSettingsControls());
         const excludeOwnedOnlyChange = previousSettings.excludeOwnedReleases !== currentSettings.excludeOwnedReleases
-            && ['width', 'height', 'sidebarMode', 'roundCorners', 'albumGap', 'font', 'coverOverlay']
+            && ['width', 'height', 'sidebarMode', 'sidebarWidth', 'sidebarTextScale', 'roundCorners', 'albumGap', 'font', 'coverOverlay']
                 .every(key => previousSettings[key] === currentSettings[key]);
         currentSettingsProfiles[currentSettingsProfile] = currentSettings;
         saveTopsterSettings(currentSettingsProfiles);
@@ -3137,6 +3163,10 @@ async function initTopsterImporter(albumCards) {
 
         const layout = document.createElement('div');
         layout.className = 'topster-layout';
+        if (settings.sidebarMode !== 'hidden') {
+            const sidebarWidth = clampInteger(settings.sidebarWidth, 10, 50, 20);
+            layout.style.gridTemplateColumns = `minmax(0, ${100 - sidebarWidth}fr) minmax(0, ${sidebarWidth}fr)`;
+        }
 
         const chartWrap = document.createElement('div');
         chartWrap.className = 'topster-chart-wrap';
@@ -3243,14 +3273,11 @@ async function initTopsterImporter(albumCards) {
         const computed = getComputedStyle(pageList);
         const configuredBase = Number.parseFloat(getComputedStyle(output).getPropertyValue('--topster-list-font-size')) || 12;
         const rowCount = Math.max(1, settings.height);
-        const itemCountPerRow = Math.max(1, settings.width);
         const gap = Number.parseFloat(computed.rowGap || computed.gap || '0') || 0;
         const paddingTop = Number.parseFloat(computed.paddingTop || '0') || 0;
         const paddingBottom = Number.parseFloat(computed.paddingBottom || '0') || 0;
         const usableHeight = Math.max(1, maxHeight - paddingTop - paddingBottom - (gap * Math.max(0, rowCount - 1)));
-        const rowHeight = usableHeight / rowCount;
-        const dynamicBase = clampNumber(rowHeight / ((itemCountPerRow * 0.52) + 3.8), 4.2, 18);
-        const baseSize = Math.min(Math.max(configuredBase, dynamicBase), 18);
+        const baseSize = clampNumber(configuredBase, 3.2, 36);
 
         pageList.style.fontSize = `${baseSize.toFixed(2)}px`;
         pageList.style.lineHeight = '1.12';
@@ -3276,6 +3303,8 @@ async function initTopsterImporter(albumCards) {
             width: Number(widthSelect.value),
             height: Number(heightSelect.value),
             sidebarMode: sidebarModeSelect.value,
+            sidebarWidth: sidebarWidthSelect ? Number(sidebarWidthSelect.value) : (currentSettings.sidebarWidth || 20),
+            sidebarTextScale: sidebarTextSizeInput ? Number(sidebarTextSizeInput.value) : (currentSettings.sidebarTextScale || 100),
             roundCorners: Number(roundCornersSelect.value),
             albumGap: Number(albumGapSelect.value),
             font: fontSelect.value,
@@ -3290,6 +3319,8 @@ async function initTopsterImporter(albumCards) {
         widthSelect.value = String(settings.width);
         heightSelect.value = String(settings.height);
         sidebarModeSelect.value = settings.sidebarMode;
+        if (sidebarWidthSelect) sidebarWidthSelect.value = String(settings.sidebarWidth);
+        if (sidebarTextSizeInput) sidebarTextSizeInput.value = String(settings.sidebarTextScale);
         roundCornersSelect.value = String(settings.roundCorners);
         albumGapSelect.value = String(settings.albumGap);
         fontSelect.value = settings.font;
@@ -3301,6 +3332,7 @@ async function initTopsterImporter(albumCards) {
     function updateSettingsValueLabels(settings) {
         widthValue.textContent = String(settings.width);
         heightValue.textContent = String(settings.height);
+        if (sidebarWidthValue) sidebarWidthValue.textContent = `${settings.sidebarWidth}%`;
         albumGapValue.textContent = `${settings.albumGap} px`;
     }
 
@@ -3316,6 +3348,14 @@ async function initTopsterImporter(albumCards) {
         output.style.setProperty('--topster-album-gap', `${effectiveSettings.albumGap}px`);
         output.style.setProperty('--topster-list-font-size', `${listFontSize}px`);
         output.style.setProperty('--topster-columns', String(effectiveSettings.width));
+        const sidebarWidth = clampInteger(effectiveSettings.sidebarWidth, 10, 50, 20);
+        output.querySelectorAll('.topster-layout').forEach(layout => {
+            if (effectiveSettings.sidebarMode !== 'hidden') {
+                layout.style.gridTemplateColumns = `minmax(0, ${100 - sidebarWidth}fr) minmax(0, ${sidebarWidth}fr)`;
+            } else {
+                layout.style.removeProperty('grid-template-columns');
+            }
+        });
         output.style.setProperty('--topster-rows', String(effectiveSettings.height));
         output.style.fontFamily = fontFamily;
         output.classList.toggle('topster-sidebar-hidden', effectiveSettings.sidebarMode === 'hidden');
@@ -3622,6 +3662,8 @@ function normalizeTopsterSettings(settings) {
         width: clampInteger(raw.width, 1, 25, 10),
         height: clampInteger(raw.height, 1, 10, 10),
         sidebarMode: allowedSidebarModes.has(raw.sidebarMode) ? raw.sidebarMode : 'artist-title',
+        sidebarWidth: clampInteger(raw.sidebarWidth, 10, 50, 20),
+        sidebarTextScale: clampInteger(raw.sidebarTextScale, 50, 200, 100),
         roundCorners: clampInteger(raw.roundCorners, 0, 24, 0),
         albumGap: clampInteger(raw.albumGap, 0, 100, 4),
         font: allowedFonts.has(raw.font) ? raw.font : 'Arial',
@@ -3658,7 +3700,8 @@ function getTopsterCoverSize(settings) {
 function getTopsterListFontSize(settings, coverSize) {
     const normalized = normalizeTopsterSettings(settings);
     const widthBasedSize = coverSize / ((normalized.width * 0.52) + 3.8);
-    return Math.round(clampNumber(widthBasedSize, 4.2, 18) * 10) / 10;
+    const scaledSize = clampNumber(widthBasedSize, 4.2, 18) * (normalized.sidebarTextScale / 100);
+    return Math.round(clampNumber(scaledSize, 3.2, 36) * 10) / 10;
 }
 
 function getFontFamily(font) {
