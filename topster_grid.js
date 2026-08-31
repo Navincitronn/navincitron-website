@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-discogs-dash-timing-controls-v64';
+const TOPSTER_FRONTEND_VERSION = '20260831-refresh-timing-discogs-live-v65';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -21,7 +21,7 @@ const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v9';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v10';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
@@ -827,7 +827,7 @@ function saveDiscogsCollectionBrowserCache(payload) {
             ? topsterDiscogsCollectionAlbums
             : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
-            schema: 9,
+            schema: 10,
             savedAt: Date.now(),
             itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
             normalizedAlbums
@@ -844,7 +844,7 @@ function loadDiscogsCollectionBrowserCache() {
         const savedAt = Number(parsed.savedAt) || 0;
         if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
 
-        if (Number(parsed.schema) === 9 && Array.isArray(parsed.normalizedAlbums)) {
+        if (Number(parsed.schema) === 10 && Array.isArray(parsed.normalizedAlbums)) {
             installTopsterDiscogsCollection(parsed.normalizedAlbums, { normalized: true });
         } else if (Array.isArray(parsed.albums)) {
             installTopsterDiscogsCollection(parsed.albums);
@@ -950,8 +950,23 @@ function discogsOwnedTitleVariants(title, artist = '') {
 function discogsOwnedArtistVariants(value) {
     const clean = normalizeDiscogsArtistForMatch(value || '');
     if (!clean) return [];
-    const variants = new Set(topsterOwnedTextVariants(clean, { artist: true }));
-    topsterOwnedTextVariants(clean.replace(/\s+\b(?:featuring|feat\.?)\b\s+.+$/i, ''), { artist: true }).forEach(v => variants.add(v));
+
+    // Discogs sometimes exposes bilingual/translated artist credits in the same
+    // display string (for example "Yellow Magic Orchestra = イエロー…*"). Either
+    // side of an equals-sign credit is the same credited artist for ownership
+    // matching. Normalize each side independently so a trailing Discogs "*" on
+    // the translated side cannot prevent the English artist from being indexed.
+    const artistTexts = new Set([clean]);
+    clean.split(/\s+=\s+/).forEach(part => {
+        const normalizedPart = normalizeDiscogsArtistForMatch(part);
+        if (normalizedPart) artistTexts.add(normalizedPart);
+    });
+
+    const variants = new Set();
+    artistTexts.forEach(artistText => {
+        topsterOwnedTextVariants(artistText, { artist: true }).forEach(v => variants.add(v));
+        topsterOwnedTextVariants(artistText.replace(/\s+\b(?:featuring|feat\.?)\b\s+.+$/i, ''), { artist: true }).forEach(v => variants.add(v));
+    });
     return Array.from(variants);
 }
 
@@ -2095,7 +2110,32 @@ async function initTopsterImporter(albumCards) {
 
     refreshButton.addEventListener('click', async () => {
         const settingsApplied = pendingSettingsDirty;
-        const settingsStartedAt = settingsApplied ? (pendingSettingsStartedAt || Date.now()) : 0;
+        // The elapsed clock starts at the Refresh click, not when a control was
+        // edited. Editing only stages preferences; Refresh begins the actual work.
+        const settingsStartedAt = settingsApplied ? Date.now() : 0;
+        pendingSettingsStartedAt = settingsStartedAt;
+
+        if (settingsApplied) {
+            const baseText = lastBuildCompletionStatusText || String(status.textContent || '').split('\n')[0].trim();
+            const startedLine = `Updating Topster display settings started at ${formatSystemClockTime(settingsStartedAt)}.`;
+            status.style.whiteSpace = 'pre-line';
+            status.textContent = `${baseText}${baseText ? '\n' : ''}${startedLine}`;
+        }
+
+        // Normal page loads keep the fast seven-day Discogs snapshot. An explicit
+        // Refresh while the owned-release overlay is selected is different: it is
+        // a request for current collection data, so bypass both browser and backend
+        // caches. This makes newly-added Discogs releases visible immediately after
+        // the next Refresh instead of waiting for cache expiry.
+        const refreshOwnedCollection = Boolean(excludeOwnedSelect && excludeOwnedSelect.value === 'yes');
+        if (refreshOwnedCollection) {
+            const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded({ force: true });
+            if (collectionLoaded && !settingsApplied && importedEntries.length) {
+                updateOwnedReleaseVisualStatesInPlace(true);
+                scheduleCurrentTopsterSave();
+            }
+        }
+
         if (settingsApplied) {
             await handleSettingsChange({ deferElapsedCompletion: true });
             pendingSettingsDirty = false;
@@ -2180,16 +2220,14 @@ async function initTopsterImporter(albumCards) {
     });
 
     function markSettingsPending() {
-        if (!pendingSettingsDirty || !pendingSettingsStartedAt) {
-            pendingSettingsStartedAt = Date.now();
-        }
         pendingSettingsDirty = true;
+        pendingSettingsStartedAt = 0;
         const pending = normalizeTopsterSettings(readSettingsControls());
         updateSettingsValueLabels(pending);
         const baseText = lastBuildCompletionStatusText || String(status.textContent || '').split('\n')[0].trim();
-        const startedLine = `Updating Topster display settings started at ${formatSystemClockTime(pendingSettingsStartedAt)}. Press Refresh to apply them.`;
+        const pendingLine = 'Topster display settings changed. Press Refresh to apply them.';
         status.style.whiteSpace = 'pre-line';
-        status.textContent = `${baseText}${baseText ? '\n' : ''}${startedLine}`;
+        status.textContent = `${baseText}${baseText ? '\n' : ''}${pendingLine}`;
     }
 
     [widthSelect, heightSelect, albumGapSelect, sidebarWidthSelect].forEach(element => {
@@ -2212,10 +2250,10 @@ async function initTopsterImporter(albumCards) {
             currentSettingsProfiles[currentSettingsProfile] = normalizeTopsterSettings(readSettingsControls());
             currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
             setSettingsControls(normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]));
-            if (!pendingSettingsStartedAt) pendingSettingsStartedAt = Date.now();
+            pendingSettingsStartedAt = 0;
             pendingSettingsDirty = true;
             const baseText = lastBuildCompletionStatusText || '';
-            const line = `Updating Topster display settings started at ${formatSystemClockTime(pendingSettingsStartedAt)}. Now editing ${getTopsterSettingsProfileLabel(currentSettingsProfile)} settings; press Refresh to apply them.`;
+            const line = `Now editing ${getTopsterSettingsProfileLabel(currentSettingsProfile)} settings. Press Refresh to apply them.`;
             status.style.whiteSpace = 'pre-line';
             status.textContent = `${baseText}${baseText ? '\n' : ''}${line}`;
         });

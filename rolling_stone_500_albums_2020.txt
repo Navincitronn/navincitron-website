@@ -412,7 +412,7 @@
 412 | Smokey Robinson | Going to a Go Go | 1965
 413 | Creedence Clearwater Revival | Cosmo's Factory | 1970
 414 | Chic | Risqué | 1979
-415 | The Meters | Looka Py Py | 1969
+415 | The Meters | Look-Ka Py Py | 1969
 416 | The Roots | Things Fall Apart | 1999
 417 | Ornette Coleman | The Shape of Jazz to Come | 1959
 418 | Dire Straits | Brothers in Arms | 1985

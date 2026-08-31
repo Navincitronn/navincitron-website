@@ -2,7 +2,11 @@
     'use strict';
 
     const USERNAME = 'Navincitron';
-    const STORAGE_KEY = 'navincitron-lastfm-topster-v1';
+    const LEGACY_STORAGE_KEY = 'navincitron-lastfm-topster-v1';
+    const STATE_DB_NAME = 'navincitron-lastfm-topster';
+    const STATE_DB_VERSION = 1;
+    const STATE_DB_STORE = 'saved-state';
+    const STATE_DB_KEY = 'lastfm-topster-v2';
     const BACKEND_ORIGIN = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
         ? window.location.origin
         : 'https://api.navincitron.com';
@@ -128,25 +132,108 @@
         };
     }
 
-    function loadSavedState() {
+    function openStateDatabase() {
+        return new Promise((resolve, reject) => {
+            if (!window.indexedDB) {
+                reject(new Error('IndexedDB is unavailable in this browser.'));
+                return;
+            }
+            const request = window.indexedDB.open(STATE_DB_NAME, STATE_DB_VERSION);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(STATE_DB_STORE)) db.createObjectStore(STATE_DB_STORE);
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error || new Error('Could not open Last.fm saved-state database.'));
+        });
+    }
+
+    async function readIndexedState() {
+        const db = await openStateDatabase();
         try {
-            const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-            if (parsed) state = normalizeState(parsed);
+            return await new Promise((resolve, reject) => {
+                const transaction = db.transaction(STATE_DB_STORE, 'readonly');
+                const request = transaction.objectStore(STATE_DB_STORE).get(STATE_DB_KEY);
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => reject(request.error || new Error('Could not read the saved Last.fm view.'));
+            });
+        } finally {
+            db.close();
+        }
+    }
+
+    async function writeIndexedState(value) {
+        const db = await openStateDatabase();
+        try {
+            await new Promise((resolve, reject) => {
+                const transaction = db.transaction(STATE_DB_STORE, 'readwrite');
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error || new Error('Could not save the Last.fm view.'));
+                transaction.onabort = () => reject(transaction.error || new Error('Saving the Last.fm view was aborted.'));
+                transaction.objectStore(STATE_DB_STORE).put(value, STATE_DB_KEY);
+            });
+        } finally {
+            db.close();
+        }
+    }
+
+    function compactMeta(rawMeta) {
+        if (!rawMeta || typeof rawMeta !== 'object') return null;
+        const compact = { ...rawMeta };
+        delete compact.items;
+        return compact;
+    }
+
+    async function loadSavedState() {
+        state = structuredCloneSafe(defaults);
+        try {
+            const saved = await readIndexedState();
+            if (saved) {
+                state = normalizeState(saved);
+                state.meta = compactMeta(state.meta);
+                return;
+            }
+        } catch (error) {
+            console.warn('Could not read IndexedDB Last.fm state:', error);
+        }
+
+        // One-time migration from v64 and older, which stored the entire chart in
+        // localStorage and could exceed the site's shared Web Storage quota.
+        try {
+            const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || 'null');
+            if (!legacy) return;
+            state = normalizeState(legacy);
+            state.meta = compactMeta(state.meta);
+            try {
+                await writeIndexedState(state);
+                localStorage.removeItem(LEGACY_STORAGE_KEY);
+            } catch (error) {
+                console.warn('Could not migrate Last.fm state to IndexedDB:', error);
+            }
         } catch (error) {
             state = structuredCloneSafe(defaults);
         }
     }
 
-    function saveState() {
+    async function saveState() {
         if (controlsDirty) {
             status.textContent = 'Settings have changed. Press Refresh to apply them before Save Settings.';
             return;
         }
+        if (busy || saveButton.disabled) return;
+        saveButton.disabled = true;
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-            status.textContent = `Saved Last.fm settings and ${state.items.length} cached chart item${state.items.length === 1 ? '' : 's'}.`;
+            const savedState = normalizeState({
+                ...state,
+                meta: compactMeta(state.meta)
+            });
+            await writeIndexedState(savedState);
+            try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch (error) { /* ignore */ }
+            status.textContent = `Saved Last.fm settings and ${state.items.length} cached chart item${state.items.length === 1 ? '' : 's'} in browser storage.`;
         } catch (error) {
-            status.textContent = `Could not save Last.fm settings locally: ${error && error.message ? error.message : error}`;
+            status.textContent = `Could not save Last.fm settings in browser storage: ${error && error.message ? error.message : error}`;
+        } finally {
+            saveButton.disabled = false;
         }
     }
 
@@ -225,6 +312,31 @@
     function formatListens(value) {
         const count = Math.max(0, Number(value) || 0);
         return `${formatNumber(count)} listen${count === 1 ? '' : 's'}`;
+    }
+
+    function formatElapsedTime(milliseconds) {
+        const seconds = Math.max(0, Number(milliseconds) || 0) / 1000;
+        if (seconds < 10) return `${seconds.toFixed(1)}s`;
+        if (seconds < 60) return `${seconds.toFixed(0)}s`;
+        const minutes = Math.floor(seconds / 60);
+        const remainder = Math.floor(seconds % 60);
+        return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
+    }
+
+    function formatSystemClockTime(epochMilliseconds) {
+        return new Date(epochMilliseconds).toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
+    function appendSettingsRefreshTiming(baseText, startedAt) {
+        if (!startedAt) return baseText;
+        const finishedAt = Date.now();
+        const elapsed = formatElapsedTime(finishedAt - startedAt);
+        const timing = `Updating Topster display settings started at ${formatSystemClockTime(startedAt)} and finished at ${formatSystemClockTime(finishedAt)} (${elapsed}).`;
+        return `${baseText}${baseText ? '\n' : ''}${timing}`;
     }
 
     function titleForItem(item) {
@@ -656,6 +768,9 @@
 
     async function refreshData() {
         if (busy) return;
+        // Editing controls only stages values. The elapsed timer begins at the
+        // actual Refresh click and ends after the requested view has rendered.
+        const settingsStartedAt = controlsDirty ? Date.now() : 0;
         readInputsIntoState();
         controlsDirty = false;
         updateCustomWindowVisibility();
@@ -673,7 +788,10 @@
 
         busy = true;
         refreshButton.disabled = true;
-        status.textContent = `Loading ${modeLabel(config.mode)} for ${periodLabel(config.period)} from Last.fm...`;
+        status.style.whiteSpace = 'pre-line';
+        status.textContent = settingsStartedAt
+            ? `Updating Topster display settings started at ${formatSystemClockTime(settingsStartedAt)}.\nLoading ${modeLabel(config.mode)} for ${periodLabel(config.period)} from Last.fm...`
+            : `Loading ${modeLabel(config.mode)} for ${periodLabel(config.period)} from Last.fm...`;
         try {
             const url = new URL('/api/lastfm-chart', BACKEND_ORIGIN);
             url.searchParams.set('user', USERNAME);
@@ -690,12 +808,15 @@
                 throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
             }
             state.items = Array.isArray(payload.items) ? payload.items.slice(0, MAX_ITEMS) : [];
-            state.meta = payload;
+            state.meta = compactMeta(payload);
             render();
+            await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
             const truncation = payload.truncated ? ' The custom/recent window hit the 50,000-scrobble safety cap.' : '';
-            status.textContent = `Loaded ${state.items.length} ${modeLabel(config.mode)} for ${periodLabel(config.period)}.${truncation} Press Save Settings to keep this exact view after refresh.`;
+            const completion = `Loaded ${state.items.length} ${modeLabel(config.mode)} for ${periodLabel(config.period)}.${truncation} Press Save Settings to keep this exact view after refresh.`;
+            status.textContent = appendSettingsRefreshTiming(completion, settingsStartedAt);
         } catch (error) {
-            status.textContent = `Last.fm lookup failed: ${error && error.message ? error.message : error}`;
+            const failure = `Last.fm lookup failed: ${error && error.message ? error.message : error}`;
+            status.textContent = appendSettingsRefreshTiming(failure, settingsStartedAt);
         } finally {
             busy = false;
             refreshButton.disabled = false;
@@ -710,7 +831,7 @@
 
     function bindEvents() {
         refreshButton.addEventListener('click', refreshData);
-        saveButton.addEventListener('click', saveState);
+        saveButton.addEventListener('click', () => { void saveState(); });
         modeSelect.addEventListener('change', onSettingEdited);
         periodSelect.addEventListener('change', () => { updateCustomWindowVisibility(); onSettingEdited(); });
         startInput.addEventListener('change', onSettingEdited);
@@ -761,7 +882,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-        loadSavedState();
+        await loadSavedState();
         applyStateToInputs();
         bindEvents();
         const authenticated = await verifyAdmin();
