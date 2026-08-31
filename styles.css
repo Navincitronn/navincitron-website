@@ -1935,39 +1935,11 @@ body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-r
     }
 }
 
-/* v63: editable slider-value readouts and refresh-gated display settings */
-.topster-slider-value-input {
-    appearance: textfield;
-    background: transparent;
-    border: 0;
-    border-bottom: 1px solid transparent;
-    border-radius: 0;
-    box-sizing: border-box;
-    color: #40bcf4;
-    font: inherit;
-    font-weight: normal;
-    margin-left: 6px;
-    min-width: 3.4em;
-    padding: 0 2px;
-    text-align: right;
-    width: 4.6em;
-}
-
-.topster-slider-value-input:hover,
-.topster-slider-value-input:focus {
-    border-bottom-color: #40bcf4;
-    outline: none;
-}
-
-.topster-slider-value-input::-webkit-inner-spin-button,
-.topster-slider-value-input::-webkit-outer-spin-button {
-    margin: 0;
-}
-
+/* v64: refresh-gated display settings */
 #topster-refresh-button,
 #lastfm-refresh-button {
     background-color: #00e054;
-    color: #000;
+    color: #fff;
 }
 
 #topster-refresh-button:hover,

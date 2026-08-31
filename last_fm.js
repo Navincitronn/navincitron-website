@@ -58,7 +58,6 @@
     const sidebarWidthInput = $('lastfm-sidebar-width');
     const sidebarWidthValue = $('lastfm-sidebar-width-value');
     const sidebarTextSizeInput = $('lastfm-sidebar-text-size');
-    const sidebarTextSizeValue = $('lastfm-sidebar-text-size-value');
     const cornersSelect = $('lastfm-round-corners');
     const gapInput = $('lastfm-album-gap');
     const gapValue = $('lastfm-album-gap-value');
@@ -188,18 +187,11 @@
         state.settings.font = fontSelect.value;
     }
 
-    function setValueLabel(element, value, suffix = '') {
-        if (!element) return;
-        if (element.tagName === 'INPUT') element.value = String(value);
-        else element.textContent = `${value}${suffix}`;
-    }
-
     function updateValueLabels() {
-        setValueLabel(widthValue, widthInput.value);
-        setValueLabel(heightValue, heightInput.value);
-        setValueLabel(gapValue, gapInput.value, ' px');
-        if (sidebarWidthValue && sidebarWidthInput) setValueLabel(sidebarWidthValue, sidebarWidthInput.value, '%');
-        if (sidebarTextSizeValue && sidebarTextSizeInput) setValueLabel(sidebarTextSizeValue, sidebarTextSizeInput.value, '%');
+        widthValue.textContent = String(widthInput.value);
+        heightValue.textContent = String(heightInput.value);
+        gapValue.textContent = `${gapInput.value} px`;
+        if (sidebarWidthValue && sidebarWidthInput) sidebarWidthValue.textContent = `${sidebarWidthInput.value}%`;
     }
 
     function updateCustomWindowVisibility() {
@@ -716,23 +708,6 @@
         status.textContent = 'Settings changed. Press Refresh to apply them.';
     }
 
-    function bindEditableSliderValue(rangeInput, valueInput, min, max) {
-        if (!rangeInput || !valueInput || valueInput.tagName !== 'INPUT') return;
-        const commit = () => {
-            const value = clamp(valueInput.value, min, max, Number(rangeInput.value));
-            rangeInput.value = String(value);
-            valueInput.value = String(value);
-            onSettingEdited();
-        };
-        valueInput.addEventListener('change', commit);
-        valueInput.addEventListener('keydown', event => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            commit();
-            valueInput.blur();
-        });
-    }
-
     function bindEvents() {
         refreshButton.addEventListener('click', refreshData);
         saveButton.addEventListener('click', saveState);
@@ -749,11 +724,6 @@
         cellCountInput.addEventListener('change', onSettingEdited);
         [sidebarSelect, cornersSelect, overlaySelect, fontSelect].forEach(input => input.addEventListener('change', onSettingEdited));
 
-        bindEditableSliderValue(widthInput, widthValue, 1, 25);
-        bindEditableSliderValue(heightInput, heightValue, 1, 10);
-        bindEditableSliderValue(sidebarWidthInput, sidebarWidthValue, 10, 50);
-        bindEditableSliderValue(sidebarTextSizeInput, sidebarTextSizeValue, 50, 200);
-        bindEditableSliderValue(gapInput, gapValue, 0, 100);
 
         if (changeCoverButton) changeCoverButton.addEventListener('click', () => {
             if (coverContextItem) openCoverPicker(coverContextItem, coverContextIndex);

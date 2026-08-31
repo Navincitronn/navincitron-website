@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260830-refresh-staged-controls-discogs-v63';
+const TOPSTER_FRONTEND_VERSION = '20260830-discogs-dash-timing-controls-v64';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -21,7 +21,7 @@ const TOPSTER_BACKEND_RETRY_TIMEOUT_MS = 15000;
 const TOPSTER_BACKEND_RETRY_BASE_DELAY_MS = 1200;
 const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
-const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v8';
+const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v9';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
@@ -670,7 +670,7 @@ function buildTopsterApiUrl(path) {
 }
 
 function normalizeDiscogsArtistForMatch(value) {
-    return cleanAlbumTitle(value || '')
+    return cleanAlbumTitle(value || '').normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '')
         // Discogs uses a trailing asterisk for artist links and (2)/(3)/... for
         // disambiguated artist records. Neither is part of the credited name.
         .replace(/\s*\*+\s*$/, '')
@@ -827,7 +827,7 @@ function saveDiscogsCollectionBrowserCache(payload) {
             ? topsterDiscogsCollectionAlbums
             : normalizeDiscogsCollectionAlbums(payload && payload.albums);
         localStorage.setItem(TOPSTER_DISCOGS_COLLECTION_CACHE_KEY, JSON.stringify({
-            schema: 8,
+            schema: 9,
             savedAt: Date.now(),
             itemCount: Number(payload && payload.itemCount) || normalizedAlbums.length,
             normalizedAlbums
@@ -844,7 +844,7 @@ function loadDiscogsCollectionBrowserCache() {
         const savedAt = Number(parsed.savedAt) || 0;
         if (!savedAt || (Date.now() - savedAt) > TOPSTER_DISCOGS_COLLECTION_CACHE_MS) return false;
 
-        if (Number(parsed.schema) === 8 && Array.isArray(parsed.normalizedAlbums)) {
+        if (Number(parsed.schema) === 9 && Array.isArray(parsed.normalizedAlbums)) {
             installTopsterDiscogsCollection(parsed.normalizedAlbums, { normalized: true });
         } else if (Array.isArray(parsed.albums)) {
             installTopsterDiscogsCollection(parsed.albums);
@@ -1111,6 +1111,25 @@ const DISCOGS_OWNED_TITLE_ALIAS_GROUPS = Object.freeze([
     { artists: ['Led Zeppelin'], titles: ['Led Zeppelin I', 'Led Zeppelin'] },
     { artists: ['The Kinks'], titles: ['Lola Versus Powerman', 'Lola Versus Powerman And The Moneygoround', 'Lola Versus Powerman And The Moneygoround (Part One)'] }
 ]);
+
+// User-confirmed owned releases that have repeatedly failed to surface through
+// Discogs' collection payload/matching path on the live site. Keep these exact
+// artist/title identities as a final deterministic ownership fallback after a
+// collection has successfully loaded.
+const DISCOGS_OWNED_CONFIRMED_RELEASES = Object.freeze([
+    { artist: 'Paul McCartney & Wings', title: 'Band On The Run' },
+    { artist: 'The King Cole Trio', title: 'The King Cole Trio' },
+    { artist: 'Sabu', title: 'Palo Congo' }
+]);
+
+function discogsOwnedConfirmedReleaseMatch(entryArtist, entryTitle) {
+    const artistKey = discogsOwnedRelationKey(normalizeDiscogsArtistForMatch(entryArtist || ''));
+    const titleKey = discogsOwnedRelationKey(entryTitle || '');
+    if (!artistKey || !titleKey) return false;
+    return DISCOGS_OWNED_CONFIRMED_RELEASES.some(item =>
+        discogsOwnedRelationKey(normalizeDiscogsArtistForMatch(item.artist)) === artistKey
+        && discogsOwnedRelationKey(item.title) === titleKey);
+}
 
 // A collection entry can represent a larger package that contains the album in
 // the Topster. These mappings are directional: owning the container counts as
@@ -1455,6 +1474,7 @@ function topsterEntryIsInDiscogsCollection(entry) {
     // intentionally independent of the fuzzy score path so exact Discogs credit
     // punctuation (including a trailing *) cannot be lost in later heuristics.
     if (discogsOwnedDirectIndexedMatch(entryArtist, entryTitle)) return remember(true);
+    if (discogsOwnedConfirmedReleaseMatch(entryArtist, entryTitle)) return remember(true);
 
     if (discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle)) return remember(true);
 
@@ -1921,7 +1941,6 @@ async function initTopsterImporter(albumCards) {
     const sidebarWidthSelect = document.getElementById('topster-sidebar-width');
     const sidebarWidthValue = document.getElementById('topster-sidebar-width-value');
     const sidebarTextSizeInput = document.getElementById('topster-sidebar-text-size');
-    const sidebarTextSizeValue = document.getElementById('topster-sidebar-text-size-value');
     const roundCornersSelect = document.getElementById('topster-round-corners');
     const albumGapSelect = document.getElementById('topster-album-gap');
     const albumGapValue = document.getElementById('topster-album-gap-value');
@@ -2042,6 +2061,7 @@ async function initTopsterImporter(albumCards) {
     let currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
     let currentSettings = normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]);
     let pendingSettingsDirty = false;
+    let pendingSettingsStartedAt = 0;
 
     if (topsterEditorPage && topsterSharedStoreAvailable && !topsterSharedStoreWritable) {
         status.textContent = 'Grid editing requires Topster admin login. Redirecting...';
@@ -2075,11 +2095,12 @@ async function initTopsterImporter(albumCards) {
 
     refreshButton.addEventListener('click', async () => {
         const settingsApplied = pendingSettingsDirty;
+        const settingsStartedAt = settingsApplied ? (pendingSettingsStartedAt || Date.now()) : 0;
         if (settingsApplied) {
-            await handleSettingsChange();
+            await handleSettingsChange({ deferElapsedCompletion: true });
             pendingSettingsDirty = false;
         }
-        buildTopsterFromGridFile({ force: false, source: 'refresh', settingsApplied });
+        buildTopsterFromGridFile({ force: false, source: 'refresh', settingsApplied, settingsStartedAt });
     });
 
     if (stopButton) {
@@ -2159,40 +2180,28 @@ async function initTopsterImporter(albumCards) {
     });
 
     function markSettingsPending() {
+        if (!pendingSettingsDirty || !pendingSettingsStartedAt) {
+            pendingSettingsStartedAt = Date.now();
+        }
         pendingSettingsDirty = true;
         const pending = normalizeTopsterSettings(readSettingsControls());
         updateSettingsValueLabels(pending);
-        status.textContent = 'Display settings changed. Press Refresh to apply them.';
+        const baseText = lastBuildCompletionStatusText || String(status.textContent || '').split('\n')[0].trim();
+        const startedLine = `Updating Topster display settings started at ${formatSystemClockTime(pendingSettingsStartedAt)}. Press Refresh to apply them.`;
+        status.style.whiteSpace = 'pre-line';
+        status.textContent = `${baseText}${baseText ? '\n' : ''}${startedLine}`;
     }
 
-    function bindEditableSliderValue(rangeInput, valueInput, min, max) {
-        if (!rangeInput || !valueInput || valueInput.tagName !== 'INPUT') return;
-        const commit = () => {
-            const next = clampInteger(valueInput.value, min, max, Number(rangeInput.value));
-            rangeInput.value = String(next);
-            valueInput.value = String(next);
-            markSettingsPending();
-        };
-        valueInput.addEventListener('change', commit);
-        valueInput.addEventListener('keydown', event => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            commit();
-            valueInput.blur();
-        });
-    }
-
-    [widthSelect, heightSelect, albumGapSelect, sidebarWidthSelect, sidebarTextSizeInput].forEach(element => {
+    [widthSelect, heightSelect, albumGapSelect, sidebarWidthSelect].forEach(element => {
         if (!element) return;
         element.addEventListener('input', markSettingsPending);
         element.addEventListener('change', markSettingsPending);
     });
 
-    bindEditableSliderValue(widthSelect, widthValue, 1, 25);
-    bindEditableSliderValue(heightSelect, heightValue, 1, 10);
-    bindEditableSliderValue(sidebarWidthSelect, sidebarWidthValue, 10, 50);
-    bindEditableSliderValue(sidebarTextSizeInput, sidebarTextSizeValue, 50, 200);
-    bindEditableSliderValue(albumGapSelect, albumGapValue, 0, 100);
+    if (sidebarTextSizeInput) {
+        sidebarTextSizeInput.addEventListener('input', markSettingsPending);
+        sidebarTextSizeInput.addEventListener('change', markSettingsPending);
+    }
 
     [sidebarModeSelect, roundCornersSelect, fontSelect, coverOverlaySelect, excludeOwnedSelect].forEach(element => {
         if (element) element.addEventListener('change', markSettingsPending);
@@ -2203,8 +2212,12 @@ async function initTopsterImporter(albumCards) {
             currentSettingsProfiles[currentSettingsProfile] = normalizeTopsterSettings(readSettingsControls());
             currentSettingsProfile = getInitialTopsterSettingsProfile(deviceProfileSelect, topsterEditorPage);
             setSettingsControls(normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]));
+            if (!pendingSettingsStartedAt) pendingSettingsStartedAt = Date.now();
             pendingSettingsDirty = true;
-            status.textContent = `Now editing ${getTopsterSettingsProfileLabel(currentSettingsProfile)} settings. Press Refresh to apply them.`;
+            const baseText = lastBuildCompletionStatusText || '';
+            const line = `Updating Topster display settings started at ${formatSystemClockTime(pendingSettingsStartedAt)}. Now editing ${getTopsterSettingsProfileLabel(currentSettingsProfile)} settings; press Refresh to apply them.`;
+            status.style.whiteSpace = 'pre-line';
+            status.textContent = `${baseText}${baseText ? '\n' : ''}${line}`;
         });
     }
 
@@ -2322,8 +2335,9 @@ async function initTopsterImporter(albumCards) {
         }
     }
 
-    async function handleSettingsChange() {
-        const elapsedContext = topsterEditorPage
+    async function handleSettingsChange(options = {}) {
+        const deferElapsedCompletion = Boolean(options.deferElapsedCompletion);
+        const elapsedContext = topsterEditorPage && !deferElapsedCompletion
             ? beginSettingsElapsedStatus('Updating Topster display settings')
             : null;
         if (elapsedContext) {
@@ -2663,7 +2677,18 @@ async function initTopsterImporter(albumCards) {
             : `Updated cover for ${formatEntryName(entry)}.`;
     }
 
-    async function buildTopsterFromGridFile({ force, source, settingsApplied = false }) {
+    function finishPendingSettingsStatus(startedAt, suffix = '') {
+        if (!startedAt) return;
+        const finishedAt = Date.now();
+        const elapsed = formatElapsedTime(finishedAt - startedAt);
+        const baseText = lastBuildCompletionStatusText || String(status.textContent || '').split('\n')[0].trim();
+        const completion = `Updating Topster display settings started at ${formatSystemClockTime(startedAt)} and finished at ${formatSystemClockTime(finishedAt)} (${elapsed}).${suffix ? ` ${suffix}` : ''}`;
+        status.style.whiteSpace = 'pre-line';
+        status.textContent = `${baseText}${baseText ? '\n' : ''}${completion}`;
+        pendingSettingsStartedAt = 0;
+    }
+
+    async function buildTopsterFromGridFile({ force, source, settingsApplied = false, settingsStartedAt = 0 }) {
         activeLookupToken++;
         const token = activeLookupToken;
 
@@ -2679,9 +2704,11 @@ async function initTopsterImporter(albumCards) {
             if (token !== activeLookupToken) return;
 
             if (!force && importedEntries.length && currentGridSignature && loaded.signature === currentGridSignature) {
-                status.textContent = settingsApplied
-                    ? `Applied the pending display settings. ${topsterSourceLabel} has not changed.`
-                    : `${topsterSourceLabel} has not changed. Current Topsters grid was kept.`;
+                if (settingsApplied && settingsStartedAt) {
+                    finishPendingSettingsStatus(settingsStartedAt, `${topsterSourceLabel} has not changed. Press Save Settings to publish.`);
+                } else {
+                    status.textContent = `${topsterSourceLabel} has not changed. Current Topsters grid was kept.`;
+                }
                 completeTopsterLoading(status.textContent);
                 buildButton.disabled = false;
                 refreshButton.disabled = false;
@@ -2699,7 +2726,7 @@ async function initTopsterImporter(albumCards) {
             if (sourceConfig.kind === 'rate-your-music-chart') {
                 renderRateYourMusicSnapshotSummary(currentSourceText);
             }
-            await buildTopsterFromText(loaded.text, loaded.signature, source, { prelookupOnly });
+            await buildTopsterFromText(loaded.text, loaded.signature, source, { prelookupOnly, settingsStartedAt });
         } catch (error) {
             if (token !== activeLookupToken) return;
             status.textContent = error && error.message ? error.message : `Could not read ${topsterSourceLabel}.`;
@@ -2732,6 +2759,7 @@ async function initTopsterImporter(albumCards) {
         const token = activeLookupToken;
         currentGridSignature = signature || simpleTextHash(text);
         const prelookupOnly = Boolean(options.prelookupOnly);
+        const settingsStartedAt = Number(options.settingsStartedAt) || 0;
 
         importedEntries = parsed.map((entry, index) => {
             const cachedCover = prelookupOnly ? null : (isRateYourMusicTopsterSource() ? getPreferredRateYourMusicCover(entry) : getPreferredCachedCover(entry));
@@ -2772,12 +2800,13 @@ async function initTopsterImporter(albumCards) {
             const missingCount = importedEntries.length - foundCount;
             const completionText = `${actionText} all ${importedEntries.length} RateYourMusic release${importedEntries.length === 1 ? '' : 's'}. Using ${foundCount} RYM/manual cover${foundCount === 1 ? '' : 's'} directly from the supplied snapshot/cache and missing ${missingCount}. No automatic external cover lookup was performed.${topsterEditorPage ? ' Click any release to choose an alternate cover manually, then press Save Settings to publish.' : ''}`;
             setBuildCompletionStatus(completionText);
-            completeTopsterLoading(completionText);
+            if (settingsStartedAt) finishPendingSettingsStatus(settingsStartedAt, 'Press Save Settings to publish.');
+            completeTopsterLoading(status.textContent || completionText);
             return;
         }
 
         status.textContent = `${actionText} ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} from ${topsterSourceLabel}. Loading cached covers and looking up any missing covers...`;
-        resolveVisibleRange(selectedStart);
+        resolveVisibleRange(selectedStart, settingsStartedAt);
     }
 
     function loadSavedTopster() {
@@ -2958,7 +2987,7 @@ async function initTopsterImporter(albumCards) {
         completeTopsterLoading(completionText);
     }
 
-    async function resolveVisibleRange(startIndex = 0) {
+    async function resolveVisibleRange(startIndex = 0, settingsStartedAt = 0) {
         if (!importedEntries.length) return;
 
         if (isRateYourMusicTopsterSource()) {
@@ -2976,7 +3005,8 @@ async function initTopsterImporter(albumCards) {
             const missingCount = importedEntries.length - foundCount;
             const completionText = `Finished all ${importedEntries.length} RateYourMusic release${importedEntries.length === 1 ? '' : 's'}. Using ${foundCount} RYM/manual cover${foundCount === 1 ? '' : 's'} and missing ${missingCount}. No automatic external cover lookup was performed.${topsterEditorPage ? ' Click a release to choose an alternate cover manually, then press Save Settings to publish.' : ''}`;
             setBuildCompletionStatus(completionText);
-            completeTopsterLoading(completionText);
+            if (settingsStartedAt) finishPendingSettingsStatus(settingsStartedAt, 'Press Save Settings to publish.');
+            completeTopsterLoading(status.textContent || completionText);
             return;
         }
 
@@ -3033,7 +3063,8 @@ async function initTopsterImporter(albumCards) {
             saveCurrentTopster();
             const completionText = `Finished all ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}. Found/cached ${resolvedCount} cover${resolvedCount === 1 ? '' : 's'} and missed ${missingCount}.${topsterEditorPage ? ' Press Save Settings to publish the updated source/settings/cache.' : ''}`;
             setBuildCompletionStatus(completionText);
-            completeTopsterLoading(completionText);
+            if (settingsStartedAt) finishPendingSettingsStatus(settingsStartedAt, 'Press Save Settings to publish.');
+            completeTopsterLoading(status.textContent || completionText);
         }
     }
 
@@ -3380,21 +3411,11 @@ async function initTopsterImporter(albumCards) {
         updateSettingsValueLabels(settings);
     }
 
-    function setSettingsValueLabel(element, value, suffix = '') {
-        if (!element) return;
-        if (element.tagName === 'INPUT') {
-            element.value = String(value);
-        } else {
-            element.textContent = `${value}${suffix}`;
-        }
-    }
-
     function updateSettingsValueLabels(settings) {
-        setSettingsValueLabel(widthValue, settings.width);
-        setSettingsValueLabel(heightValue, settings.height);
-        setSettingsValueLabel(sidebarWidthValue, settings.sidebarWidth, '%');
-        setSettingsValueLabel(sidebarTextSizeValue, settings.sidebarTextScale, '%');
-        setSettingsValueLabel(albumGapValue, settings.albumGap, ' px');
+        widthValue.textContent = String(settings.width);
+        heightValue.textContent = String(settings.height);
+        if (sidebarWidthValue) sidebarWidthValue.textContent = `${settings.sidebarWidth}%`;
+        albumGapValue.textContent = `${settings.albumGap} px`;
     }
 
     function applyTopsterSettings(settings) {
@@ -5532,9 +5553,10 @@ function parseAlbumText(text) {
     const monthPattern = '(?:jan(?:uary)?|feb(?:ruary|uary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
     const numericDatePattern = '\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}';
     const datePattern = `(?:${monthPattern}\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,)?\\s+\\d{4}|${monthPattern}\\.?\\s+\\d{4}|${numericDatePattern}|\\d{4})`;
-    const artistAlbumDateLine = new RegExp(`^(.+?)\\s+-\\s+(.+?)\\s*\\(\\s*(${datePattern})\\s*\\)\\s*(?:\\*+)?$`, 'i');
-    const albumDateLine = new RegExp(`^(.*?)\\s+-\\s+(${datePattern})\\s*(?:\\*+)?$`, 'i');
-    const artistAlbumLine = /^(.+?)\s+-\s+(.+)$/;
+    const separatorPattern = '[-–—]';
+    const artistAlbumDateLine = new RegExp(`^(.+?)\\s+${separatorPattern}\\s+(.+?)\\s*\\(\\s*(${datePattern})\\s*\\)\\s*(?:\\*+)?$`, 'i');
+    const albumDateLine = new RegExp(`^(.*?)\\s+${separatorPattern}\\s+(${datePattern})\\s*(?:\\*+)?$`, 'i');
+    const artistAlbumLine = /^(.+?)\s+[-–—]\s+(.+)$/;
 
     return String(text || '')
         .split(/\r?\n/)
@@ -5626,7 +5648,7 @@ function parseAlbumText(text) {
             // optional bracketed metadata after the four-digit year while keeping
             // the metadata out of the album title used for cover lookup.
             if (getTopsterDataSourceConfig().kind === '1001-albums-you-must-hear-before-you-die-file') {
-                const mustHearMatch = line.match(/^(.+?)\s+-\s+(.+?)\s*\(\s*(\d{4})(?:\s+\[[^\]]+\])?\s*\)\s*$/);
+                const mustHearMatch = line.match(/^(.+?)\s+[\-\u2013\u2014]\s+(.+?)\s*\(\s*(\d{4})(?:\s+\[[^\]]+\])?\s*\)\s*$/);
                 if (mustHearMatch) {
                     return {
                         artist: cleanAlbumTitle(mustHearMatch[1]),
@@ -5643,7 +5665,7 @@ function parseAlbumText(text) {
             //   1 - The Smiths - The Queen Is Dead
             // Preserve everything after the second separator as the album title so
             // punctuation and additional hyphens inside titles remain usable.
-            const nmeRankArtistAlbumMatch = line.match(/^\s*\d+\s+-\s+(.+?)\s+-\s+(.+)$/);
+            const nmeRankArtistAlbumMatch = line.match(/^\s*\d+\s+[\-\u2013\u2014]\s+(.+?)\s+[\-\u2013\u2014]\s+(.+)$/);
             if (nmeRankArtistAlbumMatch) {
                 return {
                     artist: cleanAlbumTitle(nmeRankArtistAlbumMatch[1]),
