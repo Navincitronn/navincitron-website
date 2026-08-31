@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260831-refresh-timing-discogs-live-v65';
+const TOPSTER_FRONTEND_VERSION = '20260831-public-published-covers-discogs-year-v66';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -920,6 +920,16 @@ function discogsOwnedNormalizeRomanVolumes(value) {
     let text = cleanAlbumTitle(value || '').toLowerCase();
     const romanMap = { i:'1', ii:'2', iii:'3', iv:'4', v:'5', vi:'6', vii:'7', viii:'8', ix:'9', x:'10' };
     text = text.replace(/\bvol(?:ume)?\.?\s*([ivx]+|\d+)\b/gi, (match, volume) => ` volume ${romanMap[String(volume).toLowerCase()] || volume} `);
+    // Live/archive titles often abbreviate a four-digit year with an apostrophe
+    // ("Live at Red Rocks '22" vs Discogs' "Live At Red Rocks 2022"). Treat that
+    // as date notation rather than as a sequel/volume number. Two-digit years
+    // 00-30 are interpreted as 20xx; 31-99 as 19xx, which covers the catalog-era
+    // shorthand used by these release titles without weakening unrelated numbers.
+    text = text.replace(/[’'](\d{2})\b/g, (match, shortYear) => {
+        const year = Number(shortYear);
+        if (!Number.isFinite(year)) return match;
+        return ` ${year <= 30 ? 2000 + year : 1900 + year} `;
+    });
     return cleanAlbumTitle(text);
 }
 
@@ -1420,7 +1430,10 @@ function discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArti
 
 function discogsOwnedBareTrailingSequenceMarker(value) {
     const text = cleanAlbumTitle(value || '').toLowerCase();
-    if (!text || /\b(?:vol(?:ume)?|no\.?|number|part)\s*(?:[ivx]+|\d+)\s*$/.test(text)) return '';
+    // Apostrophe-prefixed two-digit endings are year shorthand ('22, ’72), not
+    // sequel/volume markers. discogsOwnedNormalizeRomanVolumes expands them for
+    // title comparison, so do not let this safety guard reject that equivalence.
+    if (!text || /[’']\d{2}\s*$/.test(text) || /\b(?:vol(?:ume)?|no\.?|number|part)\s*(?:[ivx]+|\d+)\s*$/.test(text)) return '';
     const match = text.match(/\b([ivx]+|\d+)\s*$/);
     if (!match) return '';
     const romanMap = { i:'1', ii:'2', iii:'3', iv:'4', v:'5', vi:'6', vii:'7', viii:'8', ix:'9', x:'10' };
@@ -2814,8 +2827,12 @@ async function initTopsterImporter(albumCards) {
         renderTopster(importedEntries, selectedStart, { scroll: true });
         saveCurrentTopster();
 
-        await maybeLoadLocalIndex();
-        if (token !== activeLookupToken) return;
+        // Public pages render only the backend-published cover cache; they do not
+        // need the local index catalog because no cover discovery runs there.
+        if (!topsterReadOnly) {
+            await maybeLoadLocalIndex();
+            if (token !== activeLookupToken) return;
+        }
 
         if (prelookupOnly) {
             status.textContent = `First Build after a ${topsterSourceLabel} update: preloading cover cache for ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} without displaying cover images...`;
@@ -2843,11 +2860,23 @@ async function initTopsterImporter(albumCards) {
             return;
         }
 
-        status.textContent = `${actionText} ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} from ${topsterSourceLabel}. Loading cached covers and looking up any missing covers...`;
+        if (topsterReadOnly) {
+            status.textContent = `Loading the published covers for ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'}...`;
+        } else {
+            status.textContent = `${actionText} ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} from ${topsterSourceLabel}. Loading cached covers and looking up any missing covers...`;
+        }
         resolveVisibleRange(selectedStart, settingsStartedAt);
     }
 
     function loadSavedTopster() {
+        // Public list pages are a published view. Never hydrate them from a
+        // visitor's browser-local Topster state: a stale/incomplete local snapshot
+        // can otherwise override the backend-published source/cover cache and make
+        // the page repeat cover lookups on every refresh.
+        if (topsterReadOnly) {
+            setSingleRangeOption();
+            return;
+        }
         const saved = loadSavedTopsterState();
         if (!saved || !Array.isArray(saved.entries) || !saved.entries.length) {
             setSingleRangeOption();
@@ -2882,7 +2911,9 @@ async function initTopsterImporter(albumCards) {
     }
 
     function saveCurrentTopster() {
-        if (!importedEntries.length) return;
+        // Public pages should remain stateless with respect to the visitor's
+        // browser. The authoritative source/settings/covers are the shared store.
+        if (topsterReadOnly || !importedEntries.length) return;
 
         const payload = {
             savedAt: new Date().toISOString(),
@@ -3028,6 +3059,25 @@ async function initTopsterImporter(albumCards) {
     async function resolveVisibleRange(startIndex = 0, settingsStartedAt = 0) {
         if (!importedEntries.length) return;
 
+        // Public Topster pages are render-only consumers of the published shared
+        // cover cache. All external lookup work belongs to the editor Build stage.
+        // Never launch the thousands-entry lookup loop here, even for cache misses.
+        if (topsterReadOnly && !isRateYourMusicTopsterSource()) {
+            importedEntries.forEach(entry => {
+                if (!entry) return;
+                const published = getPreferredCachedCover(entry) || getExactCachedCoverForEntry(entry);
+                if (published && published.imageSrc) entry.cover = published;
+                entry.status = entry.cover && entry.cover.imageSrc ? 'found' : 'missing';
+            });
+            renderTopster(importedEntries, startIndex, { scroll: false });
+            const foundCount = importedEntries.filter(entry => entry.status === 'found').length;
+            const missingCount = importedEntries.length - foundCount;
+            const completionText = `Loaded published Topster covers: ${foundCount} available and ${missingCount} missing. No cover lookup was performed on this public page.`;
+            setBuildCompletionStatus(completionText);
+            completeTopsterLoading(completionText);
+            return;
+        }
+
         if (isRateYourMusicTopsterSource()) {
             importedEntries.forEach(entry => {
                 if (!entry) return;
@@ -3164,7 +3214,7 @@ async function initTopsterImporter(albumCards) {
             const publicRetryHandler = topsterReadOnly && isPublicAlbumCoverRetrySource()
                 ? () => retryPublicAlbumCover(entry, absoluteIndex)
                 : null;
-            const loadErrorHandler = !isRollingStoneSingerTopsterSource() && !isRateYourMusicTopsterSource()
+            const loadErrorHandler = !topsterReadOnly && !isRollingStoneSingerTopsterSource() && !isRateYourMusicTopsterSource()
                 ? failedImageSrc => recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc)
                 : null;
             const replacement = createTopsterTile(
@@ -3242,36 +3292,40 @@ async function initTopsterImporter(albumCards) {
         if (!entry || !isPublicAlbumCoverRetrySource() || retryingPublicCoverIndexes.has(absoluteIndex)) return;
         retryingPublicCoverIndexes.add(absoluteIndex);
 
+        // Public retries are deliberately cache-only. Build/Save Settings already
+        // selected the cover; clicking a failed tile should just retry that published
+        // URL (or another matching URL already present in the published cache), never
+        // launch Last.fm/MusicBrainz/iTunes/etc. discovery from a visitor's browser.
         const previousCover = entry.cover && entry.cover.imageSrc ? { ...entry.cover } : null;
+        const publishedCover = getPreferredCachedCover(entry)
+            || getExactCachedCoverForEntry(entry)
+            || resolveCacheCoverCandidates(entry)[0]
+            || previousCover;
+
         entry.status = 'loading';
         entry.cover = null;
-        renderTopster(importedEntries, 0, { scroll: false });
+        refreshRenderedTopsterTile(absoluteIndex);
 
         try {
-            // First retry the exact published image with a cache-busting request. This
-            // handles intermittent CDN/host failures without changing the chosen cover.
-            if (previousCover && await probeTopsterImage(previousCover.imageSrc)) {
-                entry.cover = previousCover;
-                entry.status = 'found';
-            } else {
-                // If the published image is genuinely unavailable, do a fresh cover
-                // lookup but deliberately skip the saved cache so we do not immediately
-                // return the same broken URL again.
-                await maybeLoadLocalIndex();
-                const retryConfig = { ...getSourceConfig(), useCache: false };
-                const freshCover = await resolveAlbumCover(entry, albumCatalog, retryConfig);
-                if (freshCover && freshCover.imageSrc) {
-                    entry.cover = freshCover;
+            if (publishedCover && publishedCover.imageSrc) {
+                const retryUrl = topsterRetryImageUrl(publishedCover.imageSrc);
+                const loaded = await probeTopsterImage(publishedCover.imageSrc, 5000);
+                if (loaded) {
+                    entry.cover = { ...publishedCover, imageSrc: retryUrl || publishedCover.imageSrc };
                     entry.status = 'found';
                 } else {
+                    entry.cover = publishedCover;
                     entry.status = 'missing';
                 }
+            } else {
+                entry.status = 'missing';
             }
         } catch (error) {
+            entry.cover = publishedCover || null;
             entry.status = 'missing';
         } finally {
             retryingPublicCoverIndexes.delete(absoluteIndex);
-            renderTopster(importedEntries, 0, { scroll: false });
+            refreshRenderedTopsterTile(absoluteIndex);
             syncAllTopsterSidebarHeights();
             window.requestAnimationFrame(syncAllTopsterSidebarHeights);
         }
@@ -3309,7 +3363,7 @@ async function initTopsterImporter(albumCards) {
             topsterReadOnly && isPublicAlbumCoverRetrySource() && entry
                 ? () => retryPublicAlbumCover(entry, absoluteIndex)
                 : null,
-            entry && !isRollingStoneSingerTopsterSource() && !isRateYourMusicTopsterSource()
+            entry && !topsterReadOnly && !isRollingStoneSingerTopsterSource() && !isRateYourMusicTopsterSource()
                 ? failedImageSrc => recoverBrokenAlbumCover(entry, absoluteIndex, failedImageSrc)
                 : null));
         }
