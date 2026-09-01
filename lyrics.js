@@ -1040,88 +1040,206 @@
         return remember(false);
     }
 
+    // Spotify sometimes presents an album under a streaming-specific title/credit
+    // even though the user's owned Discogs release is indexed under a different
+    // physical-release identity. These aliases do NOT replace the Topster ownership
+    // matcher: each target is fed back through topsterEntryIsInDiscogsCollection(),
+    // so the ownership decision still uses the exact same matcher/indexes as
+    // "Exclude releases that I have".
+    const LYRICS_DISCOGS_SPOTIFY_OWNERSHIP_ALIASES = Object.freeze([
+        {
+            sourceArtists: ['Carl Perkins'],
+            sourceTitles: ['The Dance Album'],
+            targets: [
+                { artist: 'Carl Perkins', title: 'Dance Album Of Carl Perkins' },
+            ],
+        },
+        {
+            sourceArtists: ['Fats Domino'],
+            sourceTitles: ['This Is Fats (1957)'],
+            targets: [
+                { artist: 'Fats Domino', title: 'This Is Fats' },
+            ],
+        },
+        {
+            sourceArtists: ['Magdalena Bay'],
+            sourceTitles: ['mini mix vol. 1', 'mini mix vol. 2', 'mini mix vol. 3'],
+            targets: [
+                { artist: 'Magdalena Bay', title: 'Mini Mix Vol. 1-3' },
+            ],
+        },
+        {
+            sourceArtists: ['Sabu'],
+            sourceTitles: ['Palo Congo'],
+            targets: [
+                { artist: 'Sabu', title: 'Palo Congo' },
+            ],
+        },
+        {
+            sourceArtists: ['Benny Goodman'],
+            sourceTitles: ['Live At Carnegie Hall-1938 Complete'],
+            targets: [
+                { artist: 'Benny Goodman', title: 'The Famous 1938 Carnegie Hall Jazz Concert' },
+            ],
+        },
+        {
+            // Spotify local-file metadata can credit "Various Artists" (or an
+            // individual performer) while the owned physical anthology is filed
+            // under curator Harry Smith. Match the distinctive album title, then
+            // expose all four owned volumes so the backend can select the volume
+            // containing the currently playing track.
+            sourceArtists: [],
+            sourceTitles: ['Anthology of American Folk Music'],
+            targets: [
+                { artist: 'Harry Smith', title: 'Anthology Of American Folk Music Volume One: Ballads' },
+                { artist: 'Harry Smith', title: 'Anthology Of American Folk Music Volume Two: Social Music' },
+                { artist: 'Harry Smith', title: 'Anthology Of American Folk Music Volume Three: Songs' },
+                { artist: 'Harry Smith', title: 'Anthology Of American Folk Music Volume Four: Rhythmic Changes' },
+            ],
+        },
+    ]);
 
-    function findLyricsDiscogsCollectionAlbum(entry) {
-        if (!topsterEntryIsInDiscogsCollection(entry)) return null;
+    function lyricsDiscogsSpotifyOwnershipEntries(entry) {
         const entryArtist = cleanAlbumTitle(entry && entry.artist || '');
         const entryTitle = cleanAlbumTitle(entry && entry.title || '');
-        if (!entryTitle || !Array.isArray(topsterDiscogsCollectionAlbums)) return null;
-
-        const collectionAlbums = topsterDiscogsCollectionAlbums;
-        const candidates = getTopsterDiscogsCandidateAlbums(entryArtist);
-        const orderedCandidates = [];
+        const entries = [];
         const seen = new Set();
-        const addCandidate = album => {
+        const addEntry = candidate => {
+            const artist = cleanAlbumTitle(candidate && candidate.artist || '');
+            const title = cleanAlbumTitle(candidate && candidate.title || '');
+            if (!title) return;
+            const key = `${discogsOwnedRelationKey(artist)}::${discogsOwnedRelationKey(title)}`;
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            entries.push({ artist, title });
+        };
+
+        addEntry({ artist: entryArtist, title: entryTitle });
+        const sourceTitleKey = discogsOwnedRelationKey(entryTitle);
+
+        LYRICS_DISCOGS_SPOTIFY_OWNERSHIP_ALIASES.forEach(rule => {
+            const titleMatches = (rule.sourceTitles || []).some(title => discogsOwnedRelationKey(title) === sourceTitleKey);
+            if (!titleMatches) return;
+
+            const sourceArtists = Array.isArray(rule.sourceArtists) ? rule.sourceArtists : [];
+            if (sourceArtists.length && !sourceArtists.some(artist => discogsOwnedArtistsMatch(entryArtist, [artist]))) return;
+            (rule.targets || []).forEach(addEntry);
+        });
+
+        return entries;
+    }
+
+    function lyricsDiscogsCollectionAlbumMatchesEntry(entryArtist, entryTitle, album) {
+        const collectionTitle = cleanAlbumTitle(album && album.title || '');
+        const collectionArtists = album && Array.isArray(album.artists) && album.artists.length
+            ? album.artists
+            : [album && album.artist || ''];
+        if (!collectionTitle) return false;
+
+        if (discogsOwnedKnownCrossCreditMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
+
+        const artistsMatch = discogsOwnedArtistsMatch(entryArtist, collectionArtists);
+        if (!artistsMatch) return false;
+        if (normalizeAlbumIdentityKey(entryTitle) === normalizeAlbumIdentityKey(collectionTitle)) return true;
+        if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return true;
+        if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return true;
+        if (discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArtist, collectionArtists)) return true;
+
+        const titleScore = discogsOwnedTitleScore(entryTitle, collectionTitle, entryArtist, collectionArtists.join(', '));
+        if (titleScore >= 0.68 && discogsOwnedFuzzyTitleMatchIsSafe(entryTitle, collectionTitle)) return true;
+        if (discogsOwnedIsCompilationLike(entryTitle) && discogsOwnedIsCompilationLike(collectionTitle)) return true;
+        if (discogsOwnedIsArtistPresentationTitle(entryTitle, entryArtist)
+            && discogsOwnedIsArtistPresentationTitle(collectionTitle, entryArtist)) return true;
+        return false;
+    }
+
+    function findLyricsDiscogsCollectionAlbums(entry) {
+        if (!Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return [];
+
+        const matches = [];
+        const seen = new Set();
+        const addMatch = album => {
             if (!album) return;
-            const key = `${discogsOwnedRelationKey(album.title || '')}::${(album.artists || []).map(discogsOwnedRelationKey).join('|')}`;
+            const artists = Array.isArray(album.artists) ? album.artists : [];
+            const key = `${Number(album.releaseId) || 0}::${discogsOwnedRelationKey(album.title || '')}::${artists.map(discogsOwnedRelationKey).join('|')}`;
             if (seen.has(key)) return;
             seen.add(key);
-            orderedCandidates.push(album);
+            matches.push(album);
         };
-        candidates.forEach(addCandidate);
 
-        if (discogsOwnedEntryHasCrossCreditRule(entryArtist, entryTitle)) {
-            collectionAlbums.forEach(addCandidate);
-        }
+        const ownershipEntries = lyricsDiscogsSpotifyOwnershipEntries(entry);
+        for (const ownershipEntry of ownershipEntries) {
+            const entryArtist = cleanAlbumTitle(ownershipEntry.artist || '');
+            const entryTitle = cleanAlbumTitle(ownershipEntry.title || '');
+            if (!entryTitle || !topsterEntryIsInDiscogsCollection(ownershipEntry)) continue;
 
-        for (const album of orderedCandidates) {
-            const collectionTitle = cleanAlbumTitle(album.title || '');
-            const collectionArtists = Array.isArray(album.artists) && album.artists.length ? album.artists : [album.artist || ''];
-            if (!collectionTitle) continue;
-
-            if (discogsOwnedKnownCrossCreditMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) {
-                return album;
+            // The alias targets above use the exact physical-release identity when
+            // Spotify differs from Discogs. Prefer exact title+compatible-artist rows
+            // first; otherwise recover the row through the same per-album rules that
+            // the Topster matcher uses after its indexes select candidate albums.
+            const exactTitleKey = discogsOwnedRelationKey(entryTitle);
+            const exactMatches = topsterDiscogsCollectionAlbums.filter(album => {
+                if (discogsOwnedRelationKey(album && album.title || '') !== exactTitleKey) return false;
+                const artists = album && Array.isArray(album.artists) && album.artists.length
+                    ? album.artists
+                    : [album && album.artist || ''];
+                return discogsOwnedArtistsMatch(entryArtist, artists);
+            });
+            if (exactMatches.length) {
+                exactMatches.forEach(addMatch);
+                continue;
             }
 
-            const artistsMatch = discogsOwnedArtistsMatch(entryArtist, collectionArtists);
-            if (!artistsMatch) continue;
-            if (normalizeAlbumIdentityKey(entryTitle) === normalizeAlbumIdentityKey(collectionTitle)) return album;
-            if (discogsOwnedKnownContainerMatch(entryArtist, entryTitle, collectionTitle)) return album;
-            if (discogsOwnedKnownAliasMatch(entryArtist, entryTitle, collectionTitle, collectionArtists)) return album;
-            if (discogsOwnedSafeTitleEquivalence(entryTitle, collectionTitle, entryArtist, collectionArtists)) return album;
+            const candidates = getTopsterDiscogsCandidateAlbums(entryArtist);
+            const candidateSet = new Set(candidates);
+            if (discogsOwnedEntryHasCrossCreditRule(entryArtist, entryTitle)) {
+                topsterDiscogsCollectionAlbums.forEach(album => candidateSet.add(album));
+            }
+            for (const album of candidateSet) {
+                if (lyricsDiscogsCollectionAlbumMatchesEntry(entryArtist, entryTitle, album)) addMatch(album);
+            }
 
-            const titleScore = discogsOwnedTitleScore(entryTitle, collectionTitle, entryArtist, collectionArtists.join(', '));
-            if (titleScore >= 0.68 && discogsOwnedFuzzyTitleMatchIsSafe(entryTitle, collectionTitle)) return album;
-            if (discogsOwnedIsCompilationLike(entryTitle) && discogsOwnedIsCompilationLike(collectionTitle)) return album;
-            if (discogsOwnedIsArtistPresentationTitle(entryTitle, entryArtist) && discogsOwnedIsArtistPresentationTitle(collectionTitle, entryArtist)) return album;
-        }
-
-        // The Topster matcher also has deterministic owned-release and multi-release
-        // fallbacks. If one of those made the ownership decision, recover the most
-        // relevant real collection row so the backend can resolve an actual vinyl
-        // release ID and tracklist.
-        if (discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle)) {
-            for (const group of DISCOGS_OWNED_MULTI_RELEASE_GROUPS) {
-                if (!discogsOwnedArtistMatchesScopedGroup(entryArtist, group.artists)) continue;
-                if (!(group.entryTitles || []).some(title => discogsOwnedRelationKey(title) === discogsOwnedRelationKey(entryTitle))) continue;
-                for (const requirement of group.requires || []) {
-                    const requiredTitleKeys = new Set((requirement.titles || []).map(discogsOwnedRelationKey));
-                    const album = collectionAlbums.find(candidate => {
-                        const candidateArtists = Array.isArray(candidate.artists) && candidate.artists.length ? candidate.artists : [candidate.artist || ''];
-                        return requiredTitleKeys.has(discogsOwnedRelationKey(candidate.title || ''))
-                            && candidateArtists.some(artist => discogsOwnedArtistMatchesScopedGroup(artist, requirement.artists || group.artists));
-                    });
-                    if (album) return album;
+            // Preserve the Topster multi-release semantics. A single streaming
+            // album can be represented by multiple owned physical records.
+            if (discogsOwnedKnownMultiReleaseMatch(entryArtist, entryTitle)) {
+                for (const group of DISCOGS_OWNED_MULTI_RELEASE_GROUPS) {
+                    if (!discogsOwnedArtistMatchesScopedGroup(entryArtist, group.artists)) continue;
+                    if (!(group.entryTitles || []).some(title => discogsOwnedRelationKey(title) === discogsOwnedRelationKey(entryTitle))) continue;
+                    for (const requirement of group.requires || []) {
+                        const requiredTitleKeys = new Set((requirement.titles || []).map(discogsOwnedRelationKey));
+                        topsterDiscogsCollectionAlbums.forEach(album => {
+                            const collectionArtists = Array.isArray(album.artists) && album.artists.length
+                                ? album.artists
+                                : [album.artist || ''];
+                            if (!requiredTitleKeys.has(discogsOwnedRelationKey(album.title || ''))) return;
+                            if (collectionArtists.some(artist => discogsOwnedArtistMatchesScopedGroup(artist, requirement.artists || group.artists))) {
+                                addMatch(album);
+                            }
+                        });
+                    }
                 }
             }
-        }
 
-        if (discogsOwnedConfirmedReleaseMatch(entryArtist, entryTitle)) {
-            let bestAlbum = null;
-            let bestScore = 0;
-            for (const album of collectionAlbums) {
-                const collectionArtists = Array.isArray(album.artists) && album.artists.length ? album.artists : [album.artist || ''];
-                if (!discogsOwnedArtistsMatch(entryArtist, collectionArtists)) continue;
-                const score = discogsOwnedTitleScore(entryTitle, album.title || '', entryArtist, collectionArtists.join(', '));
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestAlbum = album;
+            // The Topster confirmed-release fallback is a boolean safety net. If it
+            // fired, recover the best concrete collection row so a release tracklist
+            // can still be loaded.
+            if (discogsOwnedConfirmedReleaseMatch(entryArtist, entryTitle) && !matches.length) {
+                let bestAlbum = null;
+                let bestScore = 0;
+                for (const album of topsterDiscogsCollectionAlbums) {
+                    const collectionArtists = Array.isArray(album.artists) && album.artists.length ? album.artists : [album.artist || ''];
+                    if (!discogsOwnedArtistsMatch(entryArtist, collectionArtists)) continue;
+                    const score = discogsOwnedTitleScore(entryTitle, album.title || '', entryArtist, collectionArtists.join(', '));
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestAlbum = album;
+                    }
                 }
+                if (bestAlbum && bestScore >= 0.30) addMatch(bestAlbum);
             }
-            if (bestAlbum && bestScore >= 0.30) return bestAlbum;
         }
 
-        return null;
+        return matches;
     }
 
     function setStatus(message, type = "") {
@@ -1294,7 +1412,7 @@
         discogsReleaseMeta.hidden = true;
 
         if (!payload || payload.noCollectionMatch) {
-            setDiscogsStatus("This album is not in the NNavincitron Discogs collection.");
+            setDiscogsStatus("Album not owned.");
             return;
         }
         if (payload.error) {
@@ -1306,7 +1424,7 @@
             return;
         }
         if (!payload.matched) {
-            setDiscogsStatus(payload.message || "The matched Discogs album is no longer present in the collection snapshot.");
+            setDiscogsStatus("Album not owned.");
             return;
         }
         if (!payload.vinylFound || !payload.release) {
@@ -1333,26 +1451,30 @@
         if (currentRowScore < 0.72) currentRowIndex = -1;
 
         const collectionAlbum = payload.collectionAlbum || {};
-        const collectionArtist = Array.isArray(collectionAlbum.artists) ? collectionAlbum.artists.join(", ") : "";
-        setDiscogsStatus(`Matched owned Discogs vinyl: ${collectionArtist ? `${collectionArtist} - ` : ""}${collectionAlbum.title || release.title || "release"}.`);
+        const releaseArtists = Array.isArray(release.artists) && release.artists.length
+            ? release.artists.join(", ")
+            : (Array.isArray(collectionAlbum.artists) ? collectionAlbum.artists.join(", ") : "");
+        const releaseDisplayTitle = release.title || collectionAlbum.title || "Discogs release";
+        discogsStatus.replaceChildren();
+        if (release.discogsUrl) {
+            const releaseLink = document.createElement("a");
+            releaseLink.href = release.discogsUrl;
+            releaseLink.target = "_blank";
+            releaseLink.rel = "noopener noreferrer";
+            releaseLink.textContent = `${releaseArtists ? `${releaseArtists} - ` : ""}${releaseDisplayTitle}`;
+            discogsStatus.appendChild(releaseLink);
+        } else {
+            discogsStatus.textContent = `${releaseArtists ? `${releaseArtists} - ` : ""}${releaseDisplayTitle}`;
+        }
+        discogsStatus.classList.remove("error");
 
         const metaParts = [];
         if (release.year) metaParts.push(String(release.year));
         const formatSummary = lyricsDiscogsFormatSummary(release);
         if (formatSummary) metaParts.push(formatSummary);
         if (release.releaseId) metaParts.push(`Release #${release.releaseId}`);
-        if (metaParts.length || release.discogsUrl) {
-            const textNode = document.createTextNode(metaParts.join(" · "));
-            discogsReleaseMeta.appendChild(textNode);
-            if (release.discogsUrl) {
-                if (metaParts.length) discogsReleaseMeta.appendChild(document.createTextNode(" · "));
-                const link = document.createElement("a");
-                link.href = release.discogsUrl;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-                link.textContent = "Open on Discogs";
-                discogsReleaseMeta.appendChild(link);
-            }
+        if (metaParts.length) {
+            discogsReleaseMeta.textContent = metaParts.join(" · ");
             discogsReleaseMeta.hidden = false;
         }
 
@@ -1369,7 +1491,7 @@
             const side = document.createElement("section");
             side.className = "lyrics-discogs-side";
             const heading = document.createElement("h4");
-            heading.textContent = groupKey === "Tracklist" ? "Tracklist" : `Side ${groupKey}`;
+            heading.textContent = groupKey === "Tracklist" ? "TRACKLIST" : `SIDE ${String(groupKey).toUpperCase()}`;
             side.appendChild(heading);
 
             groupRows.forEach(row => {
@@ -1409,7 +1531,7 @@
             return;
         }
 
-        const lookupKey = `${normalizeAlbumIdentityKey(albumArtist)}::${normalizeAlbumIdentityKey(albumTitle)}`;
+        const lookupKey = `${normalizeAlbumIdentityKey(albumArtist)}::${normalizeAlbumIdentityKey(albumTitle)}::${normalizeAlbumIdentityKey(track.title || "")}`;
         if (!options.force && lookupKey === lastDiscogsAlbumLookupKey && lastDiscogsTracklistPayload) {
             renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, track.title || "");
             return;
@@ -1432,17 +1554,25 @@
             return;
         }
 
-        const matchedAlbum = findLyricsDiscogsCollectionAlbum({ artist: albumArtist, title: albumTitle });
-        if (!matchedAlbum) {
+        const matchedAlbums = findLyricsDiscogsCollectionAlbums({ artist: albumArtist, title: albumTitle });
+        if (!matchedAlbums.length) {
             lastDiscogsTracklistPayload = { noCollectionMatch: true };
             renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, track.title || "");
             return;
         }
 
-        const collectionArtists = Array.isArray(matchedAlbum.artists) ? matchedAlbum.artists : [];
+        const collectionMatches = matchedAlbums.map(album => {
+            const artists = Array.isArray(album.artists) ? album.artists : [];
+            return {
+                title: String(album.title || ""),
+                artist: String(artists[0] || album.artist || ""),
+            };
+        }).filter(item => item.title);
+        const firstMatch = collectionMatches[0] || { title: "", artist: "" };
         const params = new URLSearchParams({
-            collection_title: String(matchedAlbum.title || ""),
-            collection_artist: String(collectionArtists[0] || matchedAlbum.artist || ""),
+            collection_title: firstMatch.title,
+            collection_artist: firstMatch.artist,
+            collection_matches: JSON.stringify(collectionMatches),
             artist: albumArtist,
             album: albumTitle,
             track: String(track.title || ""),
