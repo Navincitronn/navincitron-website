@@ -1083,6 +1083,52 @@
             ],
         },
         {
+            // Spotify's Archive Collection credit/title is a streaming identity;
+            // the owned physical record uses the original Wings credit and title.
+            sourceArtists: [],
+            sourceTitles: ['Band On The Run (Archive Collection)'],
+            targets: [
+                { artist: 'Paul McCartney & Wings', title: 'Band On The Run' },
+            ],
+        },
+        {
+            sourceArtists: [],
+            sourceTitles: ['King Tubbys Meets Rockers Uptown'],
+            targets: [
+                { artist: 'Augustus Pablo', title: 'King Tubbys Meets Rockers Uptown' },
+            ],
+        },
+        {
+            sourceArtists: [],
+            sourceTitles: ['Nuggets: Original Artyfacts from the First Psychedelic Era 1965–1968', 'Nuggets: Original Artyfacts from the First Psychedelic Era 1965-1968'],
+            targets: [
+                { artist: 'Various', title: 'Nuggets: Original Artyfacts From The First Psychedelic Era 1965-1968' },
+            ],
+        },
+        {
+            sourceArtists: ['Fishmans'],
+            sourceTitles: ['空中キャンプ', '98.12.28 男達の別れ (Live)', '98.12.28 男達の別れ'],
+            targets: [
+                { artist: 'Fishmans', title: 'Fishmans Rock Festival' },
+            ],
+        },
+        {
+            sourceArtists: [],
+            sourceTitles: ['The Good, The Bad and The Ugly (Original Motion Picture Soundtrack) [Remastered Edition]'],
+            targets: [
+                { artist: 'Ennio Morricone', title: 'Il Buono, Il Brutto, Il Cattivo (Colonna Sonora Originale)' },
+            ],
+        },
+        {
+            // Spotify credits individual soundtrack performers/composers while the
+            // owned Discogs release is filed under Rodgers & Hammerstein.
+            sourceArtists: [],
+            sourceTitles: ['South Pacific (Original Soundtrack Recording)'],
+            targets: [
+                { artist: 'Rodgers & Hammerstein', title: 'South Pacific' },
+            ],
+        },
+        {
             // Spotify local-file metadata can credit "Various Artists" (or an
             // individual performer) while the owned physical anthology is filed
             // under curator Harry Smith. Match the distinctive album title, then
@@ -1098,35 +1144,37 @@
             ],
         },
     ]);
-
     function lyricsDiscogsSpotifyOwnershipEntries(entry) {
         const entryArtist = cleanAlbumTitle(entry && entry.artist || '');
         const entryTitle = cleanAlbumTitle(entry && entry.title || '');
-        const entries = [];
-        const seen = new Set();
-        const addEntry = candidate => {
+        const aliases = [];
+        const seenAliases = new Set();
+        const addAlias = candidate => {
             const artist = cleanAlbumTitle(candidate && candidate.artist || '');
             const title = cleanAlbumTitle(candidate && candidate.title || '');
             if (!title) return;
             const key = `${discogsOwnedRelationKey(artist)}::${discogsOwnedRelationKey(title)}`;
-            if (!key || seen.has(key)) return;
-            seen.add(key);
-            entries.push({ artist, title });
+            if (!key || seenAliases.has(key)) return;
+            seenAliases.add(key);
+            aliases.push({ artist, title });
         };
 
-        addEntry({ artist: entryArtist, title: entryTitle });
         const sourceTitleKey = discogsOwnedRelationKey(entryTitle);
-
         LYRICS_DISCOGS_SPOTIFY_OWNERSHIP_ALIASES.forEach(rule => {
             const titleMatches = (rule.sourceTitles || []).some(title => discogsOwnedRelationKey(title) === sourceTitleKey);
             if (!titleMatches) return;
 
             const sourceArtists = Array.isArray(rule.sourceArtists) ? rule.sourceArtists : [];
             if (sourceArtists.length && !sourceArtists.some(artist => discogsOwnedArtistsMatch(entryArtist, [artist]))) return;
-            (rule.targets || []).forEach(addEntry);
+            (rule.targets || []).forEach(addAlias);
         });
 
-        return entries;
+        // A known Spotify->Discogs identity mapping is authoritative for Lyrics.
+        // Feed those mapped identities through the exact same Topster ownership
+        // matcher, but do not also let the original streaming identity wander into
+        // an unrelated fuzzy/cross-credit release (e.g. soundtrack title collisions).
+        if (aliases.length) return aliases;
+        return entryTitle ? [{ artist: entryArtist, title: entryTitle }] : [];
     }
 
     function lyricsDiscogsCollectionAlbumMatchesEntry(entryArtist, entryTitle, album) {
@@ -1317,43 +1365,110 @@
             .trim();
     }
 
+    function lyricsDiscogsCompactTrackText(value) {
+        return lyricsDiscogsNormalizeTrackText(value).replace(/\s+/g, "");
+    }
+
     function lyricsDiscogsCleanTrackTitle(value) {
         const qualifierWords = "remaster(?:ed|ing)?|live|radio edit|single edit|album version|mono|stereo|bonus track|deluxe|version|mix|edit|instrumental|karaoke";
         let text = String(value || "").trim();
         if (!text) return "";
         text = text.replace(new RegExp(`\\s*[\\[(][^\\])]*(?:${qualifierWords})[^\\])]*[\\])]\\s*`, "gi"), " ");
         text = text.replace(new RegExp(`\\s+-\\s+[^-]*(?:${qualifierWords})[^-]*$`, "i"), "");
+        text = text.replace(/\s*[\[(]\s*(?:feat\.?|featuring|with)\b[^\])]*[\])]\s*$/i, "");
         return text.replace(/\s+/g, " ").replace(/^\s*-|\s*-\s*$/g, "").trim();
     }
 
-    function lyricsDiscogsTrackMatchScore(currentTitle, candidateTitle) {
-        const currentRaw = String(currentTitle || "").trim();
-        const candidateRaw = String(candidateTitle || "").trim();
-        if (!currentRaw || !candidateRaw) return 0;
+    function lyricsDiscogsTrackTitleVariants(value) {
+        const raw = String(value || "").trim();
+        const variants = [];
+        const seen = new Set();
+        const add = candidate => {
+            const clean = String(candidate || "").replace(/\s+/g, " ").trim();
+            const key = lyricsDiscogsNormalizeTrackText(clean);
+            if (!clean || !key || seen.has(key)) return;
+            seen.add(key);
+            variants.push(clean);
+        };
 
-        const currentClean = lyricsDiscogsCleanTrackTitle(currentRaw);
-        const candidateClean = lyricsDiscogsCleanTrackTitle(candidateRaw);
-        const currentKey = lyricsDiscogsNormalizeTrackText(currentClean);
-        const candidateKey = lyricsDiscogsNormalizeTrackText(candidateClean);
-        if (currentKey && currentKey === candidateKey) return 1;
+        add(raw);
+        add(lyricsDiscogsCleanTrackTitle(raw));
+        add(raw.replace(/\s*[\[(][^\])]*[\])]\s*$/g, ""));
+        add(raw.replace(/\s+(?:feat\.?|featuring)\s+.+$/i, ""));
 
-        const currentFull = lyricsDiscogsNormalizeTrackText(currentRaw);
-        const candidateFull = lyricsDiscogsNormalizeTrackText(candidateRaw);
-        if (currentFull && currentFull === candidateFull) return 0.99;
+        // On Spotify, a local/imported title may have the performer appended after
+        // " - ". Within an already matched Discogs release, the left side is a
+        // useful low-risk song-title candidate (e.g. "Bahia - Stan Getz, Charlie Byrd").
+        const dashIndex = raw.indexOf(" - ");
+        if (dashIndex >= 3) add(raw.slice(0, dashIndex));
+        return variants;
+    }
 
-        const leftTokens = new Set(currentKey.split(/\s+/).filter(Boolean));
-        const rightTokens = new Set(candidateKey.split(/\s+/).filter(Boolean));
-        if (leftTokens.size && rightTokens.size) {
-            let intersection = 0;
-            leftTokens.forEach(token => { if (rightTokens.has(token)) intersection += 1; });
-            const overlap = intersection / Math.max(leftTokens.size, rightTokens.size);
-            if (overlap >= 0.9) return 0.94;
-            if (overlap >= 0.75 && Math.min(currentKey.length, candidateKey.length) >= 8) return 0.82;
+    function lyricsDiscogsLevenshteinDistance(leftValue, rightValue) {
+        const left = String(leftValue || "");
+        const right = String(rightValue || "");
+        if (left === right) return 0;
+        if (!left) return right.length;
+        if (!right) return left.length;
+        let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+        for (let i = 1; i <= left.length; i += 1) {
+            const current = [i];
+            for (let j = 1; j <= right.length; j += 1) {
+                current[j] = Math.min(
+                    current[j - 1] + 1,
+                    previous[j] + 1,
+                    previous[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1),
+                );
+            }
+            previous = current;
         }
+        return previous[right.length];
+    }
 
-        if (Math.min(currentKey.length, candidateKey.length) >= 10
-            && (currentKey.includes(candidateKey) || candidateKey.includes(currentKey))) return 0.78;
-        return 0;
+    function lyricsDiscogsTrackMatchScore(currentTitle, candidateTitle) {
+        const currentVariants = lyricsDiscogsTrackTitleVariants(currentTitle);
+        const candidateVariants = lyricsDiscogsTrackTitleVariants(candidateTitle);
+        if (!currentVariants.length || !candidateVariants.length) return 0;
+
+        let best = 0;
+        for (const currentVariant of currentVariants) {
+            for (const candidateVariant of candidateVariants) {
+                const currentKey = lyricsDiscogsNormalizeTrackText(currentVariant);
+                const candidateKey = lyricsDiscogsNormalizeTrackText(candidateVariant);
+                if (!currentKey || !candidateKey) continue;
+                if (currentKey === candidateKey) return 1;
+
+                const currentCompact = currentKey.replace(/\s+/g, "");
+                const candidateCompact = candidateKey.replace(/\s+/g, "");
+                if (currentCompact && currentCompact === candidateCompact) return 0.99;
+
+                const shorterCompact = currentCompact.length <= candidateCompact.length ? currentCompact : candidateCompact;
+                const longerCompact = currentCompact.length > candidateCompact.length ? currentCompact : candidateCompact;
+                if (shorterCompact.length >= 4 && longerCompact.startsWith(shorterCompact)) {
+                    best = Math.max(best, 0.93);
+                }
+
+                const leftTokens = new Set(currentKey.split(/\s+/).filter(Boolean));
+                const rightTokens = new Set(candidateKey.split(/\s+/).filter(Boolean));
+                if (leftTokens.size && rightTokens.size) {
+                    let intersection = 0;
+                    leftTokens.forEach(token => { if (rightTokens.has(token)) intersection += 1; });
+                    const containment = intersection / Math.max(1, Math.min(leftTokens.size, rightTokens.size));
+                    const overlap = intersection / Math.max(leftTokens.size, rightTokens.size);
+                    if (containment === 1 && Math.min(leftTokens.size, rightTokens.size) >= 2) best = Math.max(best, 0.91);
+                    else if (containment >= 0.8) best = Math.max(best, 0.84);
+                    else if (overlap >= 0.6) best = Math.max(best, 0.72);
+                }
+
+                if (Math.min(currentCompact.length, candidateCompact.length) >= 4) {
+                    const distance = lyricsDiscogsLevenshteinDistance(currentCompact, candidateCompact);
+                    const maxLength = Math.max(currentCompact.length, candidateCompact.length);
+                    if (distance <= 1) best = Math.max(best, 0.90);
+                    else if (distance <= 2 && maxLength >= 8) best = Math.max(best, 0.78);
+                }
+            }
+        }
+        return best;
     }
 
     function lyricsDiscogsSideFromPosition(position) {
@@ -1363,28 +1478,61 @@
         return match ? match[1] : "";
     }
 
+    function lyricsDiscogsCompositePosition(subTracks) {
+        const positions = (Array.isArray(subTracks) ? subTracks : [])
+            .map(entry => String(entry && entry.position || "").trim().toUpperCase())
+            .filter(Boolean);
+        if (!positions.length) return "";
+
+        const bases = positions.map(position => position.replace(/[-.]?[IVXLCDM]+$/i, ""));
+        const firstBase = bases[0];
+        if (firstBase && bases.every(base => base === firstBase)) return firstBase;
+
+        const sides = positions.map(lyricsDiscogsSideFromPosition).filter(Boolean);
+        if (sides.length && sides.every(side => side === sides[0])) return sides[0];
+        return "";
+    }
+
     function flattenLyricsDiscogsTracklist(tracklist, inheritedSide = "", rows = []) {
         let currentSide = inheritedSide;
         for (const entry of Array.isArray(tracklist) ? tracklist : []) {
             if (!entry || typeof entry !== "object") continue;
-            const position = String(entry.position || "").trim();
-            const detectedSide = lyricsDiscogsSideFromPosition(position);
-            if (detectedSide) currentSide = detectedSide;
+            const rawPosition = String(entry.position || "").trim();
             const title = String(entry.title || "").trim();
+            const duration = String(entry.duration || "").trim();
             const type = String(entry.type || "track").toLowerCase();
             const subTracks = Array.isArray(entry.subTracks) ? entry.subTracks : [];
 
-            if (title && (type === "track" || type === "index")) {
+            if (type === "index") {
+                if (title && duration) {
+                    // A timed Discogs index is the actual composite song; its A-I,
+                    // A-II / B3-I, B3-II children are sections/movements, not songs.
+                    const position = rawPosition || lyricsDiscogsCompositePosition(subTracks);
+                    const side = lyricsDiscogsSideFromPosition(position) || currentSide || inheritedSide;
+                    if (side) currentSide = side;
+                    rows.push({ position, title, duration, side, type });
+                } else if (subTracks.length) {
+                    // An untimed index is only a structural heading (e.g. "Le Sacre
+                    // Du Printemps"). Omit the heading itself and keep its real A/B
+                    // child tracks.
+                    flattenLyricsDiscogsTracklist(subTracks, currentSide || inheritedSide, rows);
+                }
+                continue;
+            }
+
+            const detectedSide = lyricsDiscogsSideFromPosition(rawPosition);
+            if (detectedSide) currentSide = detectedSide;
+            if (title && type === "track") {
                 rows.push({
-                    position,
+                    position: rawPosition,
                     title,
-                    duration: String(entry.duration || "").trim(),
+                    duration,
                     side: detectedSide || currentSide || "",
                     type,
                 });
             }
 
-            if (subTracks.length) {
+            if (subTracks.length && !duration) {
                 flattenLyricsDiscogsTracklist(subTracks, detectedSide || currentSide || inheritedSide, rows);
             }
         }
@@ -1448,7 +1596,7 @@
                 currentRowIndex = index;
             }
         });
-        if (currentRowScore < 0.72) currentRowIndex = -1;
+        if (currentRowScore < 0.55) currentRowIndex = -1;
 
         const collectionAlbum = payload.collectionAlbum || {};
         const releaseArtists = Array.isArray(release.artists) && release.artists.length
