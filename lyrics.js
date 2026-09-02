@@ -31,6 +31,16 @@
     const discogsStatus = document.getElementById("lyrics-discogs-status");
     const discogsReleaseMeta = document.getElementById("lyrics-discogs-release-meta");
     const discogsSides = document.getElementById("lyrics-discogs-sides");
+    const discogsTotalLength = document.getElementById("lyrics-discogs-total-length");
+    const coverPicker = document.getElementById("lyrics-cover-picker");
+    const coverPickerTitle = document.getElementById("lyrics-cover-picker-title");
+    const coverPickerSearch = document.getElementById("lyrics-cover-picker-search");
+    const coverPickerLink = document.getElementById("lyrics-cover-picker-link");
+    const coverPickerLinkButton = document.getElementById("lyrics-cover-picker-link-button");
+    const coverPickerResetDefault = document.getElementById("lyrics-cover-picker-reset-default");
+    const coverPickerClose = document.getElementById("lyrics-cover-picker-close");
+    const coverPickerStatus = document.getElementById("lyrics-cover-picker-status");
+    const coverPickerResults = document.getElementById("lyrics-cover-picker-results");
 
     let lastTrackKey = "";
     let lastGeniusSongId = null;
@@ -51,6 +61,12 @@
     let lastDiscogsAlbumLookupKey = "";
     let lastDiscogsTracklistPayload = null;
     let discogsLookupRequestId = 0;
+    let currentDiscogsRelease = null;
+    let currentDisplayedTrack = null;
+    let lastDefaultArtworkUrl = "";
+    let lastDefaultArtworkTitle = "";
+    let coverPickerLookupToken = 0;
+    let lastMusicBrainzCoverLookupAt = 0;
     let playbackClock = {
         progressMs: 0,
         durationMs: 0,
@@ -61,6 +77,7 @@
     const GENIUS_EMBED_HEIGHT_MESSAGE = "navincitron-genius-embed-height";
     const GENIUS_EMBED_ERROR_MESSAGE = "navincitron-genius-embed-error";
     const GENIUS_EMBED_INTERACTION_MESSAGE = "navincitron-genius-embed-interaction";
+    const LYRICS_LASTFM_API_KEY = "7c87436dbff96020ebb6e3a75cb0f396";
 
     const focusSink = document.createElement("span");
     focusSink.tabIndex = -1;
@@ -1327,6 +1344,374 @@
     }
 
 
+    function setCoverPickerAvailability(release) {
+        const validRelease = release && Number(release.releaseId) > 0 ? release : null;
+        currentDiscogsRelease = validRelease;
+        coverFrame.classList.toggle("editable", Boolean(validRelease));
+        if (validRelease) {
+            coverFrame.setAttribute("role", "button");
+            coverFrame.setAttribute("tabindex", "0");
+            coverFrame.setAttribute("aria-label", "Change album artwork");
+            coverFrame.title = "Click to change this Discogs release artwork.";
+        } else {
+            coverFrame.removeAttribute("role");
+            coverFrame.removeAttribute("tabindex");
+            coverFrame.removeAttribute("aria-label");
+            coverFrame.removeAttribute("title");
+        }
+    }
+
+    function isValidLyricsImageUrl(value) {
+        try {
+            const parsed = new URL(String(value || "").trim());
+            return parsed.protocol === "http:" || parsed.protocol === "https:";
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function lyricsCoverCandidateKey(value) {
+        return String(value || "").trim().replace(/^http:/i, "https:").replace(/[?#].*$/, "").toLowerCase();
+    }
+
+    function dedupeLyricsCoverCandidates(candidates) {
+        const seen = new Set();
+        const unique = [];
+        for (const candidate of Array.isArray(candidates) ? candidates : []) {
+            if (!candidate || !isValidLyricsImageUrl(candidate.imageSrc)) continue;
+            const key = lyricsCoverCandidateKey(candidate.imageSrc);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            unique.push(candidate);
+        }
+        return unique;
+    }
+
+    async function lyricsCoverFetchJson(url, timeoutMs = 12000) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { cache: "force-cache", signal: controller.signal });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
+    }
+
+    function lyricsLastfmImage(images) {
+        const list = Array.isArray(images) ? images : [];
+        for (const size of ["mega", "extralarge", "large", "medium", "small"]) {
+            const item = list.find(image => image && image.size === size && (image["#text"] || image.url));
+            const url = item && (item["#text"] || item.url);
+            if (url && !String(url).includes("2a96cbd8b46e442fc41c2b86b821562f")) return String(url);
+        }
+        for (let index = list.length - 1; index >= 0; index -= 1) {
+            const url = list[index] && (list[index]["#text"] || list[index].url);
+            if (url && !String(url).includes("2a96cbd8b46e442fc41c2b86b821562f")) return String(url);
+        }
+        return "";
+    }
+
+    function lyricsItunesArtwork(url) {
+        return String(url || "")
+            .replace(/\/\d+x\d+bb\.(jpg|png)$/i, "/1000x1000bb.$1")
+            .replace(/\/\d+x\d+bb-/i, "/1000x1000bb-");
+    }
+
+    function lyricsCoverSearchIdentity() {
+        const release = currentDiscogsRelease || {};
+        const artists = Array.isArray(release.artists) ? release.artists.filter(Boolean) : [];
+        return {
+            title: String(release.title || currentDisplayedTrack && currentDisplayedTrack.album || "").trim(),
+            artist: String(artists[0] || currentDisplayedTrack && currentDisplayedTrack.artist || "").trim(),
+            year: Number(release.year) || null,
+        };
+    }
+
+    async function resolveLyricsLastfmCoverCandidates(entry) {
+        if (!LYRICS_LASTFM_API_KEY || !entry.title) return [];
+        const candidates = [];
+        if (entry.artist) {
+            try {
+                const url = new URL("https://ws.audioscrobbler.com/2.0/");
+                url.searchParams.set("method", "album.getinfo");
+                url.searchParams.set("artist", entry.artist);
+                url.searchParams.set("album", entry.title);
+                url.searchParams.set("api_key", LYRICS_LASTFM_API_KEY);
+                url.searchParams.set("format", "json");
+                const data = await lyricsCoverFetchJson(url.href);
+                const album = data && data.album;
+                const imageSrc = album ? lyricsLastfmImage(album.image) : "";
+                if (imageSrc) {
+                    candidates.push({
+                        title: album.name || entry.title,
+                        artist: album.artist || entry.artist,
+                        imageSrc,
+                        href: album.url || "",
+                        source: "Last.fm",
+                    });
+                }
+            } catch (error) {
+                // album.search below can still return useful choices.
+            }
+        }
+
+        const searchUrl = new URL("https://ws.audioscrobbler.com/2.0/");
+        searchUrl.searchParams.set("method", "album.search");
+        searchUrl.searchParams.set("album", `${entry.artist ? `${entry.artist} ` : ""}${entry.title}`.trim());
+        searchUrl.searchParams.set("api_key", LYRICS_LASTFM_API_KEY);
+        searchUrl.searchParams.set("format", "json");
+        searchUrl.searchParams.set("limit", "20");
+        const data = await lyricsCoverFetchJson(searchUrl.href);
+        const albums = data && data.results && data.results.albummatches && Array.isArray(data.results.albummatches.album)
+            ? data.results.albummatches.album
+            : [];
+        albums.forEach(album => {
+            const imageSrc = lyricsLastfmImage(album && album.image);
+            if (!imageSrc) return;
+            candidates.push({
+                title: album.name || entry.title,
+                artist: album.artist || entry.artist,
+                imageSrc,
+                href: album.url || "",
+                source: "Last.fm",
+            });
+        });
+        return candidates;
+    }
+
+    async function resolveLyricsItunesCoverCandidates(entry) {
+        if (!entry.title) return [];
+        const searchTerm = `${entry.artist ? `${entry.artist} ` : ""}${entry.title}${entry.year ? ` ${entry.year}` : ""}`.trim();
+        const data = await lyricsCoverFetchJson(`https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=album&limit=20`);
+        return (Array.isArray(data && data.results) ? data.results : [])
+            .filter(result => result && result.artworkUrl100)
+            .map(result => ({
+                title: result.collectionName || entry.title,
+                artist: result.artistName || entry.artist,
+                imageSrc: lyricsItunesArtwork(result.artworkUrl100),
+                href: result.collectionViewUrl || "",
+                source: "iTunes",
+            }));
+    }
+
+    async function resolveLyricsMusicBrainzCoverCandidates(entry) {
+        if (!entry.title) return [];
+        const escapedTitle = entry.title.replace(/"/g, '\\"');
+        const escapedArtist = entry.artist.replace(/"/g, '\\"');
+        const query = [`releasegroup:"${escapedTitle}"`];
+        if (escapedArtist) query.push(`artist:"${escapedArtist}"`);
+        const elapsed = Date.now() - lastMusicBrainzCoverLookupAt;
+        if (elapsed < 1100) await new Promise(resolve => window.setTimeout(resolve, 1100 - elapsed));
+        lastMusicBrainzCoverLookupAt = Date.now();
+        const data = await lyricsCoverFetchJson(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(query.join(" AND "))}&fmt=json&limit=10`, 15000);
+        const groups = Array.isArray(data && data["release-groups"]) ? data["release-groups"] : [];
+        const candidates = [];
+        for (const group of groups.slice(0, 8)) {
+            if (!group || !group.id) continue;
+            try {
+                const coverData = await lyricsCoverFetchJson(`https://coverartarchive.org/release-group/${encodeURIComponent(group.id)}`, 12000);
+                const images = Array.isArray(coverData && coverData.images) ? coverData.images : [];
+                const front = images.find(image => image && image.front) || images[0];
+                if (!front) continue;
+                const thumbnails = front.thumbnails || {};
+                const imageSrc = thumbnails["1200"] || thumbnails.large || thumbnails["500"] || thumbnails["250"] || thumbnails.small || front.image || "";
+                if (!imageSrc) continue;
+                const credit = Array.isArray(group["artist-credit"]) && group["artist-credit"][0]
+                    ? (group["artist-credit"][0].name || group["artist-credit"][0].artist && group["artist-credit"][0].artist.name || "")
+                    : "";
+                candidates.push({
+                    title: group.title || entry.title,
+                    artist: credit || entry.artist,
+                    imageSrc,
+                    href: `https://musicbrainz.org/release-group/${group.id}`,
+                    source: "MusicBrainz/CAA",
+                });
+            } catch (error) {
+                // Some release groups do not have Cover Art Archive images.
+            }
+        }
+        return candidates;
+    }
+
+    async function resolveLyricsInternetArchiveCoverCandidates(entry) {
+        if (!entry.title) return [];
+        const url = new URL("https://archive.org/advancedsearch.php");
+        const safeTitle = entry.title.replace(/"/g, "");
+        const safeArtist = entry.artist.replace(/"/g, "");
+        const queryParts = [`title:("${safeTitle}")`, "mediatype:(audio)"];
+        if (safeArtist) queryParts.push(`creator:("${safeArtist}")`);
+        url.searchParams.set("q", queryParts.join(" AND "));
+        url.searchParams.append("fl[]", "identifier");
+        url.searchParams.append("fl[]", "title");
+        url.searchParams.append("fl[]", "creator");
+        url.searchParams.set("rows", "20");
+        url.searchParams.set("page", "1");
+        url.searchParams.set("output", "json");
+        const data = await lyricsCoverFetchJson(url.href);
+        const docs = data && data.response && Array.isArray(data.response.docs) ? data.response.docs : [];
+        return docs.filter(doc => doc && doc.identifier).map(doc => ({
+            title: doc.title || entry.title,
+            artist: Array.isArray(doc.creator) ? doc.creator.join(", ") : (doc.creator || entry.artist),
+            imageSrc: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`,
+            href: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`,
+            source: "Internet Archive",
+        }));
+    }
+
+    async function resolveLyricsManualCoverCandidates() {
+        const entry = lyricsCoverSearchIdentity();
+        const groups = await Promise.all([
+            resolveLyricsLastfmCoverCandidates(entry).catch(() => []),
+            resolveLyricsItunesCoverCandidates(entry).catch(() => []),
+            resolveLyricsMusicBrainzCoverCandidates(entry).catch(() => []),
+            resolveLyricsInternetArchiveCoverCandidates(entry).catch(() => []),
+        ]);
+        return dedupeLyricsCoverCandidates(groups.flat()).slice(0, 50);
+    }
+
+    function renderLyricsCoverPickerCandidates(candidates) {
+        coverPickerResults.replaceChildren();
+        candidates.forEach(candidate => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "topster-cover-choice";
+            button.title = `${candidate.source || "Cover"}: ${candidate.artist ? `${candidate.artist} - ` : ""}${candidate.title || ""}`;
+
+            const img = document.createElement("img");
+            img.src = candidate.imageSrc;
+            img.alt = candidate.title || "Album cover option";
+            img.loading = "lazy";
+            img.onerror = () => button.remove();
+
+            const label = document.createElement("span");
+            label.textContent = `${candidate.source || "Source"}${candidate.title ? ` · ${candidate.title}` : ""}`;
+            button.append(img, label);
+            button.addEventListener("click", () => saveLyricsDiscogsCover(candidate));
+            coverPickerResults.appendChild(button);
+        });
+    }
+
+    async function loadLyricsCoverPickerResults() {
+        if (!coverPicker || coverPicker.hidden || !currentDiscogsRelease || !coverPickerResults || !coverPickerStatus) return;
+        const token = ++coverPickerLookupToken;
+        coverPickerResults.replaceChildren();
+        const entry = lyricsCoverSearchIdentity();
+        coverPickerStatus.textContent = `Searching all available cover sources for ${entry.artist ? `${entry.artist} - ` : ""}${entry.title}...`;
+        try {
+            const candidates = await resolveLyricsManualCoverCandidates();
+            if (token !== coverPickerLookupToken) return;
+            renderLyricsCoverPickerCandidates(candidates);
+            coverPickerStatus.textContent = candidates.length
+                ? `Select one of ${candidates.length} cover results, or paste an Image Link above.`
+                : "No cover results were found. Paste an Image Link above to set one manually.";
+        } catch (error) {
+            if (token !== coverPickerLookupToken) return;
+            coverPickerStatus.textContent = "Cover search failed. Paste an Image Link above to set the cover manually.";
+        }
+    }
+
+    function openLyricsCoverPicker() {
+        if (!coverPicker || !currentDiscogsRelease || !Number(currentDiscogsRelease.releaseId)) return;
+        coverPickerLookupToken += 1;
+        coverPicker.hidden = false;
+        const entry = lyricsCoverSearchIdentity();
+        coverPickerTitle.textContent = `Select cover: ${entry.artist ? `${entry.artist} - ` : ""}${entry.title}`;
+        coverPickerResults.replaceChildren();
+        coverPickerStatus.textContent = "Searching all available cover sources...";
+        coverPickerLink.value = "";
+        loadLyricsCoverPickerResults();
+    }
+
+    function closeLyricsCoverPicker() {
+        coverPickerLookupToken += 1;
+        if (coverPicker) coverPicker.hidden = true;
+    }
+
+    async function saveLyricsDiscogsCover(candidate) {
+        if (!currentDiscogsRelease || !Number(currentDiscogsRelease.releaseId) || !candidate || !isValidLyricsImageUrl(candidate.imageSrc)) return;
+        coverPickerStatus.textContent = "Saving cover...";
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/discogs-cover`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({
+                    releaseId: Number(currentDiscogsRelease.releaseId),
+                    imageUrl: candidate.imageSrc,
+                    source: candidate.source || "Manual",
+                    href: candidate.href || "",
+                }),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.ok !== true) throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
+            if (lastDiscogsTracklistPayload && Number(lastDiscogsTracklistPayload.release && lastDiscogsTracklistPayload.release.releaseId) === Number(currentDiscogsRelease.releaseId)) {
+                lastDiscogsTracklistPayload.coverOverride = payload.coverOverride || null;
+            }
+            setArtwork(payload.coverOverride && payload.coverOverride.imageUrl ? payload.coverOverride.imageUrl : candidate.imageSrc, lastDefaultArtworkTitle);
+            closeLyricsCoverPicker();
+        } catch (error) {
+            coverPickerStatus.textContent = `Could not save cover: ${error.message || error}`;
+        }
+    }
+
+    function useLyricsManualImageLink() {
+        const imageSrc = String(coverPickerLink && coverPickerLink.value || "").trim();
+        if (!isValidLyricsImageUrl(imageSrc)) {
+            coverPickerStatus.textContent = "Enter a valid http:// or https:// image link.";
+            return;
+        }
+        saveLyricsDiscogsCover({ imageSrc, href: imageSrc, source: "Image Link", title: lyricsCoverSearchIdentity().title });
+    }
+
+    async function resetLyricsDiscogsCover() {
+        if (!currentDiscogsRelease || !Number(currentDiscogsRelease.releaseId)) return;
+        coverPickerStatus.textContent = "Resetting cover...";
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/discogs-cover`, {
+                method: "DELETE",
+                credentials: "include",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({ releaseId: Number(currentDiscogsRelease.releaseId), reset: true }),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.ok !== true) throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
+            if (lastDiscogsTracklistPayload && Number(lastDiscogsTracklistPayload.release && lastDiscogsTracklistPayload.release.releaseId) === Number(currentDiscogsRelease.releaseId)) {
+                lastDiscogsTracklistPayload.coverOverride = null;
+            }
+            setArtwork(lastDefaultArtworkUrl, lastDefaultArtworkTitle);
+            closeLyricsCoverPicker();
+        } catch (error) {
+            coverPickerStatus.textContent = `Could not reset cover: ${error.message || error}`;
+        }
+    }
+
+    if (coverPicker && coverPickerClose && coverPickerSearch && coverPickerLink && coverPickerLinkButton && coverPickerResetDefault) {
+        coverPickerClose.addEventListener("click", closeLyricsCoverPicker);
+        coverPickerSearch.addEventListener("click", loadLyricsCoverPickerResults);
+        coverPickerLinkButton.addEventListener("click", useLyricsManualImageLink);
+        coverPickerResetDefault.addEventListener("click", resetLyricsDiscogsCover);
+        coverPickerLink.addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                useLyricsManualImageLink();
+            }
+        });
+        coverPicker.addEventListener("click", event => {
+            if (event.target === coverPicker) closeLyricsCoverPicker();
+        });
+        coverFrame.addEventListener("click", openLyricsCoverPicker);
+        coverFrame.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openLyricsCoverPicker();
+            }
+        });
+    }
+
     function setDiscogsStatus(message, type = "") {
         discogsStatus.textContent = message;
         discogsStatus.classList.toggle("error", type === "error");
@@ -1341,6 +1726,9 @@
         discogsSides.replaceChildren();
         discogsReleaseMeta.replaceChildren();
         discogsReleaseMeta.hidden = true;
+        discogsTotalLength.textContent = "";
+        discogsTotalLength.hidden = true;
+        setCoverPickerAvailability(null);
         setDiscogsStatus("Waiting for a currently playing album.");
         if (options.hide !== false) discogsCard.classList.add("lyrics-hidden");
     }
@@ -1553,11 +1941,32 @@
         return Array.from(new Set(labels)).join(" · ");
     }
 
+    function lyricsDiscogsDurationSeconds(value) {
+        const text = String(value || "").trim();
+        if (!text) return null;
+        const parts = text.split(":");
+        if (parts.length < 2 || parts.length > 3 || parts.some(part => !/^\d+$/.test(part))) return null;
+        const numbers = parts.map(Number);
+        if (numbers.some(number => !Number.isFinite(number) || number < 0)) return null;
+        if (parts.length === 2) return numbers[0] * 60 + numbers[1];
+        return numbers[0] * 3600 + numbers[1] * 60 + numbers[2];
+    }
+
+    function lyricsDiscogsFormatDurationSeconds(seconds) {
+        const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+        const minutes = Math.floor(safeSeconds / 60);
+        const remainder = safeSeconds % 60;
+        return `${minutes}:${String(remainder).padStart(2, "0")}`;
+    }
+
     function renderLyricsDiscogsTracklist(payload, currentTrackTitle = "") {
         discogsCard.classList.remove("lyrics-hidden");
         discogsSides.replaceChildren();
         discogsReleaseMeta.replaceChildren();
         discogsReleaseMeta.hidden = true;
+        discogsTotalLength.textContent = "";
+        discogsTotalLength.hidden = true;
+        setCoverPickerAvailability(null);
 
         if (!payload || payload.noCollectionMatch) {
             setDiscogsStatus("Album not owned.");
@@ -1581,6 +1990,9 @@
         }
 
         const release = payload.release;
+        setCoverPickerAvailability(release);
+        const overrideUrl = payload.coverOverride && payload.coverOverride.imageUrl ? String(payload.coverOverride.imageUrl) : "";
+        if (overrideUrl) setArtwork(overrideUrl, lastDefaultArtworkTitle || release.title);
         const rows = flattenLyricsDiscogsTracklist(release.tracklist || []);
         if (!rows.length) {
             setDiscogsStatus("The owned Discogs vinyl release does not have a tracklist in the Discogs response.");
@@ -1663,8 +2075,22 @@
                 trackRow.append(position, title, duration);
                 side.appendChild(trackRow);
             });
+
+            const sideDurations = groupRows.map(row => lyricsDiscogsDurationSeconds(row.duration));
+            if (sideDurations.length && sideDurations.every(value => value !== null)) {
+                const sideLength = document.createElement("div");
+                sideLength.className = "lyrics-discogs-side-length";
+                sideLength.textContent = `Length: ${lyricsDiscogsFormatDurationSeconds(sideDurations.reduce((sum, value) => sum + value, 0))}`;
+                side.appendChild(sideLength);
+            }
             discogsSides.appendChild(side);
         });
+
+        const allDurations = rows.map(row => lyricsDiscogsDurationSeconds(row.duration));
+        if (allDurations.length && allDurations.every(value => value !== null)) {
+            discogsTotalLength.textContent = `Total Length: ${lyricsDiscogsFormatDurationSeconds(allDurations.reduce((sum, value) => sum + value, 0))}`;
+            discogsTotalLength.hidden = false;
+        }
     }
 
     async function updateLyricsDiscogsTracklist(track, options = {}) {
@@ -1692,7 +2118,10 @@
         discogsSides.replaceChildren();
         discogsReleaseMeta.replaceChildren();
         discogsReleaseMeta.hidden = true;
-        setDiscogsStatus(`Looking up ${albumArtist ? `${albumArtist} - ` : ""}${albumTitle} in the NNavincitron Discogs collection…`);
+        discogsTotalLength.textContent = "";
+        discogsTotalLength.hidden = true;
+        setCoverPickerAvailability(null);
+        setDiscogsStatus("Searching for release...");
 
         const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded();
         if (requestId !== discogsLookupRequestId) return;
@@ -1834,6 +2263,9 @@
         songCard.classList.remove("lyrics-hidden");
         embedCard.classList.add("lyrics-hidden");
         clearArtwork();
+        currentDisplayedTrack = null;
+        lastDefaultArtworkUrl = "";
+        lastDefaultArtworkTitle = "";
         clearEmbed();
         resetDiscogsTracklist({ hide: true });
         songTitle.textContent = "No song currently playing";
@@ -2182,7 +2614,14 @@
         const geniusArtworkFallback = track.isLocal
             ? ""
             : (geniusSong && (geniusSong.thumbnailUrl || geniusSong.imageUrl));
-        setArtwork(track.coverUrl || geniusArtworkFallback, track.album || track.title);
+        currentDisplayedTrack = track;
+        lastDefaultArtworkUrl = track.coverUrl || geniusArtworkFallback || "";
+        lastDefaultArtworkTitle = track.album || track.title || "";
+        const artworkLookupKey = `${normalizeAlbumIdentityKey(lyricsDiscogsAlbumArtist(track))}::${normalizeAlbumIdentityKey(track.album || "")}::${normalizeAlbumIdentityKey(track.title || "")}`;
+        const cachedOverrideUrl = artworkLookupKey === lastDiscogsAlbumLookupKey && lastDiscogsTracklistPayload && lastDiscogsTracklistPayload.coverOverride
+            ? String(lastDiscogsTracklistPayload.coverOverride.imageUrl || "")
+            : "";
+        setArtwork(cachedOverrideUrl || lastDefaultArtworkUrl, lastDefaultArtworkTitle);
         updateLyricsDiscogsTracklist(track);
 
         if (!geniusSong) {

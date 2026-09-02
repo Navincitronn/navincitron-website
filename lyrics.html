@@ -141,6 +141,17 @@
             display: none;
         }
 
+        .lyrics-cover-frame.editable {
+            cursor: pointer;
+            outline: 2px solid transparent;
+            outline-offset: 3px;
+        }
+
+        .lyrics-cover-frame.editable:hover,
+        .lyrics-cover-frame.editable:focus {
+            outline-color: #40bcf4;
+        }
+
         .lyrics-song-title {
             color: #ffffff;
             font-size: 30px;
@@ -345,7 +356,9 @@
 
         .lyrics-discogs-track {
             align-items: baseline;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.16);
             border-radius: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.16);
             display: grid;
             gap: 8px;
             grid-template-columns: minmax(38px, auto) minmax(0, 1fr) auto;
@@ -375,6 +388,22 @@
             color: #aaaaaa;
             font-size: 12px;
             white-space: nowrap;
+        }
+
+        .lyrics-discogs-side-length {
+            color: #dddddd;
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 10px;
+            text-align: right;
+        }
+
+        .lyrics-discogs-total-length {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 16px;
+            text-align: right;
         }
 
         .lyrics-hidden {
@@ -514,7 +543,28 @@
                 <p id="lyrics-discogs-status" class="lyrics-discogs-status">Waiting for a currently playing album.</p>
                 <div id="lyrics-discogs-release-meta" class="lyrics-discogs-release-meta" hidden></div>
                 <div id="lyrics-discogs-sides" class="lyrics-discogs-sides"></div>
+                <div id="lyrics-discogs-total-length" class="lyrics-discogs-total-length" hidden></div>
             </section>
+
+            <div class="topster-cover-picker" id="lyrics-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-cover-picker-title">
+                <div class="topster-cover-picker-card">
+                    <div class="topster-cover-picker-header">
+                        <h3 id="lyrics-cover-picker-title">Select album cover</h3>
+                        <button type="button" id="lyrics-cover-picker-close" class="secondary-button">Close</button>
+                    </div>
+
+                    <div class="topster-cover-picker-controls">
+                        <label for="lyrics-cover-picker-link">Image Link</label>
+                        <input type="url" id="lyrics-cover-picker-link" placeholder="Paste an image URL, then select Use Image Link">
+                        <button type="button" id="lyrics-cover-picker-link-button" class="secondary-button">Use Image Link</button>
+                        <button type="button" id="lyrics-cover-picker-search">Refresh Results</button>
+                        <button type="button" id="lyrics-cover-picker-reset-default" class="secondary-button">Reset to Default</button>
+                    </div>
+
+                    <p class="topster-cover-picker-status" id="lyrics-cover-picker-status"></p>
+                    <div class="topster-cover-picker-results" id="lyrics-cover-picker-results"></div>
+                </div>
+            </div>
         </section>
     </main>
 
@@ -552,6 +602,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260902-discogs-album-song-tracklist-v3"></script>
+    <script src="lyrics.js?v=20260902-tracklist-length-cover-picker-v4"></script>
 </body>
 </html>
