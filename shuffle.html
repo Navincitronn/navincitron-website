@@ -150,6 +150,17 @@
             width: 300px;
         }
 
+        .shuffle-cover-frame.editable {
+            cursor: pointer;
+            outline: 2px solid transparent;
+            outline-offset: 3px;
+        }
+
+        .shuffle-cover-frame.editable:hover,
+        .shuffle-cover-frame.editable:focus {
+            outline-color: #ff8000;
+        }
+
         .shuffle-cover-image {
             height: 300px;
             object-fit: cover;
@@ -489,6 +500,26 @@
                 </div>
             </div>
 
+            <div class="topster-cover-picker" id="shuffle-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="shuffle-cover-picker-title">
+                <div class="topster-cover-picker-card">
+                    <div class="topster-cover-picker-header">
+                        <h3 id="shuffle-cover-picker-title">Select album cover</h3>
+                        <button type="button" id="shuffle-cover-picker-close" class="secondary-button">Close</button>
+                    </div>
+
+                    <div class="topster-cover-picker-controls">
+                        <label for="shuffle-cover-picker-link">Image Link</label>
+                        <input type="url" id="shuffle-cover-picker-link" placeholder="Paste an image URL, then select Use Image Link">
+                        <button type="button" id="shuffle-cover-picker-link-button" class="secondary-button">Use Image Link</button>
+                        <button type="button" id="shuffle-cover-picker-search">Refresh Results</button>
+                        <button type="button" id="shuffle-cover-picker-reset-default" class="secondary-button">Reset to Default</button>
+                    </div>
+
+                    <p class="topster-cover-picker-status" id="shuffle-cover-picker-status"></p>
+                    <div class="topster-cover-picker-results" id="shuffle-cover-picker-results"></div>
+                </div>
+            </div>
+
             <div id="songguesser-panel" class="songguesser-panel" hidden>
                 <p id="songguesser-progress" class="songguesser-progress">Song 0 / 5</p>
                 <p id="songguesser-timer" class="songguesser-timer">30</p>
@@ -520,6 +551,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20260828-songguesser-local-cover-hints"></script>
+    <script src="shuffle.js?v=20260902-shared-manual-cover-v5"></script>
 </body>
 </html>

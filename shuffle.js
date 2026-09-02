@@ -31,6 +31,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const coverImage = document.getElementById("current-cover-image");
     const coverFrame = document.getElementById("current-cover-frame");
     const currentTrackTitle = document.getElementById("current-track-title");
+    const coverPicker = document.getElementById("shuffle-cover-picker");
+    const coverPickerTitle = document.getElementById("shuffle-cover-picker-title");
+    const coverPickerSearch = document.getElementById("shuffle-cover-picker-search");
+    const coverPickerLink = document.getElementById("shuffle-cover-picker-link");
+    const coverPickerLinkButton = document.getElementById("shuffle-cover-picker-link-button");
+    const coverPickerResetDefault = document.getElementById("shuffle-cover-picker-reset-default");
+    const coverPickerClose = document.getElementById("shuffle-cover-picker-close");
+    const coverPickerStatus = document.getElementById("shuffle-cover-picker-status");
+    const coverPickerResults = document.getElementById("shuffle-cover-picker-results");
     const spotifyLoginButton = document.getElementById("spotify-login");
     const spotifyAuthStatus = document.getElementById("spotify-auth-status");
     const fileSourceOptions = document.getElementById("file-source-options");
@@ -62,6 +71,17 @@ document.addEventListener("DOMContentLoaded", () => {
     let songguesserRoundResults = [];
     let songguesserTimerInterval = null;
     let songguesserNextTimeout = null;
+    let samplerPaused = false;
+    let songguesserPaused = false;
+    let currentCoverIdentity = null;
+    let currentDefaultCoverUrl = "";
+    let currentManualCoverOverride = null;
+    let coverPickerLookupToken = 0;
+    let lastMusicBrainzCoverLookupAt = 0;
+    let songguesserCountdownDeadlineMs = 0;
+    let songguesserCountdownRemainingMs = 0;
+    let songguesserCountdownAction = null;
+    const SHUFFLE_LASTFM_API_KEY = "7c87436dbff96020ebb6e3a75cb0f396";
 
     function selectedClipMode() {
         const checked = document.querySelector('input[name="clip-mode"]:checked');
@@ -110,7 +130,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (samplerTransportControls) {
-            samplerTransportControls.hidden = guessing;
+            // Keep Pause/Play available in Songguesser so artwork can be edited
+            // only after playback has deliberately been paused.
+            samplerTransportControls.hidden = false;
         }
 
         if (songguesserPanel && !guessing) {
@@ -193,33 +215,422 @@ document.addEventListener("DOMContentLoaded", () => {
         samplerLog.scrollTop = samplerLog.scrollHeight;
     }
 
+    function currentShufflePlaybackPaused() {
+        return songguesserEnabled() ? songguesserPaused : samplerPaused;
+    }
+
+    function setShuffleCoverPickerAvailability() {
+        if (!coverFrame) return;
+        const identity = currentCoverIdentity || {};
+        const validIdentity = Boolean(
+            identity.artist && identity.album
+            && !/^unknown artist$/i.test(identity.artist)
+            && !/^unknown album$/i.test(identity.album)
+        );
+        const editable = Boolean(validIdentity && currentShufflePlaybackPaused() && coverImage && !coverImage.classList.contains("empty-cover"));
+        coverFrame.classList.toggle("editable", editable);
+        if (editable) {
+            coverFrame.setAttribute("role", "button");
+            coverFrame.setAttribute("tabindex", "0");
+            coverFrame.setAttribute("aria-label", "Change album artwork");
+            coverFrame.title = "Playback is paused. Click to change this album artwork.";
+        } else {
+            coverFrame.removeAttribute("role");
+            coverFrame.removeAttribute("tabindex");
+            coverFrame.removeAttribute("aria-label");
+            if (validIdentity && coverImage && !coverImage.classList.contains("empty-cover")) {
+                coverFrame.title = "Pause playback to change this album artwork.";
+            } else {
+                coverFrame.removeAttribute("title");
+            }
+        }
+    }
+
     function setCoverPlaceholder() {
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
         coverImage.removeAttribute("src");
         coverImage.classList.add("empty-cover");
         coverFrame.classList.add("cover-frame-empty", "songguesser-placeholder");
         currentTrackTitle.textContent = "Songguesser";
+        currentCoverIdentity = null;
+        currentDefaultCoverUrl = "";
+        currentManualCoverOverride = null;
+        setShuffleCoverPickerAvailability();
     }
 
+    function isValidShuffleImageUrl(value) {
+        try {
+            const parsed = new URL(String(value || "").trim());
+            return parsed.protocol === "http:" || parsed.protocol === "https:";
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function shuffleCoverCandidateKey(value) {
+        return String(value || "").trim().replace(/^http:/i, "https:").replace(/[?#].*$/, "").toLowerCase();
+    }
+
+    function dedupeShuffleCoverCandidates(candidates) {
+        const seen = new Set();
+        const unique = [];
+        for (const candidate of Array.isArray(candidates) ? candidates : []) {
+            if (!candidate || !isValidShuffleImageUrl(candidate.imageSrc)) continue;
+            const key = shuffleCoverCandidateKey(candidate.imageSrc);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            unique.push(candidate);
+        }
+        return unique;
+    }
+
+    async function shuffleCoverFetchJson(url, timeoutMs = 12000) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { cache: "force-cache", signal: controller.signal });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
+    }
+
+    function shuffleLastfmImage(images) {
+        const list = Array.isArray(images) ? images : [];
+        for (const size of ["mega", "extralarge", "large", "medium", "small"]) {
+            const item = list.find(image => image && image.size === size && (image["#text"] || image.url));
+            const url = item && (item["#text"] || item.url);
+            if (url && !String(url).includes("2a96cbd8b46e442fc41c2b86b821562f")) return String(url);
+        }
+        for (let index = list.length - 1; index >= 0; index -= 1) {
+            const url = list[index] && (list[index]["#text"] || list[index].url);
+            if (url && !String(url).includes("2a96cbd8b46e442fc41c2b86b821562f")) return String(url);
+        }
+        return "";
+    }
+
+    function shuffleItunesArtwork(url) {
+        return String(url || "")
+            .replace(/\/\d+x\d+bb\.(jpg|png)$/i, "/1000x1000bb.$1")
+            .replace(/\/\d+x\d+bb-/i, "/1000x1000bb-");
+    }
+
+    function shuffleCoverSearchIdentity() {
+        const identity = currentCoverIdentity || {};
+        return {
+            title: String(identity.album || "").trim(),
+            artist: String(identity.artist || "").trim(),
+            year: Number(identity.year) || null,
+        };
+    }
+
+    async function resolveShuffleLastfmCoverCandidates(entry) {
+        if (!SHUFFLE_LASTFM_API_KEY || !entry.title) return [];
+        const candidates = [];
+        if (entry.artist) {
+            try {
+                const url = new URL("https://ws.audioscrobbler.com/2.0/");
+                url.searchParams.set("method", "album.getinfo");
+                url.searchParams.set("artist", entry.artist);
+                url.searchParams.set("album", entry.title);
+                url.searchParams.set("api_key", SHUFFLE_LASTFM_API_KEY);
+                url.searchParams.set("format", "json");
+                const data = await shuffleCoverFetchJson(url.href);
+                const album = data && data.album;
+                const imageSrc = album ? shuffleLastfmImage(album.image) : "";
+                if (imageSrc) {
+                    candidates.push({
+                        title: album.name || entry.title,
+                        artist: album.artist || entry.artist,
+                        imageSrc,
+                        href: album.url || "",
+                        source: "Last.fm",
+                    });
+                }
+            } catch (error) {
+                // album.search below can still return useful choices.
+            }
+        }
+
+        const searchUrl = new URL("https://ws.audioscrobbler.com/2.0/");
+        searchUrl.searchParams.set("method", "album.search");
+        searchUrl.searchParams.set("album", `${entry.artist ? `${entry.artist} ` : ""}${entry.title}`.trim());
+        searchUrl.searchParams.set("api_key", SHUFFLE_LASTFM_API_KEY);
+        searchUrl.searchParams.set("format", "json");
+        searchUrl.searchParams.set("limit", "20");
+        const data = await shuffleCoverFetchJson(searchUrl.href);
+        const albums = data && data.results && data.results.albummatches && Array.isArray(data.results.albummatches.album)
+            ? data.results.albummatches.album
+            : [];
+        albums.forEach(album => {
+            const imageSrc = shuffleLastfmImage(album && album.image);
+            if (!imageSrc) return;
+            candidates.push({
+                title: album.name || entry.title,
+                artist: album.artist || entry.artist,
+                imageSrc,
+                href: album.url || "",
+                source: "Last.fm",
+            });
+        });
+        return candidates;
+    }
+
+    async function resolveShuffleItunesCoverCandidates(entry) {
+        if (!entry.title) return [];
+        const searchTerm = `${entry.artist ? `${entry.artist} ` : ""}${entry.title}${entry.year ? ` ${entry.year}` : ""}`.trim();
+        const data = await shuffleCoverFetchJson(`https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=album&limit=20`);
+        return (Array.isArray(data && data.results) ? data.results : [])
+            .filter(result => result && result.artworkUrl100)
+            .map(result => ({
+                title: result.collectionName || entry.title,
+                artist: result.artistName || entry.artist,
+                imageSrc: shuffleItunesArtwork(result.artworkUrl100),
+                href: result.collectionViewUrl || "",
+                source: "iTunes",
+            }));
+    }
+
+    async function resolveShuffleMusicBrainzCoverCandidates(entry) {
+        if (!entry.title) return [];
+        const escapedTitle = entry.title.replace(/"/g, '\\"');
+        const escapedArtist = entry.artist.replace(/"/g, '\\"');
+        const query = [`releasegroup:"${escapedTitle}"`];
+        if (escapedArtist) query.push(`artist:"${escapedArtist}"`);
+        const elapsed = Date.now() - lastMusicBrainzCoverLookupAt;
+        if (elapsed < 1100) await new Promise(resolve => window.setTimeout(resolve, 1100 - elapsed));
+        lastMusicBrainzCoverLookupAt = Date.now();
+        const data = await shuffleCoverFetchJson(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(query.join(" AND "))}&fmt=json&limit=10`, 15000);
+        const groups = Array.isArray(data && data["release-groups"]) ? data["release-groups"] : [];
+        const candidates = [];
+        for (const group of groups.slice(0, 8)) {
+            if (!group || !group.id) continue;
+            try {
+                const coverData = await shuffleCoverFetchJson(`https://coverartarchive.org/release-group/${encodeURIComponent(group.id)}`, 12000);
+                const images = Array.isArray(coverData && coverData.images) ? coverData.images : [];
+                const front = images.find(image => image && image.front) || images[0];
+                if (!front) continue;
+                const thumbnails = front.thumbnails || {};
+                const imageSrc = thumbnails["1200"] || thumbnails.large || thumbnails["500"] || thumbnails["250"] || thumbnails.small || front.image || "";
+                if (!imageSrc) continue;
+                const credit = Array.isArray(group["artist-credit"]) && group["artist-credit"][0]
+                    ? (group["artist-credit"][0].name || group["artist-credit"][0].artist && group["artist-credit"][0].artist.name || "")
+                    : "";
+                candidates.push({
+                    title: group.title || entry.title,
+                    artist: credit || entry.artist,
+                    imageSrc,
+                    href: `https://musicbrainz.org/release-group/${group.id}`,
+                    source: "MusicBrainz/CAA",
+                });
+            } catch (error) {
+                // Some release groups do not have Cover Art Archive images.
+            }
+        }
+        return candidates;
+    }
+
+    async function resolveShuffleInternetArchiveCoverCandidates(entry) {
+        if (!entry.title) return [];
+        const url = new URL("https://archive.org/advancedsearch.php");
+        const safeTitle = entry.title.replace(/"/g, "");
+        const safeArtist = entry.artist.replace(/"/g, "");
+        const queryParts = [`title:("${safeTitle}")`, "mediatype:(audio)"];
+        if (safeArtist) queryParts.push(`creator:("${safeArtist}")`);
+        url.searchParams.set("q", queryParts.join(" AND "));
+        url.searchParams.append("fl[]", "identifier");
+        url.searchParams.append("fl[]", "title");
+        url.searchParams.append("fl[]", "creator");
+        url.searchParams.set("rows", "20");
+        url.searchParams.set("page", "1");
+        url.searchParams.set("output", "json");
+        const data = await shuffleCoverFetchJson(url.href);
+        const docs = data && data.response && Array.isArray(data.response.docs) ? data.response.docs : [];
+        return docs.filter(doc => doc && doc.identifier).map(doc => ({
+            title: doc.title || entry.title,
+            artist: Array.isArray(doc.creator) ? doc.creator.join(", ") : (doc.creator || entry.artist),
+            imageSrc: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`,
+            href: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`,
+            source: "Internet Archive",
+        }));
+    }
+
+    async function resolveShuffleManualCoverCandidates() {
+        const entry = shuffleCoverSearchIdentity();
+        const groups = await Promise.all([
+            resolveShuffleLastfmCoverCandidates(entry).catch(() => []),
+            resolveShuffleItunesCoverCandidates(entry).catch(() => []),
+            resolveShuffleMusicBrainzCoverCandidates(entry).catch(() => []),
+            resolveShuffleInternetArchiveCoverCandidates(entry).catch(() => []),
+        ]);
+        return dedupeShuffleCoverCandidates(groups.flat()).slice(0, 50);
+    }
+
+    function renderShuffleCoverPickerCandidates(candidates) {
+        if (!coverPickerResults) return;
+        coverPickerResults.replaceChildren();
+        candidates.forEach(candidate => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "topster-cover-choice";
+            button.title = `${candidate.source || "Cover"}: ${candidate.artist ? `${candidate.artist} - ` : ""}${candidate.title || ""}`;
+
+            const img = document.createElement("img");
+            img.src = candidate.imageSrc;
+            img.alt = candidate.title || "Album cover option";
+            img.loading = "lazy";
+            img.onerror = () => button.remove();
+
+            const label = document.createElement("span");
+            label.textContent = `${candidate.source || "Source"}${candidate.title ? ` · ${candidate.title}` : ""}`;
+            button.append(img, label);
+            button.addEventListener("click", () => saveShuffleManualCover(candidate));
+            coverPickerResults.appendChild(button);
+        });
+    }
+
+    async function loadShuffleCoverPickerResults() {
+        if (!coverPicker || coverPicker.hidden || !coverPickerResults || !coverPickerStatus) return;
+        const token = ++coverPickerLookupToken;
+        coverPickerResults.replaceChildren();
+        const entry = shuffleCoverSearchIdentity();
+        coverPickerStatus.textContent = `Searching all available cover sources for ${entry.artist ? `${entry.artist} - ` : ""}${entry.title}...`;
+        try {
+            const candidates = await resolveShuffleManualCoverCandidates();
+            if (token !== coverPickerLookupToken) return;
+            renderShuffleCoverPickerCandidates(candidates);
+            coverPickerStatus.textContent = candidates.length
+                ? `Select one of ${candidates.length} cover results, or paste an Image Link above.`
+                : "No cover results were found. Paste an Image Link above to set one manually.";
+        } catch (error) {
+            if (token !== coverPickerLookupToken) return;
+            coverPickerStatus.textContent = "Cover search failed. Paste an Image Link above to set the cover manually.";
+        }
+    }
+
+    function openShuffleCoverPicker() {
+        if (!coverPicker || !currentShufflePlaybackPaused()) return;
+        const entry = shuffleCoverSearchIdentity();
+        if (!entry.title || /^unknown album$/i.test(entry.title) || !entry.artist || /^unknown artist$/i.test(entry.artist)) return;
+        coverPickerLookupToken += 1;
+        coverPicker.hidden = false;
+        coverPickerTitle.textContent = `Select cover: ${entry.artist ? `${entry.artist} - ` : ""}${entry.title}`;
+        coverPickerResults.replaceChildren();
+        coverPickerStatus.textContent = "Searching all available cover sources...";
+        coverPickerLink.value = "";
+        loadShuffleCoverPickerResults();
+    }
+
+    function closeShuffleCoverPicker() {
+        coverPickerLookupToken += 1;
+        if (coverPicker) coverPicker.hidden = true;
+    }
+
+    function currentShuffleReleaseId() {
+        const releaseId = currentManualCoverOverride && Number(currentManualCoverOverride.releaseId);
+        return Number.isFinite(releaseId) && releaseId > 0 ? releaseId : null;
+    }
+
+    async function saveShuffleManualCover(candidate) {
+        if (!candidate || !isValidShuffleImageUrl(candidate.imageSrc)) return;
+        const entry = shuffleCoverSearchIdentity();
+        if (!entry.title || !entry.artist) return;
+        coverPickerStatus.textContent = "Saving cover...";
+        try {
+            const requestPayload = {
+                artist: entry.artist,
+                album: entry.title,
+                imageUrl: candidate.imageSrc,
+                source: candidate.source || "Manual",
+                href: candidate.href || "",
+            };
+            const releaseId = currentShuffleReleaseId();
+            if (releaseId) requestPayload.releaseId = releaseId;
+            const response = await fetch(`${API_BASE_URL}/api/manual-cover`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify(requestPayload),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.ok !== true) throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
+            currentManualCoverOverride = payload.coverOverride || null;
+            coverImage.src = payload.coverOverride && payload.coverOverride.imageUrl ? payload.coverOverride.imageUrl : candidate.imageSrc;
+            if (songguesserEnabled() && songguesserCurrent && songguesserCurrent.answer) {
+                songguesserCurrent.answer.coverUrl = coverImage.src;
+                songguesserCurrent.answer.manualCoverOverride = currentManualCoverOverride;
+                if (!songguesserAcceptingGuesses) recordSongguesserRoundResult();
+            }
+            closeShuffleCoverPicker();
+        } catch (error) {
+            coverPickerStatus.textContent = `Could not save cover: ${error.message || error}`;
+        }
+    }
+
+    function useShuffleManualImageLink() {
+        const imageSrc = String(coverPickerLink && coverPickerLink.value || "").trim();
+        if (!isValidShuffleImageUrl(imageSrc)) {
+            coverPickerStatus.textContent = "Enter a valid http:// or https:// image link.";
+            return;
+        }
+        saveShuffleManualCover({ imageSrc, href: imageSrc, source: "Image Link", title: shuffleCoverSearchIdentity().title });
+    }
+
+    async function resetShuffleManualCover() {
+        const entry = shuffleCoverSearchIdentity();
+        if (!entry.title || !entry.artist) return;
+        coverPickerStatus.textContent = "Resetting cover...";
+        try {
+            const requestPayload = { artist: entry.artist, album: entry.title, reset: true };
+            const releaseId = currentShuffleReleaseId();
+            if (releaseId) requestPayload.releaseId = releaseId;
+            const response = await fetch(`${API_BASE_URL}/api/manual-cover`, {
+                method: "DELETE",
+                credentials: "include",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify(requestPayload),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.ok !== true) throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
+            currentManualCoverOverride = null;
+            if (currentDefaultCoverUrl) coverImage.src = currentDefaultCoverUrl;
+            if (songguesserEnabled() && songguesserCurrent && songguesserCurrent.answer) {
+                songguesserCurrent.answer.coverUrl = currentDefaultCoverUrl;
+                songguesserCurrent.answer.manualCoverOverride = null;
+                if (!songguesserAcceptingGuesses) recordSongguesserRoundResult();
+            }
+            closeShuffleCoverPicker();
+            if (!songguesserEnabled()) await pollStatus();
+        } catch (error) {
+            coverPickerStatus.textContent = `Could not reset cover: ${error.message || error}`;
+        }
+    }
 
     function updateTransportControls(running, samplerControl) {
-        const paused = Boolean(samplerControl && samplerControl.paused);
+        const guessing = songguesserEnabled();
+        const paused = guessing ? songguesserPaused : Boolean(samplerControl && samplerControl.paused);
+        if (!guessing) samplerPaused = paused;
+        const active = guessing ? Boolean(songguesserCurrent) : Boolean(running);
 
-        [previousTrackButton, pauseSamplerButton, playSamplerButton, nextTrackButton].forEach((button) => {
-            if (button) button.disabled = !running || songguesserEnabled();
-        });
-
-        if (pauseSamplerButton) pauseSamplerButton.disabled = !running || paused || songguesserEnabled();
-        if (playSamplerButton) playSamplerButton.disabled = !running || !paused || songguesserEnabled();
+        if (previousTrackButton) previousTrackButton.disabled = !running || guessing;
+        if (nextTrackButton) nextTrackButton.disabled = !running || guessing;
+        if (pauseSamplerButton) pauseSamplerButton.disabled = !active || paused;
+        if (playSamplerButton) playSamplerButton.disabled = !active || !paused;
+        setShuffleCoverPickerAvailability();
     }
 
     async function sendSamplerControl(command) {
-        if (songguesserEnabled()) return;
+        const guessing = songguesserEnabled();
+        if (guessing && !["pause", "play"].includes(command)) return;
 
         setStatus(`${command} requested`);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/control/${command}`, {
+            const endpoint = guessing ? `/api/songguesser/${command}` : `/api/control/${command}`;
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: "POST",
                 credentials: "include",
             });
@@ -231,7 +642,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            await pollStatus();
+            if (guessing) {
+                songguesserPaused = command === "pause";
+                if (songguesserPaused) {
+                    pauseSongguesserCountdown();
+                    setStatus("paused");
+                } else {
+                    resumeSongguesserCountdown();
+                    setStatus("Songguesser running");
+                }
+                updateTransportControls(true, { paused: songguesserPaused });
+            } else {
+                await pollStatus();
+            }
         } catch (error) {
             setStatus(`could not ${command}: ${error}`);
         }
@@ -246,6 +669,10 @@ document.addEventListener("DOMContentLoaded", () => {
             coverFrame.classList.add("cover-frame-empty");
             coverFrame.classList.remove("songguesser-placeholder");
             currentTrackTitle.textContent = "No track detected";
+            currentCoverIdentity = null;
+            currentDefaultCoverUrl = "";
+            currentManualCoverOverride = null;
+            setShuffleCoverPickerAvailability();
             return;
         }
 
@@ -255,7 +682,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const artist = coverArt.artist || "Unknown Artist";
         const track = coverArt.track || coverArt.album || "Unknown Song";
+        const album = coverArt.album || "Unknown album";
         currentTrackTitle.textContent = `${artist} - ${track}`;
+        currentCoverIdentity = { artist, album, track, year: coverArt.year || null };
+        currentDefaultCoverUrl = String(coverArt.defaultUrl || coverArt.defaultCoverUrl || coverArt.url || "");
+        currentManualCoverOverride = coverArt.manualCoverOverride || null;
+        setShuffleCoverPickerAvailability();
     }
 
     async function pollStatus() {
@@ -586,7 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
         updateSongguesserAnswerDisplay(false);
     }
 
-    function clearSongguesserTimers() {
+    function clearSongguesserTimers(resetCountdown = true) {
         if (songguesserTimerInterval) {
             clearInterval(songguesserTimerInterval);
             songguesserTimerInterval = null;
@@ -595,46 +1027,68 @@ document.addEventListener("DOMContentLoaded", () => {
             clearTimeout(songguesserNextTimeout);
             songguesserNextTimeout = null;
         }
+        if (resetCountdown) {
+            songguesserCountdownDeadlineMs = 0;
+            songguesserCountdownRemainingMs = 0;
+            songguesserCountdownAction = null;
+        }
+    }
+
+    function runSongguesserCountdown() {
+        if (!songguesserCountdownAction || songguesserPaused) return;
+        if (songguesserTimerInterval) clearInterval(songguesserTimerInterval);
+
+        const update = () => {
+            const remainingMs = Math.max(0, songguesserCountdownDeadlineMs - Date.now());
+            songguesserCountdownRemainingMs = remainingMs;
+            const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
+            if (songguesserTimer) songguesserTimer.textContent = String(remaining);
+
+            if (remainingMs <= 0) {
+                const action = songguesserCountdownAction;
+                clearSongguesserTimers(true);
+                if (typeof action === "function") action();
+            }
+        };
+
+        update();
+        if (songguesserCountdownAction) songguesserTimerInterval = setInterval(update, 250);
+    }
+
+    function beginSongguesserCountdown(deadlineMs, action) {
+        clearSongguesserTimers(true);
+        songguesserCountdownDeadlineMs = Math.max(Date.now(), Number(deadlineMs) || Date.now());
+        songguesserCountdownRemainingMs = Math.max(0, songguesserCountdownDeadlineMs - Date.now());
+        songguesserCountdownAction = action;
+        if (songguesserPaused) {
+            if (songguesserTimer) songguesserTimer.textContent = String(Math.ceil(songguesserCountdownRemainingMs / 1000));
+            return;
+        }
+        runSongguesserCountdown();
+    }
+
+    function pauseSongguesserCountdown() {
+        if (!songguesserCountdownAction) return;
+        songguesserCountdownRemainingMs = Math.max(0, songguesserCountdownDeadlineMs - Date.now());
+        if (songguesserTimerInterval) {
+            clearInterval(songguesserTimerInterval);
+            songguesserTimerInterval = null;
+        }
+        if (songguesserTimer) songguesserTimer.textContent = String(Math.ceil(songguesserCountdownRemainingMs / 1000));
+    }
+
+    function resumeSongguesserCountdown() {
+        if (!songguesserCountdownAction) return;
+        songguesserCountdownDeadlineMs = Date.now() + Math.max(0, songguesserCountdownRemainingMs);
+        runSongguesserCountdown();
     }
 
     function startSongguesserTimer(endsAtSeconds) {
-        clearSongguesserTimers();
-
-        const update = () => {
-            const remaining = Math.max(0, Math.ceil((endsAtSeconds * 1000 - Date.now()) / 1000));
-            if (songguesserTimer) {
-                songguesserTimer.textContent = String(remaining);
-            }
-
-            if (remaining <= 0) {
-                clearSongguesserTimers();
-                revealSongguesserAnswer("Time's up", 7);
-            }
-        };
-
-        update();
-        songguesserTimerInterval = setInterval(update, 250);
+        beginSongguesserCountdown(Number(endsAtSeconds) * 1000, () => revealSongguesserAnswer("Time's up", 7));
     }
 
     function startSongguesserNextCountdown(delaySeconds) {
-        clearSongguesserTimers();
-
-        const targetTime = Date.now() + delaySeconds * 1000;
-
-        const update = () => {
-            const remaining = Math.max(0, Math.ceil((targetTime - Date.now()) / 1000));
-            if (songguesserTimer) {
-                songguesserTimer.textContent = String(remaining);
-            }
-
-            if (remaining <= 0) {
-                clearSongguesserTimers();
-                loadNextSongguesserSong();
-            }
-        };
-
-        update();
-        songguesserTimerInterval = setInterval(update, 250);
+        beginSongguesserCountdown(Date.now() + Number(delaySeconds || 0) * 1000, loadNextSongguesserSong);
     }
 
     function songguesserCorrectCount() {
@@ -713,20 +1167,24 @@ document.addEventListener("DOMContentLoaded", () => {
         const answer = songguesserCurrent.answer || {};
         updateCover({
             url: answer.coverUrl,
+            defaultUrl: answer.defaultCoverUrl || answer.coverUrl,
+            manualCoverOverride: answer.manualCoverOverride || null,
             artist: answer.artist,
             track: answer.song,
             album: answer.album,
         });
 
-        setStatus(`${reason}. Next song in ${delaySeconds} seconds.`);
+        setStatus(songguesserPaused ? `${reason}. Paused.` : `${reason}. Next song in ${delaySeconds} seconds.`);
         if (songguesserGuessInput) songguesserGuessInput.disabled = true;
         if (songguesserSkipButton) songguesserSkipButton.disabled = true;
 
         startSongguesserNextCountdown(delaySeconds);
+        updateTransportControls(true, { paused: songguesserPaused });
     }
 
     function handleSongguesserCurrent(current) {
         songguesserCurrent = current;
+        songguesserPaused = Boolean(current && current.paused);
         songguesserCorrect = { artist: false, album: false, song: false };
         songguesserWrongGuesses = 0;
         songguesserAcceptingGuesses = true;
@@ -744,8 +1202,10 @@ document.addEventListener("DOMContentLoaded", () => {
         setCoverPlaceholder();
         showSongguesserHints(current);
         updateSongguesserAnswerDisplay(false);
-        setStatus("Songguesser running");
+        setStatus(songguesserPaused ? "paused" : "Songguesser running");
         startSongguesserTimer(current.endsAt);
+        if (songguesserPaused) pauseSongguesserCountdown();
+        updateTransportControls(true, { paused: songguesserPaused });
     }
 
     async function startSongguesser() {
@@ -988,6 +1448,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             songguesserAcceptingGuesses = false;
+            songguesserPaused = false;
+            samplerPaused = false;
+            songguesserCurrent = null;
+            closeShuffleCoverPicker();
+            updateCover(null);
             setStatus("idle");
             updateTransportControls(false, { paused: false });
             await pollStatus();
@@ -1011,10 +1476,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (songguesserEnabledInput) {
         songguesserEnabledInput.addEventListener("change", () => {
             updateSourceModeVisibility();
+            closeShuffleCoverPicker();
+            songguesserPaused = false;
+            samplerPaused = false;
             if (songguesserEnabled()) {
                 setCoverPlaceholder();
+                updateTransportControls(Boolean(songguesserCurrent), { paused: false });
             } else {
                 updateCover(null);
+                updateTransportControls(false, { paused: false });
             }
         });
     }
@@ -1043,6 +1513,29 @@ document.addEventListener("DOMContentLoaded", () => {
         nextTrackButton.addEventListener("click", () => sendSamplerControl("next"));
     }
 
+
+    if (coverPicker && coverPickerClose && coverPickerSearch && coverPickerLink && coverPickerLinkButton && coverPickerResetDefault && coverFrame) {
+        coverPickerClose.addEventListener("click", closeShuffleCoverPicker);
+        coverPickerSearch.addEventListener("click", loadShuffleCoverPickerResults);
+        coverPickerLinkButton.addEventListener("click", useShuffleManualImageLink);
+        coverPickerResetDefault.addEventListener("click", resetShuffleManualCover);
+        coverPickerLink.addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                useShuffleManualImageLink();
+            }
+        });
+        coverPicker.addEventListener("click", event => {
+            if (event.target === coverPicker) closeShuffleCoverPicker();
+        });
+        coverFrame.addEventListener("click", openShuffleCoverPicker);
+        coverFrame.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openShuffleCoverPicker();
+            }
+        });
+    }
 
     if (songguesserGuessInput) {
         songguesserGuessInput.addEventListener("keydown", (event) => {

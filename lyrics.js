@@ -1347,12 +1347,16 @@
     function setCoverPickerAvailability(release) {
         const validRelease = release && Number(release.releaseId) > 0 ? release : null;
         currentDiscogsRelease = validRelease;
-        coverFrame.classList.toggle("editable", Boolean(validRelease));
-        if (validRelease) {
+        const entry = lyricsCoverSearchIdentity();
+        const canEdit = Boolean(entry.title && !/^unknown album$/i.test(entry.title) && entry.artist && !/^unknown artist$/i.test(entry.artist));
+        coverFrame.classList.toggle("editable", canEdit);
+        if (canEdit) {
             coverFrame.setAttribute("role", "button");
             coverFrame.setAttribute("tabindex", "0");
             coverFrame.setAttribute("aria-label", "Change album artwork");
-            coverFrame.title = "Click to change this Discogs release artwork.";
+            coverFrame.title = validRelease
+                ? "Click to change this Discogs release artwork."
+                : "Click to change this album artwork.";
         } else {
             coverFrame.removeAttribute("role");
             coverFrame.removeAttribute("tabindex");
@@ -1426,6 +1430,14 @@
             title: String(release.title || currentDisplayedTrack && currentDisplayedTrack.album || "").trim(),
             artist: String(artists[0] || currentDisplayedTrack && currentDisplayedTrack.artist || "").trim(),
             year: Number(release.year) || null,
+        };
+    }
+
+    function lyricsCoverStorageIdentity() {
+        const track = currentDisplayedTrack || {};
+        return {
+            title: String(track.album || "").trim(),
+            artist: String(track.artist || "").trim(),
         };
     }
 
@@ -1594,7 +1606,7 @@
     }
 
     async function loadLyricsCoverPickerResults() {
-        if (!coverPicker || coverPicker.hidden || !currentDiscogsRelease || !coverPickerResults || !coverPickerStatus) return;
+        if (!coverPicker || coverPicker.hidden || !coverPickerResults || !coverPickerStatus) return;
         const token = ++coverPickerLookupToken;
         coverPickerResults.replaceChildren();
         const entry = lyricsCoverSearchIdentity();
@@ -1613,10 +1625,11 @@
     }
 
     function openLyricsCoverPicker() {
-        if (!coverPicker || !currentDiscogsRelease || !Number(currentDiscogsRelease.releaseId)) return;
+        if (!coverPicker) return;
+        const entry = lyricsCoverSearchIdentity();
+        if (!entry.title || /^unknown album$/i.test(entry.title) || !entry.artist || /^unknown artist$/i.test(entry.artist)) return;
         coverPickerLookupToken += 1;
         coverPicker.hidden = false;
-        const entry = lyricsCoverSearchIdentity();
         coverPickerTitle.textContent = `Select cover: ${entry.artist ? `${entry.artist} - ` : ""}${entry.title}`;
         coverPickerResults.replaceChildren();
         coverPickerStatus.textContent = "Searching all available cover sources...";
@@ -1630,26 +1643,35 @@
     }
 
     async function saveLyricsDiscogsCover(candidate) {
-        if (!currentDiscogsRelease || !Number(currentDiscogsRelease.releaseId) || !candidate || !isValidLyricsImageUrl(candidate.imageSrc)) return;
+        if (!candidate || !isValidLyricsImageUrl(candidate.imageSrc)) return;
+        const entry = lyricsCoverSearchIdentity();
+        const storageEntry = lyricsCoverStorageIdentity();
+        if (!entry.title || !entry.artist || !storageEntry.title || !storageEntry.artist) return;
         coverPickerStatus.textContent = "Saving cover...";
         try {
-            const response = await fetch(`${API_BASE_URL}/api/lyrics/discogs-cover`, {
+            const requestPayload = {
+                artist: storageEntry.artist,
+                album: storageEntry.title,
+                imageUrl: candidate.imageSrc,
+                source: candidate.source || "Manual",
+                href: candidate.href || "",
+            };
+            if (currentDiscogsRelease && Number(currentDiscogsRelease.releaseId)) {
+                requestPayload.releaseId = Number(currentDiscogsRelease.releaseId);
+            }
+            const response = await fetch(`${API_BASE_URL}/api/manual-cover`, {
                 method: "POST",
                 credentials: "include",
                 cache: "no-store",
                 headers: { "Content-Type": "application/json", Accept: "application/json" },
-                body: JSON.stringify({
-                    releaseId: Number(currentDiscogsRelease.releaseId),
-                    imageUrl: candidate.imageSrc,
-                    source: candidate.source || "Manual",
-                    href: candidate.href || "",
-                }),
+                body: JSON.stringify(requestPayload),
             });
             const payload = await response.json();
             if (!response.ok || !payload || payload.ok !== true) throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
-            if (lastDiscogsTracklistPayload && Number(lastDiscogsTracklistPayload.release && lastDiscogsTracklistPayload.release.releaseId) === Number(currentDiscogsRelease.releaseId)) {
+            if (lastDiscogsTracklistPayload && currentDiscogsRelease && Number(lastDiscogsTracklistPayload.release && lastDiscogsTracklistPayload.release.releaseId) === Number(currentDiscogsRelease.releaseId)) {
                 lastDiscogsTracklistPayload.coverOverride = payload.coverOverride || null;
             }
+            if (currentDisplayedTrack) currentDisplayedTrack.manualCoverOverride = payload.coverOverride || null;
             setArtwork(payload.coverOverride && payload.coverOverride.imageUrl ? payload.coverOverride.imageUrl : candidate.imageSrc, lastDefaultArtworkTitle);
             closeLyricsCoverPicker();
         } catch (error) {
@@ -1667,21 +1689,28 @@
     }
 
     async function resetLyricsDiscogsCover() {
-        if (!currentDiscogsRelease || !Number(currentDiscogsRelease.releaseId)) return;
+        const entry = lyricsCoverSearchIdentity();
+        const storageEntry = lyricsCoverStorageIdentity();
+        if (!entry.title || !entry.artist || !storageEntry.title || !storageEntry.artist) return;
         coverPickerStatus.textContent = "Resetting cover...";
         try {
-            const response = await fetch(`${API_BASE_URL}/api/lyrics/discogs-cover`, {
+            const requestPayload = { artist: storageEntry.artist, album: storageEntry.title, reset: true };
+            if (currentDiscogsRelease && Number(currentDiscogsRelease.releaseId)) {
+                requestPayload.releaseId = Number(currentDiscogsRelease.releaseId);
+            }
+            const response = await fetch(`${API_BASE_URL}/api/manual-cover`, {
                 method: "DELETE",
                 credentials: "include",
                 cache: "no-store",
                 headers: { "Content-Type": "application/json", Accept: "application/json" },
-                body: JSON.stringify({ releaseId: Number(currentDiscogsRelease.releaseId), reset: true }),
+                body: JSON.stringify(requestPayload),
             });
             const payload = await response.json();
             if (!response.ok || !payload || payload.ok !== true) throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
-            if (lastDiscogsTracklistPayload && Number(lastDiscogsTracklistPayload.release && lastDiscogsTracklistPayload.release.releaseId) === Number(currentDiscogsRelease.releaseId)) {
+            if (lastDiscogsTracklistPayload && currentDiscogsRelease && Number(lastDiscogsTracklistPayload.release && lastDiscogsTracklistPayload.release.releaseId) === Number(currentDiscogsRelease.releaseId)) {
                 lastDiscogsTracklistPayload.coverOverride = null;
             }
+            if (currentDisplayedTrack) currentDisplayedTrack.manualCoverOverride = null;
             setArtwork(lastDefaultArtworkUrl, lastDefaultArtworkTitle);
             closeLyricsCoverPicker();
         } catch (error) {
@@ -2151,6 +2180,7 @@
             collection_artist: firstMatch.artist,
             collection_matches: JSON.stringify(collectionMatches),
             artist: albumArtist,
+            track_artist: String(track.artist || ""),
             album: albumTitle,
             track: String(track.title || ""),
         });
@@ -2618,10 +2648,14 @@
         lastDefaultArtworkUrl = track.coverUrl || geniusArtworkFallback || "";
         lastDefaultArtworkTitle = track.album || track.title || "";
         const artworkLookupKey = `${normalizeAlbumIdentityKey(lyricsDiscogsAlbumArtist(track))}::${normalizeAlbumIdentityKey(track.album || "")}::${normalizeAlbumIdentityKey(track.title || "")}`;
-        const cachedOverrideUrl = artworkLookupKey === lastDiscogsAlbumLookupKey && lastDiscogsTracklistPayload && lastDiscogsTracklistPayload.coverOverride
+        const cachedReleaseOverrideUrl = artworkLookupKey === lastDiscogsAlbumLookupKey && lastDiscogsTracklistPayload && lastDiscogsTracklistPayload.coverOverride
             ? String(lastDiscogsTracklistPayload.coverOverride.imageUrl || "")
             : "";
-        setArtwork(cachedOverrideUrl || lastDefaultArtworkUrl, lastDefaultArtworkTitle);
+        const albumIdentityOverrideUrl = track.manualCoverOverride && track.manualCoverOverride.imageUrl
+            ? String(track.manualCoverOverride.imageUrl || "")
+            : "";
+        setArtwork(cachedReleaseOverrideUrl || albumIdentityOverrideUrl || lastDefaultArtworkUrl, lastDefaultArtworkTitle);
+        setCoverPickerAvailability(currentDiscogsRelease);
         updateLyricsDiscogsTracklist(track);
 
         if (!geniusSong) {
