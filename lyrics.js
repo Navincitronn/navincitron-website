@@ -42,6 +42,7 @@
     const scoreActions = document.getElementById("lyrics-score-actions");
     const scoreEditButton = document.getElementById("lyrics-score-edit");
     const scoreSaveButton = document.getElementById("lyrics-score-save");
+    const scoreCancelButton = document.getElementById("lyrics-score-cancel");
     const coverPicker = document.getElementById("lyrics-cover-picker");
     const coverPickerTitle = document.getElementById("lyrics-cover-picker-title");
     const coverPickerSearch = document.getElementById("lyrics-cover-picker-search");
@@ -2672,6 +2673,7 @@
         if (scoreActions) scoreActions.hidden = true;
         if (scoreEditButton) scoreEditButton.hidden = false;
         if (scoreSaveButton) scoreSaveButton.hidden = true;
+        if (scoreCancelButton) scoreCancelButton.hidden = true;
         scoreCard.classList.add("lyrics-hidden");
     }
 
@@ -2723,6 +2725,10 @@
             scoreSaveButton.disabled = scoreSaveInProgress;
             scoreSaveButton.textContent = scoreSaveInProgress ? "Saving…" : "Save";
         }
+        if (scoreCancelButton) {
+            scoreCancelButton.hidden = !scoreEditMode;
+            scoreCancelButton.disabled = scoreSaveInProgress;
+        }
     }
 
     function renderLyricsScoreCard(release, collectionAlbum, discogsRows, currentRowIndex) {
@@ -2749,8 +2755,8 @@
             scoreStatus.textContent = "New album entry — enter scores, then Save.";
             scoreStatus.hidden = false;
         } else {
-            scoreStatus.textContent = "No matching album score found in my_albums.txt.";
-            scoreStatus.hidden = false;
+            scoreStatus.textContent = "";
+            scoreStatus.hidden = true;
         }
         const groups = new Map();
         let mostRecentSide = "";
@@ -2794,7 +2800,8 @@
         });
         scoreSides.appendChild(sidesFragment);
 
-        if (albumEntry && Number.isFinite(Number(albumEntry.overallScore))) {
+        // New/unscored entries intentionally have no overall rating images.
+        if (albumEntry && albumEntry.hasOverallScore && Number.isFinite(Number(albumEntry.overallScore))) {
             const visual = albumScoreVisualForHundredScale(albumEntry.overallScore);
             if (visual) {
                 const ratingStack = document.createElement("div");
@@ -2872,6 +2879,16 @@
         rerenderCurrentScoreCard();
     }
 
+    function cancelScoreEdits() {
+        if (!currentScoreContext || scoreSaveInProgress) return;
+        // Inputs are rendered from the last saved myAlbumsScoreText snapshot, so
+        // leaving edit mode discards every unsaved field change immediately.
+        scoreEditMode = false;
+        scoreStatus.textContent = "";
+        scoreStatus.hidden = true;
+        rerenderCurrentScoreCard();
+    }
+
     async function saveScoreEdits() {
         if (!currentScoreContext || scoreSaveInProgress) return;
         let updatedText = "";
@@ -2920,6 +2937,7 @@
 
     if (scoreEditButton) scoreEditButton.addEventListener("click", beginScoreEdit);
     if (scoreSaveButton) scoreSaveButton.addEventListener("click", saveScoreEdits);
+    if (scoreCancelButton) scoreCancelButton.addEventListener("click", cancelScoreEdits);
 
     async function fetchRollingStoneSongListText(config) {
         for (const filename of config.files || []) {
