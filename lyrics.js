@@ -30,6 +30,7 @@
     const discogsCard = document.getElementById("lyrics-discogs-card");
     const discogsStatus = document.getElementById("lyrics-discogs-status");
     const discogsReleaseMeta = document.getElementById("lyrics-discogs-release-meta");
+    const discogsConditionMeta = document.getElementById("lyrics-discogs-condition-meta");
     const discogsSides = document.getElementById("lyrics-discogs-sides");
     const discogsTotalLength = document.getElementById("lyrics-discogs-total-length");
     const coverPicker = document.getElementById("lyrics-cover-picker");
@@ -63,6 +64,8 @@
     let discogsLookupRequestId = 0;
     let currentDiscogsRelease = null;
     let currentDisplayedTrack = null;
+    let vinylSideEndPauseTimer = null;
+    let vinylSideEndPauseArm = null;
     let lastDefaultArtworkUrl = "";
     let lastDefaultArtworkTitle = "";
     let coverPickerLookupToken = 0;
@@ -1741,6 +1744,98 @@
         });
     }
 
+    function clearVinylSideEndPause(options = {}) {
+        if (vinylSideEndPauseTimer) {
+            window.clearTimeout(vinylSideEndPauseTimer);
+            vinylSideEndPauseTimer = null;
+        }
+        if (options.forget !== false) vinylSideEndPauseArm = null;
+    }
+
+    async function pauseSpotifyAtVinylSideEnd(arm, options = {}) {
+        if (!arm || !spotifyAuthenticated) return;
+        if (!options.force && vinylSideEndPauseArm !== arm) return;
+        // Never let a heavily throttled background-tab timer pause an unrelated
+        // song long after the intended vinyl side boundary.
+        if (arm.expectedEndAt && Date.now() - arm.expectedEndAt > 5000) {
+            if (vinylSideEndPauseArm === arm) clearVinylSideEndPause();
+            return;
+        }
+        if (!playbackClock.isPlaying) return;
+        if (playbackControlInProgress) {
+            vinylSideEndPauseTimer = window.setTimeout(() => pauseSpotifyAtVinylSideEnd(arm), 175);
+            return;
+        }
+
+        playbackControlInProgress = true;
+        playbackClock.progressMs = estimatedPlaybackProgress();
+        playbackClock.isPlaying = false;
+        playbackClock.sampledAt = Date.now();
+        renderPlaybackProgress();
+        updatePlaybackControls();
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/control/pause`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data || data.ok !== true) {
+                throw new Error(data && data.error ? data.error : `HTTP ${response.status}`);
+            }
+            setStatus(`Paused after SIDE ${arm.side}.`, "success");
+            if (vinylSideEndPauseArm === arm) clearVinylSideEndPause();
+            window.setTimeout(() => fetchCurrentLyrics(false), 300);
+        } catch (error) {
+            playbackClock.isPlaying = true;
+            playbackClock.sampledAt = Date.now();
+            setStatus(`Could not pause at the end of SIDE ${arm.side}: ${error.message || error}`, "error");
+            if (vinylSideEndPauseArm === arm) clearVinylSideEndPause();
+            window.setTimeout(() => fetchCurrentLyrics(false), 300);
+        } finally {
+            playbackControlInProgress = false;
+            updatePlaybackControls();
+        }
+    }
+
+    function scheduleVinylSideEndPause() {
+        if (vinylSideEndPauseTimer) {
+            window.clearTimeout(vinylSideEndPauseTimer);
+            vinylSideEndPauseTimer = null;
+        }
+        const arm = vinylSideEndPauseArm;
+        if (!arm || !currentDisplayedTrack || !playbackClock.isPlaying) return;
+        const currentTrackKey = String(currentDisplayedTrack.key || `${currentDisplayedTrack.artist}::${currentDisplayedTrack.title}`);
+        if (currentTrackKey !== arm.trackKey || lastTrackKey !== arm.trackKey) return;
+
+        const durationMs = Math.max(0, Number(playbackClock.durationMs) || 0);
+        if (!durationMs) return;
+        const remainingMs = Math.max(0, durationMs - estimatedPlaybackProgress());
+        arm.expectedEndAt = Date.now() + remainingMs;
+
+        // Request the pause just after Spotify's reported track end. This avoids
+        // clipping the final audible fraction of the side-ending song. If Spotify
+        // has already advanced, the following side is paused almost immediately.
+        const delayMs = Math.max(0, remainingMs + 100);
+        vinylSideEndPauseTimer = window.setTimeout(() => pauseSpotifyAtVinylSideEnd(arm), delayMs);
+    }
+
+    function armVinylSideEndPause(track, side) {
+        const trackKey = String(track && (track.key || `${track.artist}::${track.title}`) || "");
+        const normalizedSide = String(side || "").trim().toUpperCase();
+        if (!trackKey || !normalizedSide) {
+            clearVinylSideEndPause();
+            return;
+        }
+        if (!vinylSideEndPauseArm || vinylSideEndPauseArm.trackKey !== trackKey || vinylSideEndPauseArm.side !== normalizedSide) {
+            clearVinylSideEndPause();
+            vinylSideEndPauseArm = { trackKey, side: normalizedSide };
+        }
+        scheduleVinylSideEndPause();
+    }
+
     function setDiscogsStatus(message, type = "") {
         discogsStatus.textContent = message;
         discogsStatus.classList.toggle("error", type === "error");
@@ -1755,6 +1850,9 @@
         discogsSides.replaceChildren();
         discogsReleaseMeta.replaceChildren();
         discogsReleaseMeta.hidden = true;
+        discogsConditionMeta.replaceChildren();
+        discogsConditionMeta.hidden = true;
+        clearVinylSideEndPause();
         discogsTotalLength.textContent = "";
         discogsTotalLength.hidden = true;
         setCoverPickerAvailability(null);
@@ -1993,6 +2091,9 @@
         discogsSides.replaceChildren();
         discogsReleaseMeta.replaceChildren();
         discogsReleaseMeta.hidden = true;
+        discogsConditionMeta.replaceChildren();
+        discogsConditionMeta.hidden = true;
+        clearVinylSideEndPause();
         discogsTotalLength.textContent = "";
         discogsTotalLength.hidden = true;
         setCoverPickerAvailability(null);
@@ -2067,6 +2168,16 @@
             discogsReleaseMeta.hidden = false;
         }
 
+        const conditionParts = [];
+        const mediaCondition = String(release.mediaCondition || "").trim();
+        const sleeveCondition = String(release.sleeveCondition || "").trim();
+        if (mediaCondition) conditionParts.push(`Media Quality: ${mediaCondition}`);
+        if (sleeveCondition) conditionParts.push(`Sleeve Quality: ${sleeveCondition}`);
+        if (conditionParts.length) {
+            discogsConditionMeta.textContent = conditionParts.join(" · ");
+            discogsConditionMeta.hidden = false;
+        }
+
         const groups = new Map();
         let mostRecentSide = "";
         rows.forEach((row, index) => {
@@ -2076,7 +2187,17 @@
             groups.get(groupKey).push({ ...row, index });
         });
 
+        let currentTrackEndsSide = false;
+        let currentTrackSide = "";
+
         groups.forEach((groupRows, groupKey) => {
+            const isVinylSide = groupKey !== "Tracklist" && /^[A-Z]{1,3}$/i.test(String(groupKey));
+            const finalRow = groupRows.length ? groupRows[groupRows.length - 1] : null;
+            if (isVinylSide && finalRow && finalRow.index === currentRowIndex) {
+                currentTrackEndsSide = true;
+                currentTrackSide = String(groupKey).toUpperCase();
+            }
+
             const side = document.createElement("section");
             side.className = "lyrics-discogs-side";
             const heading = document.createElement("h4");
@@ -2115,6 +2236,12 @@
             discogsSides.appendChild(side);
         });
 
+        if (currentTrackEndsSide && currentDisplayedTrack) {
+            armVinylSideEndPause(currentDisplayedTrack, currentTrackSide);
+        } else {
+            clearVinylSideEndPause();
+        }
+
         const allDurations = rows.map(row => lyricsDiscogsDurationSeconds(row.duration));
         if (allDurations.length && allDurations.every(value => value !== null)) {
             discogsTotalLength.textContent = `Total Length: ${lyricsDiscogsFormatDurationSeconds(allDurations.reduce((sum, value) => sum + value, 0))}`;
@@ -2131,6 +2258,8 @@
             setDiscogsStatus("The current track does not provide an album name for Discogs matching.");
             discogsSides.replaceChildren();
             discogsReleaseMeta.hidden = true;
+            discogsConditionMeta.hidden = true;
+            clearVinylSideEndPause();
             return;
         }
 
@@ -2147,6 +2276,9 @@
         discogsSides.replaceChildren();
         discogsReleaseMeta.replaceChildren();
         discogsReleaseMeta.hidden = true;
+        discogsConditionMeta.replaceChildren();
+        discogsConditionMeta.hidden = true;
+        clearVinylSideEndPause();
         discogsTotalLength.textContent = "";
         discogsTotalLength.hidden = true;
         setCoverPickerAvailability(null);
@@ -2270,6 +2402,7 @@
         }
         renderPlaybackProgress();
         updatePlaybackControls();
+        if (vinylSideEndPauseArm) scheduleVinylSideEndPause();
     }
 
     function setPlaybackIdleSnapshot(preserveLastTrack = false) {
@@ -2627,7 +2760,21 @@
 
     function displayTrack(track, geniusSong, geniusError = "", geniusErrorCode = "") {
         const trackKey = String(track.key || `${track.artist}::${track.title}`);
-        const trackChanged = trackKey !== lastTrackKey;
+        const previousTrackKey = lastTrackKey;
+        const previousRemainingMs = Math.max(0, (Number(playbackClock.durationMs) || 0) - estimatedPlaybackProgress());
+        const trackChanged = trackKey !== previousTrackKey;
+
+        // Fallback for throttled/background timers: if Spotify naturally advanced
+        // from an armed side-ending track while the previous track was already at
+        // its end, pause the newly started side immediately. Manual Next/Previous
+        // clears the arm before changing tracks and therefore does not trigger this.
+        if (trackChanged && vinylSideEndPauseArm && vinylSideEndPauseArm.trackKey === previousTrackKey && previousRemainingMs <= 1500) {
+            const missedBoundaryArm = vinylSideEndPauseArm;
+            window.setTimeout(() => pauseSpotifyAtVinylSideEnd(missedBoundaryArm, { force: true }), 0);
+        } else if (trackChanged && vinylSideEndPauseArm && vinylSideEndPauseArm.trackKey === previousTrackKey) {
+            clearVinylSideEndPause();
+        }
+
         lastTrackKey = trackKey;
         hasDisplayedTrack = true;
 
@@ -2778,6 +2925,9 @@
 
     async function sendPlaybackControl(action) {
         if (playbackControlInProgress || !spotifyAuthenticated) return;
+        if (action === "next" || action === "previous" || action === "restart") {
+            clearVinylSideEndPause();
+        }
 
         const labels = {
             restart: "Restart track",
@@ -2799,10 +2949,15 @@
             playbackClock.progressMs = estimatedPlaybackProgress();
             playbackClock.isPlaying = false;
             playbackClock.sampledAt = Date.now();
+            if (vinylSideEndPauseTimer) {
+                window.clearTimeout(vinylSideEndPauseTimer);
+                vinylSideEndPauseTimer = null;
+            }
             renderPlaybackProgress();
         } else if (action === "play") {
             playbackClock.isPlaying = true;
             playbackClock.sampledAt = Date.now();
+            if (vinylSideEndPauseArm) scheduleVinylSideEndPause();
         }
 
         try {
