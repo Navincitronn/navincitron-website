@@ -10468,8 +10468,6 @@ Stone Flower: 7.8
 La Fuente Del Ritmo: 7.5
 Every Step Of The Way: 7.8
 
-
-
 SEVENTH SOJOURN: 76.16%
 Lost In A Lost World: 7.4
 New Horizons: 7.6
@@ -12624,7 +12622,7 @@ Ocean Gypsy: 8.4
 Song Of Scheherazade: 8.1
 
 HOW BIG, HOW BLUE, HOW BEAUTIFUL:
-Ship To Wreck: 9.5
+Ship To Wreck: 9.0
 What Kind Of Man: 10.0
 How Big, How Blue, How Beautiful: 10.0
 Queen Of Peace: 10.0
