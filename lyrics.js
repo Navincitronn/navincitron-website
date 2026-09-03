@@ -93,6 +93,19 @@
     const GENIUS_EMBED_INTERACTION_MESSAGE = "navincitron-genius-embed-interaction";
     const LYRICS_LASTFM_API_KEY = "7c87436dbff96020ebb6e3a75cb0f396";
 
+    // The three Rolling Stone song lists use two different text layouts:
+    // 2004/2010 are primarily "Artist - Song", while 2021 is
+    // "Song - Artist (year)". Probe both the requested production filenames and
+    // the historical "top_500" filenames so existing site copies continue to work.
+    const ROLLING_STONE_SONG_LISTS = Object.freeze([
+        { year: 2004, format: "artist-title", files: ["rolling_stone_500_songs_2004.txt", "rolling_stone_top_500_songs_2004.txt"] },
+        { year: 2010, format: "artist-title", files: ["rolling_stone_500_songs_2010.txt", "rolling_stone_top_500_songs_2010.txt"] },
+        { year: 2021, format: "title-artist-year", files: ["rolling_stone_500_songs_2021.txt", "rolling_stone_top_500_songs_2021.txt"] },
+    ]);
+    let rollingStone500SongEntries = [];
+    let rollingStone500SongListsLoaded = false;
+    let rollingStone500SongListsPromise = null;
+
     const focusSink = document.createElement("span");
     focusSink.tabIndex = -1;
     focusSink.setAttribute("aria-hidden", "true");
@@ -2065,6 +2078,9 @@
             const title = String(entry.title || "").trim();
             const duration = String(entry.duration || "").trim();
             const type = String(entry.type || "track").toLowerCase();
+            const artists = Array.isArray(entry.artists)
+                ? entry.artists.map(value => String(value || "").trim()).filter(Boolean)
+                : [];
             const subTracks = Array.isArray(entry.subTracks) ? entry.subTracks : [];
 
             if (type === "index") {
@@ -2074,7 +2090,7 @@
                     const position = rawPosition || lyricsDiscogsCompositePosition(subTracks);
                     const side = lyricsDiscogsSideFromPosition(position) || currentSide || inheritedSide;
                     if (side) currentSide = side;
-                    rows.push({ position, title, duration, side, type });
+                    rows.push({ position, title, duration, side, type, artists });
                 } else if (subTracks.length) {
                     // An untimed index is only a structural heading (e.g. "Le Sacre
                     // Du Printemps"). Omit the heading itself and keep its real A/B
@@ -2093,6 +2109,7 @@
                     duration,
                     side: detectedSide || currentSide || "",
                     type,
+                    artists,
                 });
             }
 
@@ -2133,6 +2150,172 @@
         const minutes = Math.floor(safeSeconds / 60);
         const remainder = safeSeconds % 60;
         return `${minutes}:${String(remainder).padStart(2, "0")}`;
+    }
+
+    function lyricsDiscogsSleeveConditionColor(value) {
+        const text = String(value || "").trim().toLowerCase();
+        if (!text) return "";
+        if (/near\s+mint|\bnm\b/.test(text)) return "#3cb3ff";
+        if (/very\s+good\s*(?:plus|\+)|\bvg\+\b/.test(text)) return "#7dd956";
+        if (/very\s+good|\bvg\b/.test(text)) return "#febd59";
+        if (/good\s*(?:plus|\+)|\bg\+\b/.test(text)) return "#ff914c";
+        if (/\bgood\b|\bg\b/.test(text)) return "#ff5757";
+        if (/\bfair\b|\bpoor\b|\bf\b|\bp\b/.test(text)) return "#9F000F";
+        if (/\bmint\b|^m(?:\s|\(|$)/.test(text)) return "#a47df0";
+        return "";
+    }
+
+    async function fetchRollingStoneSongListText(config) {
+        for (const filename of config.files || []) {
+            try {
+                const url = new URL(filename, window.location.href);
+                const response = await fetch(url.href, { cache: "force-cache" });
+                if (!response.ok) continue;
+                const text = await response.text();
+                if (text && text.trim()) return text;
+            } catch (error) {
+                // Try the alternate filename below.
+            }
+        }
+        return "";
+    }
+
+    function parseRollingStoneSongList(text, config) {
+        const entries = [];
+        for (const rawLine of String(text || "").split(/\r?\n/)) {
+            let body = rawLine.replace(/^\s*\d+\.\s*/, "").trim();
+            if (!body) continue;
+
+            let title = "";
+            let artist = "";
+            if (config.format === "title-artist-year") {
+                body = body.replace(/\s+\((?:18|19|20)\d{2}\)\s*$/, "").trim();
+                // One 2021 entry is "River Deep - Mountain High - Ike & Tina Turner";
+                // the final delimiter is therefore the artist separator.
+                const separator = body.lastIndexOf(" - ");
+                if (separator > 0) {
+                    title = body.slice(0, separator).trim();
+                    artist = body.slice(separator + 3).trim();
+                }
+            } else {
+                // 2004/2010 are Artist - Song. Each supplied file also contains one
+                // comma-formatted outlier, so accept "Artist, Song" as a fallback.
+                let separator = body.indexOf(" - ");
+                let separatorLength = 3;
+                if (separator < 0) {
+                    separator = body.indexOf(", ");
+                    separatorLength = 2;
+                }
+                if (separator > 0) {
+                    artist = body.slice(0, separator).trim();
+                    title = body.slice(separator + separatorLength).trim();
+                }
+            }
+
+            if (title) entries.push({ title, artist, listYear: config.year });
+        }
+        return entries;
+    }
+
+    function rollingStoneSongTitleVariants(value) {
+        const raw = String(value || "").trim();
+        const variants = [];
+        const seen = new Set();
+        const add = candidate => {
+            const clean = String(candidate || "").replace(/\s+/g, " ").trim();
+            const key = lyricsDiscogsNormalizeTrackText(clean);
+            if (!clean || !key || seen.has(key)) return;
+            seen.add(key);
+            variants.push(clean);
+        };
+
+        lyricsDiscogsTrackTitleVariants(raw).forEach(add);
+        // Rolling Stone occasionally includes a parenthetical prefix that Discogs
+        // omits, e.g. "(I Can't Get No) Satisfaction" vs "Satisfaction".
+        add(raw.replace(/^\s*\([^)]{1,120}\)\s*/, ""));
+        add(raw.replace(/\([^)]*\)/g, " "));
+        return variants;
+    }
+
+    function rollingStoneSongTitleMatchScore(leftTitle, rightTitle) {
+        let best = 0;
+        for (const left of rollingStoneSongTitleVariants(leftTitle)) {
+            for (const right of rollingStoneSongTitleVariants(rightTitle)) {
+                best = Math.max(best, lyricsDiscogsTrackMatchScore(left, right));
+                if (best >= 1) return 1;
+            }
+        }
+        return best;
+    }
+
+    function rollingStoneSongArtistsMatch(listArtist, candidateArtists) {
+        const artist = String(listArtist || "").trim();
+        if (!artist) return true;
+        const candidates = (Array.isArray(candidateArtists) ? candidateArtists : [candidateArtists])
+            .map(value => String(value || "").trim())
+            .filter(value => value && !/^(?:various|various artists)$/i.test(value));
+        if (!candidates.length) return false;
+        return discogsOwnedArtistsMatch(artist, candidates)
+            || candidates.some(candidate => discogsOwnedArtistsMatch(candidate, [artist]));
+    }
+
+    function isRollingStone500Song(trackTitle, candidateArtists) {
+        if (!rollingStone500SongListsLoaded || !trackTitle) return false;
+        const artists = (Array.isArray(candidateArtists) ? candidateArtists : [candidateArtists])
+            .map(value => String(value || "").trim())
+            .filter(Boolean);
+
+        for (const entry of rollingStone500SongEntries) {
+            const score = rollingStoneSongTitleMatchScore(trackTitle, entry.title);
+            if (score < 0.90) continue;
+            if (entry.artist && artists.length) {
+                if (rollingStoneSongArtistsMatch(entry.artist, artists)) return true;
+                continue;
+            }
+            // If the Discogs track does not expose a usable artist, require an
+            // essentially exact title match rather than starring a same-named song.
+            if (score >= 0.99) return true;
+        }
+        return false;
+    }
+
+    function applyRollingStoneStarToTrackTitleElement(element) {
+        if (!element) return;
+        const rawTitle = String(element.dataset.rollingStoneTitle || "").trim();
+        if (!rawTitle) return;
+        let artists = [];
+        try {
+            const parsed = JSON.parse(element.dataset.rollingStoneArtists || "[]");
+            if (Array.isArray(parsed)) artists = parsed;
+        } catch (error) {
+            artists = [];
+        }
+        element.textContent = isRollingStone500Song(rawTitle, artists) ? `${rawTitle} ★` : rawTitle;
+    }
+
+    function refreshRollingStoneStarsInRenderedTracklist() {
+        discogsSides.querySelectorAll(".lyrics-discogs-track-title[data-rolling-stone-title]")
+            .forEach(applyRollingStoneStarToTrackTitleElement);
+    }
+
+    function loadRollingStone500SongLists() {
+        if (rollingStone500SongListsPromise) return rollingStone500SongListsPromise;
+        rollingStone500SongListsPromise = Promise.all(
+            ROLLING_STONE_SONG_LISTS.map(async config => ({
+                config,
+                text: await fetchRollingStoneSongListText(config),
+            }))
+        ).then(results => {
+            rollingStone500SongEntries = results.flatMap(result => parseRollingStoneSongList(result.text, result.config));
+            rollingStone500SongListsLoaded = true;
+            refreshRollingStoneStarsInRenderedTracklist();
+            return rollingStone500SongEntries;
+        }).catch(() => {
+            rollingStone500SongEntries = [];
+            rollingStone500SongListsLoaded = true;
+            return [];
+        });
+        return rollingStone500SongListsPromise;
     }
 
     function renderLyricsDiscogsTracklist(payload, currentTrackTitle = "") {
@@ -2217,13 +2400,24 @@
             discogsReleaseMeta.hidden = false;
         }
 
-        const conditionParts = [];
         const mediaCondition = String(release.mediaCondition || "").trim();
         const sleeveCondition = String(release.sleeveCondition || "").trim();
-        if (mediaCondition) conditionParts.push(`Media Quality: ${mediaCondition}`);
-        if (sleeveCondition) conditionParts.push(`Sleeve Quality: ${sleeveCondition}`);
-        if (conditionParts.length) {
-            discogsConditionMeta.textContent = conditionParts.join(" · ");
+        if (mediaCondition || sleeveCondition) {
+            discogsConditionMeta.replaceChildren();
+            if (mediaCondition) {
+                discogsConditionMeta.appendChild(document.createTextNode(`Media Quality: ${mediaCondition}`));
+            }
+            if (mediaCondition && sleeveCondition) {
+                discogsConditionMeta.appendChild(document.createTextNode(" · "));
+            }
+            if (sleeveCondition) {
+                discogsConditionMeta.appendChild(document.createTextNode("Sleeve Quality: "));
+                const sleeveValue = document.createElement("span");
+                sleeveValue.textContent = sleeveCondition;
+                const sleeveColor = lyricsDiscogsSleeveConditionColor(sleeveCondition);
+                if (sleeveColor) sleeveValue.style.color = sleeveColor;
+                discogsConditionMeta.appendChild(sleeveValue);
+            }
             discogsConditionMeta.hidden = false;
         } else {
             const auth = payload && payload.discogsAuth && typeof payload.discogsAuth === "object" ? payload.discogsAuth : {};
@@ -2286,7 +2480,13 @@
                 position.textContent = row.position || "—";
                 const title = document.createElement("span");
                 title.className = "lyrics-discogs-track-title";
+                const rollingStoneArtists = Array.isArray(row.artists) && row.artists.length
+                    ? row.artists
+                    : (Array.isArray(release.artists) ? release.artists : []);
+                title.dataset.rollingStoneTitle = row.title;
+                title.dataset.rollingStoneArtists = JSON.stringify(rollingStoneArtists);
                 title.textContent = row.title;
+                applyRollingStoneStarToTrackTitleElement(title);
                 const duration = document.createElement("span");
                 duration.className = "lyrics-discogs-track-duration";
                 duration.textContent = row.duration || "";
@@ -3140,6 +3340,7 @@
     });
 
     window.setInterval(renderPlaybackProgress, 250);
+    loadRollingStone500SongLists();
     renderEmptyPlaybackHud(false);
     fetchCurrentLyrics(false);
     schedulePolling();

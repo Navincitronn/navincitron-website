@@ -1,0 +1,500 @@
+1. Bob Dylan - Like a Rolling Stone
+2. The Rolling Stones - (I Can't Get No) Satisfaction
+3. John Lennon, Imagine
+4. Marvin Gaye - What's Going On
+5. Aretha Franklin - Respect
+6. The Beach Boys - Good Vibrations
+7. Chuck Berry - Johnny B. Goode
+8. The Beatles - Hey Jude
+9. Nirvana - Smells Like Teen Spirit
+10. Ray Charles - What'd I Say
+11. The Who - My Generation
+12. Sam Cooke - A Change Is Gonna Come
+13. The Beatles - Yesterday
+14. Bob Dylan - Blowin' in the Wind
+15. The Clash - London Calling
+16. The Beatles - I Want to Hold Your Hand
+17. The Jimi Hendrix Experience - Purple Haze
+18. Chuck Berry - Maybellene
+19. Elvis Presley - Hound Dog
+20. The Beatles - Let It Be
+21. Bruce Springsteen - Born to Run
+22. The Ronettes - Be My Baby
+23. The Beatles - In My Life
+24. The Impressions - People Get Ready
+25. The Beach Boys - God Only Knows
+26. Otis Redding - (Sittin' on) the Dock of the Bay
+27. Derek and The Dominos - Layla
+28. The Beatles - A Day in the Life
+29. The Beatles - Help!
+30. Johnny Cash - I Walk the Line
+31. Led Zeppelin - Stairway to Heaven
+32. The Rolling Stones - Sympathy for the Devil
+33. Ike and Tina Turner - River Deep, Mountain High
+34. The Righteous Brothers - You've Lost That Lovin' Feelin'
+35. The Doors - Light My Fire
+36. U2 - One
+37. Bob Marley and The Wailers - No Woman, No Cry
+38. The Rolling Stones - Gimme Shelter
+39. Buddy Holly and The Crickets - That'll Be the Day
+40. Martha and The Vandellas - Dancing in the Street
+41. The Band - The Weight
+42. The Kinks - Waterloo Sunset
+43. Little Richard - Tutti-Frutti
+44. Ray Charles - Georgia on My Mind
+45. Elvis Presley - Heartbreak Hotel
+46. David Bowie - Heroes
+47. The Jimi Hendrix Experience - All Along the Watchtower
+48. Simon and Garfunkel - Bridge Over Troubled Water
+49. The Eagles - Hotel California
+50. Smokey Robinson and The Miracles - The Tracks on My Tears
+51. Grandmaster Flash and The Furious Five - The Message
+52. Prince - When Doves Cry
+53. Percy Sledge - When a Man Loves a Woman
+54. The Kingsmen - Louie Louie
+55. Little Richard - Long Tall Sally
+56. The Sex Pistols - Anarchy in the U.K
+57. Procol Harum - Whiter Shade of Pale
+58. Michael Jackson - Billie Jean
+59. Bob Dylan - The Times They Are A-Changin'
+60. Al Green - Let's Stay Together
+61. Jerry Lee Lewis - Whole Lotta Shakin' Going On
+62. Bo Diddley - Bo Diddley
+63. Buffalo Springfield - For What It's Worth
+64. The Beatles - She Loves You
+65. Cream - Sunshine of Your Life
+66. Bob Marley and The Wailers - Redemption Song
+67. Elvis Presley - Jailhouse Rock
+68. Bob Dylan - Tangled Up in Blue
+69. Roy Orbison - Crying
+70. Dionne Warwick - Walk On By
+71. James Brown - Papa's Got a Brand New Bag
+72. The Beach Boys - California Girls
+73. Stevie Wonder - Superstition
+74. Eddie Cochran - Summertime Blues
+75. Led Zeppelin - Whole Lotta Love
+76. The Beatles - Strawberry Fields Forever
+77. Elvis Presley - Mystery Train
+78. James Brown - I Got You (I Feel Good)
+79. The Byrds - Mr. Tambourine Man
+80. The Kinks - You Really Got Me
+81. Marvin Gaye - I Heard It Through the Grapevine
+82. Fats Domino - Blueberry Hill
+83. The Beatles - Norwegian Wood (This Bird Has Flown)
+84. The Police - Every Breath You Take
+85. Patsy Cline - Crazy
+86. Bruce Springsteen - Thunder Road
+87. Johnny Cash - Ring of Fire
+88. The Temptations - My Girl
+89. The Mamas and the Papas - California Dreamin'
+90. The Five Satins - In the Still of the Night
+91. Elvis Presley - Suspicious Minds
+92. Ramones - Blitzkrieg Bop
+93. U2 - I Still Haven't Found What I'm Looking For
+94. Little Richard - Good Golly, Miss Molly
+95. Carl Perkins - Blue Suede Shoes
+96. Jerry Lee Lewis - Great Balls of Fire
+97. Chuck Berry - Roll Over Beethoven
+98. Al Green - Love and Happiness
+99. Creedence Clearwater Revival - Fortunate Son
+100. Gnarls Barkley - Crazy
+101. The Rolling Stones - You Can't Always Get What You Want
+102. The Jimi Hendrix Experience - Voodoo Child (Slight Return)
+103. Gene Vincent and His Blue Caps - Be-Bop-A-Lula
+104. Donna Summer - Hot Stuff
+105. Stevie Wonder - Living for the City
+106. Simon and Garfunkel - The Boxer
+107. Bob Dylan - Mr. Tambourine Man
+108. Buddy Holly and The Crickets - Not Fade Away
+109. Prince - Little Red Corvette
+110. Van Morrison - Brown Eyed Girl
+111. Otis Redding - I've Been Loving You Too Long (to Stop Now)
+112. Hank Williams - I'm So Lonesome I Could Cry
+113. Elvis Presley - That's All Right
+114. The Drifters - Up on the Roof
+115. Sam Cooke - You Send Me
+116. The Rolling Stones - Honky Tonk Women
+117. Al Green - Take Me to the River
+118. Beyonce Feat. Jay-Z - Crazy in Love
+119. The Isley Brothers - Shout (Parts 1 and 2)
+120. Fleetwood Mac - Go Your Own Way
+121. The Jackson 5 - I Want You Back
+122. Ben. E. King - Stand By Me
+123. The Animals - The House of the Rising Sun
+124. James Brown - It's a Man's Man's Man's World
+125. The Rolling Stones - Jumpin' Jack Flash
+126. The Shirelles - Will You Love Me Tomorrow
+127. Big Joe Turner - Shake, Rattle & Roll
+128. Davis Bowie - Changes
+129. Chuck Berry - Rock & Roll Music
+130. Steppenwolf - Born to Be Wild
+131. Rod Stewart - Maggie May
+132. U2 - With or Without You
+133. Bo Diddley - Who Do You Love?
+134. The Who - Won't Get Fooled Again
+135. Wilson Pickett - In the Midnight Hour,
+136. The Beatles - While My Guitar Gently Weeps
+137. Elton John - Your Song
+138. The Beatles - Eleanor Rigby
+139. Sly and The Family Stone - Family Affair
+140. The Beatles - I Saw Her Standing There
+141. Led Zeppelin - Kashmir
+142. The Everly Brothers - All I Have to Do Is Dream
+143. James Brown and His Famous Flames - Please, Please, Please
+144. Prince and The Revolution - Purple Rain
+145. Ramones - I Wanna be Sedated
+146. Sly and The Family Stone - Everyday People
+147. The B-52'S - Rock Lobster
+148. Janis Joplin - Me and Bobby McGee
+149. Iggy Pop - Lust for Life
+150. The Everly Brothers - Cathy's Clown
+151. The Byrds - Eight Miles High
+152. The Penguins - Earth Angel
+153. The Jimi Hendrix Experience - Foxey Lady
+154. The Beatles - A Hard Day's Night
+155. Buddy Holly and the Crockets - Rave On
+156. Creedence Clearwater Revival - Proud Mary
+157. Simon and Garfunkel - The Sounds of Silence
+158. The Flamingos - I Only Have Eyes for You
+159. Bill Haley and His Comets - (We're Gonna) Rock Around the Clock
+160. U2 - Moment of Surrender
+161. The Velvet Underground - I'm Waiting for the Man
+162. Public Enemy - Bring the Noise
+163. Johnny Cash - Folsom Prison Blues (live at Folsom Prison)
+164. Ray Charles - I Can't Stop Loving You
+165. Sinead O' Connor - Nothing Compares 2 U
+166. Queen - Bohemian Rhapsody
+167. Tracy Chapman - Fast Car
+168. Marvin Gaye - Let's Get It On
+169. The Temptations - Papa Was A Rollin' Stone
+170. R.E.M. - Losing My Religion
+171. Joni Mitchell - Both Sides Now
+172. Jay-Z - 99 Problems
+173. Aerosmith - Dream On
+174. ABBA - Dancing Queen
+175. The Sex Pistols - God Save The Queen
+176. The Rolling Stones - Paint It Black
+177. The Bobby Fuller Four - I Fought The Law
+178. The Beach Boys - Don't Worry Baby
+179. Tom Petty - Free Fallin'
+180. Big Star - September Girls
+181. Joy Division - Love Will Tear Us Apart
+182. OutKast - Hey Ya!
+183. Booker T. and the MG's - Green Onions
+184. The Drifters - Save The Last Dance For Me
+185. B.B. King - The Thrill Is Gone
+186. The Beatles - Please Please Me
+187. Bob Dylan - Desolation Row
+188. Creedence Clearwater Revival - Who'll Stop The Rain
+189. Aretha Franklin - I Never Loved a Man (the Way I Love You)
+190. AC/DC - Back in Black
+191. Bee Gees - Stayin' Alive
+192. Bob Dylan - Knockin' On Heaven's Door
+193. Lynyrd Skynyrd - Free Bird
+194. Amy Winehouse - Rehab
+195. Glen Campbell - Wichita Lineman
+196. The Drifters - There Goes My Baby
+197. Buddy Holly - Peggy Sue
+198. Guns N' Roses - Sweet Child O' Mine
+199. The Chantels - Maybe
+200. Elvis Presley - Don't Be Cruel
+201. The Jimi Hendrix Experience - Hey Joe
+202. Parliament - Flash Light
+203. Beck - Loser
+204. New Order - Bizarre Love Triangle
+205. The Beatles - Come Together
+206. Bob Dylan - Positively 4th Street
+207. Otis Redding - Try a Little Tenderness
+208. Bill Withers - Lean on Me
+209. The Four Tops - Reach Out, I'll Be There
+210. The Everly Brothers - Bye Bye Love
+211. Them - Gloria
+212. The Beach Boys - In My Room
+213. ? and the Mysterians - 96 Tears
+214. The Beach Boys - Caroline, No
+215. Prince - 1999
+216. Neil Young - Rockin' in the Free World
+217. Hank Williams - Your Cheatin' Heart
+218. The Lovin' Spoonful - Do You Believe in Magic
+219. Dolly Parton - Jolene
+220. John Lee Hooker - Boom Boom
+221. Howlin' Wolf - Spoonful
+222. The Left Banke - Walk Away Renee
+223. Lou Reed - Walk On the Wild Side
+224. Roy Orbison - Oh, Pretty Woman
+225. Sly and the Family Stone - Dance to the Music
+226. Muddy Waters - Hoochie Coochie Man
+227. James Taylor - Fire and Rain
+228. The Clash - Should I Stay or Should I Go
+229. Chic - Good Times
+230. Muddy Waters - Mannish Boy
+231. Van Morrison - Moondance
+232. Bob Dylan - Just Like A Woman
+233. Marvin Gaye - Sexual Healing
+234. Roy Orbison - Only The Lonely
+235. The Animals - We Gotta Get Out of This Place
+236. M.I.A. - Paper Planes
+237. The Byrds - I'll Feel A Whole Lot Better
+238. Buddy Holly and the Crickets - Everyday
+239. Ray Charles - I Got A Woman
+240. Afrika Bambaataa and the Soul Sonic Force - Planet Rock
+241. Patsy Cline - I Fall to Pieces
+242. Dusty Springfield - Son of a Preacher Man
+243. Dion - The Wanderer
+244. Sly and the Family Stone - Stand!
+245. Elton John - Rocket Man
+246. The B-52's - Love Shack
+247. The Spencer Davis Group - Gimme Some Lovin
+248. Jackie Wilson - (Your Love Keeps Lifting Me) Higher and Higher
+249. The Band - The Night They Drove Old Dixie Down
+250. Sly and the Family Stone - Hot Fun in the Summertime
+251. Sugarhill Gang - Rapper's Delight
+252. Aretha Franklin - Chain of Fools
+253. Black Sabbath - Paranoid
+254. The Drifters - Money Honey
+255. Bobby Darin - Mack the Knife
+256. Mott the Hoople - All The Young Dudes
+257. Radiohead - Paranoid Android
+258. AC/DC - Highway to Hell
+259. Blondie - Heart of Glass
+260. Bob Dylan - Mississippi
+261. The Troggs - Wild Thing
+262. The Who - I Can See For Miles
+263. The Dells - Oh, What A Night
+264. Jeff Buckley - Hallelujah
+265. Stevie Wonder - Higher Ground
+266. Smokey Robinson and the Miracles - Ooo Baby Baby
+267. The Crystals - He's a Rebel
+268. Randy Newman - Sail Away
+269. The Ronettes - Walking in the Rain
+270. Archie Bell and the Drells - Tighten Up
+271. New York Dolls - Personality Crisis
+272. U2 - Sunday Bloody Sunday
+273. Kanye West - Jesus Walks
+274. The Modern Lovers - Roadrunner
+275. George Jones - He Stopped Loving Her Today
+276. The Beach Boys - Sloop John B
+277. Chuck Berry - Sweet Little Sixteen
+278. The Beatles - Something
+279. Jefferson Airplane - Somebody to Love
+280. Bruce Springsteen - Born in the U.S.A.
+281. The Staple Singers - I'll Take You There
+282. David Bowie - Ziggy Stardust
+283. The Cure - Pictures of You
+284. The Dixie Cups - Chapel of Love
+285. Bill Withers - Ain't No Sunshine
+286. The White Stripes - Seven Nation Army
+287. Stevie Wonder - You Are the Sunshine of My Life
+288. Joni Mitchell - Help Me
+289. Blondie - Call Me
+290. Elvis Costello and the Attractions - (What's So Funny 'Bout) Peace, Love and Understanding
+291. Howlin' Wolf - Smokestack Lightning
+292. Pavement - Summer Babe (Winter Version)
+293. Run-DMC feat, Aerosmith - Walk This Way
+294. Barrett Strong - Money (That's What I Want)
+295. The Beatles - Can't Buy Me Love
+296. Eminem Feat. Dido - Stan
+297. The Zombies - She's Not There
+298. The Clash - Train in Vain
+299. Al Green - Tired of Being Alone
+300. Led Zeppelin - Black Dog
+301. The Rolling Stones - Street Fighting Man
+302. Bob Marley and the Wailers - Get Up, Stand Up
+303. Neil Young - Heart of Gold
+304. Prince - Sign 'O' the Times
+305. Blondie - One Way or Another
+306. Madonna - Like a Prayer
+307. Daft Punk - One More Time
+308. Rod Stewart - Do Ya Think I'm Sexy?
+309. Willie Nelson - Blue Eyes Crying in the Rain
+310. The Rolling Stones - Ruby Tuesday
+311. The Beatles - With a Little Help From My Friends
+312. James Brown - Say it Loud, I'm Black and I'm Proud
+313. The Jam - That's Entertainment
+314. Frankie Lymon and the Teenagers - Why Do Fools Fall in Love
+315. Jackie Wilson - Lonely Teardrops
+316. Tina Turner - What's Love Got to Do With It
+317. Black Sabbath - Iron Man
+318. The Everly Brothers - Wake Up Little Susie
+319. Roy Orbison - In Dreams
+320. Screamin' Jay Hawkins - I Put a Spell on You
+321. Pink Floyd - Comfortably Numb
+322. The Animals - Don't Let Me Be Misunderstood
+323. Elvis Costello - Alison
+324. Pink Floyd - Wish You Were Here
+325. Jimmy Cliff - Many Rivers to Cross
+326. Alice Cooper - School's Out
+327. Franz Ferdinand - Take Me Out
+328. Led Zeppelin - Heartbreaker
+329. Neil Young - Cortez the Killer
+330. Public Enemy - Fight the Power
+331. Patti Smith Group - Dancing Barefoot
+332. The Supremes - Baby Love
+333. The Young Rascals - Good Lovin'
+334. James Brown - Get Up (I Feel Like Being a) Sex Machine
+335. Jerry Butler and the Impressions - For Your Precious Love
+336. The Doors - The End
+337. Earth, Wind and Fire - That's the Way of the World
+338. Queen - We Will Rock You
+339. Bonnie Raitt - I Can't Make You Love Me
+340. Bob Dylan - Subterranean Homesick Blues
+341. Norman Greenbaum - Spirit in the Sky
+342. The Velvet Underground - Sweet Jane
+343. The Rolling Stones - Wild Horses
+344. Michael Jackson - Beat It
+345. U2 - Beautiful Day
+346. Aerosmith - Walk This Way
+347. Paul McCartney - Maybe I'm Amazed
+348. The Supremes - You Keep Me Hangin' On
+349. The Who - Baba O' Riley
+350. Jimmy Cliff - The Harder They Come
+351. Dion - Runaround Sue
+352. Lavern Baker - Jim Dandy
+353. Big Brother and the Holding Company - Piece of My Heart
+354. Ritchie Valens - La Bamba
+355. Dr. Dre and 2Pac - California Love
+356. Elton John - Candle in the Wind
+357. The Isley Brothers - That Lady (Part 1 and 2)
+358. Ben E. King - Spanish Harley
+359. Little Eva - The Loco-Moation
+360. The Platters - The Great Pretender
+361. Elvis Presley - All Shook Up
+362. Eric Clapton - Tears in Heaven
+363. Elvis Costello - Watching the Detectives
+364. Creedence Clearwater Revival - Bad Moon Rising
+365. Eurythmics - Sweet Dreams (Are Made of This)
+366. The Jimi Hendrix Experience - Little Wing
+367. Martha and the Vandellas - Nowhere to Run
+368. Muddy Waters - Got My Mojo Working
+369. Roberta Flack - Killing Me Softly With His Song
+370. The Beatles - All You Need Is Love
+371. The Clash - Complete Control
+372. The Box Tops - The Letter
+373. Bob Dylan - Highway 61 Revisited
+374. The Righteous Brothers - Unchained Melody
+375. Bee Gees - How Deep Is Your Love
+376. Cream - White Room
+377. Depeche Mode - Personal Jesus
+378. Bo Diddley - I'm a Man
+379. The Jimi Hendrix Experience - The Wind Cries Mary
+380. The Who - I Can't Explain
+381. Television - Marquee Moon
+382. Sam Cooke - Wonderful World
+383. Chuck Berry - Brown Eyed Handsome Man
+384. Pink Floyd - Another Brick in the Wall Part 2
+385. Radiohead - Fake Plastic Trees
+386. Yeah Yeah Yeahs - Maps
+387. Ray Charles - Hit the Road Jack
+388. U2 - Pride (In the Name of Love)
+389. R.E.M. - Radio Free Europe
+390. Elton John - Goodbye Yellow Brick Road
+391. Aaron Neville - Tell It Like It Is
+392. The Verve - Bitter Sweet Symphony
+393. The Allman Brothers Band - Whipping Post
+394. The Beatles - Ticket to Ride
+395. Crosby, Stills, Nash and Young - Ohio
+396. Eric B. and Rakim - I Know You Got Soul
+397. Elton John - Tiny Dancer
+398. The Police - Roxanne
+399. The Temptations - Just My Imagination
+400. The Four Tops - Baby I Need Your Loving
+401. The Lovin' Spoonful - Summer in the City
+402. The Five Stairsteps - O-o-h Child
+403. Elvis Presley - Can't Help Falling in Love
+404. The Shangri-Las - Remember (Walkin' in the Sand)
+405. Blue Oyster Cult - (Don't Fear) the Reaper
+406. Big Star - Thirteen
+407. Lynyrd Skynyrd - Sweet Home Alabama
+408. Metallica - Enter Sandman
+409. The Shirelles - Tonight's the Night
+410. Sly and The Family Stone - Thank You (Falettinme Be Mice Elf Agin)
+411. Eddie Cochran - C'mon Everybody
+412. Rihanna Feat. Jay-Z - Umbrella
+413. Bob Dylan - Visions of Johanna
+414. Carpenters - We've Only Just Begun
+415. Nirvana - In Bloom
+416. Aerosmith - Sweet Emotion
+417. Pixies - Monkey Gone to Heaven
+418. Donna Summer - I Feel Love
+419. Bobbie Gentry - Ode to Billie Joe
+420. Little Richard - That Girl Can't Help It
+421. The Coasters - Young Blood
+422. The Four Tops - I Can't Help Myself
+423. Don Henley - The Boys of Summer
+424. The Notorious B.I.G - Juicy
+425. N.W.A - Fuck tha Police
+426. Crosby, Stills and Nash - Suite: Judy Blue Eyes
+427. Dr. Dre - Nuthin' But a 'G' Thang
+428. The Isley Brothers - It's Your Thing
+429. Billy Joel - Piano Man
+430. Elvis Presley - Blue Suede Shoes
+431. The Smiths - William, It Was Really Nothing
+432. Green Day - American Idiot
+433. The Rolling Stones - Tumbling Dice
+434. Deep Purple - Smoke on the Water
+435. U2 - New Year's Day
+436. Solomon Burke - Everybody Needs Somebody to Love
+437. The Clash - (White Man) In Hammersmith Palais
+438. Fats Domino - Ain't It a Shame
+439. Gladys Knight and The Pips - Midnight Train to Georgia
+440. Led Zeppelin - Ramble On
+441. Wilson Pickett - Mustang Sally
+442. Love - Alone Again Or
+443. The Rolling Stones - Beast of Burden
+444. Elvis Presley - Love Me Tender
+445. The Stooges - I Wanna Be Your Dog
+446. Salt 'N Pepa - Push It
+447. John Cougar Mellencamp - Pink Houses
+448. 50 Cent - In Da Club
+449. The Dell-Vikings - Come Go With Me
+450. Bob Marley and The Wailers - I Shot the Sheriff
+451. Sonny and Cher - I Got You Babe
+452. Nirvana - Come As You Are
+453. Toots and the Maytals - Pressure Drop
+454. The Shangri-Las - Leader of the Pack
+455. The Velvet Underground - Heroin
+456. The Beatles - Penny Lane
+457. Chubby Checker - The Twist
+458. Sam Cooke - Cupid
+459. Guns N' Roses - Paradise City
+460. George Harrison - My Sweet Lord
+461. Ramones - Sheena Is a Punk Rocker
+462. Nirvana - All Apologies
+463. Sam and Dave - Soul Man
+464. Prince and The Revolution - Kiss
+465. Muddy Waters - Rollin' Stone
+466. Missy Elliot - Get Ur Freak On
+467. Jay-Z Feat. UGK - Big Pimpin'
+468. The Staple Singers - Respect Yourself
+469. The Beatles - Rain
+470. The Four Tops - Standing in the Shadows of Love
+471. Cheap Trick - Surrender
+472. Del Shannon - Runaway
+473. Guns N' Roses - Welcome to the Jungle
+474. Van Morrison - Into the Mystic
+475. The Supremes - Where Did Our Love Go
+476. Aretha Franklin - Do Right Woman, Do Right Man
+477. The Smiths - How Soon Is Now?
+478. The Strokes - Last Night
+479. Foreigner - I Want to Know What Love Is
+480. Beastie Boys - Sabotage
+481. Rick James - Super Freak
+482. Kelly Clarkson - Since U Been Gone
+483. Jefferson Airplane - White Rabbit
+484. Justin Timberlake - Cry Me a River
+485. Labelle - Lady Marmalade
+486. David Bowie - Young Americans
+487. Alice Cooper - I'm Eighteen
+488. The Cure - Just Like Heaven
+489. The Drifters - Under the Boardwalk
+490. Coldplay - Clocks
+491. Joan Jett and the Blackhearts - I Love Rock 'N Roll
+492. Gloria Gaynor - I Will Survive
+493. MGMT - Time to Pretend
+494. R. Kelly - Ignition (Remix)
+495. The Rolling Stones - Brown Sugar
+496. Jackson Browne - Running on Empty
+497. Bruce Springsteen - The Rising
+498. The Rolling Stones - Miss You
+499. Weezer - Buddy Holly
+500. Smokey Robinson and the Miracles - Shop Around
