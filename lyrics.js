@@ -25,6 +25,8 @@
     const pauseButton = document.getElementById("lyrics-pause");
     const playButton = document.getElementById("lyrics-play");
     const nextTrackButton = document.getElementById("lyrics-next-track");
+    const vinylModeToggle = document.getElementById("lyrics-vinyl-mode");
+    const vinylModeState = document.getElementById("lyrics-vinyl-mode-state");
     const embedCard = document.getElementById("lyrics-embed-card");
     const embedContainer = document.getElementById("lyrics-embed-container");
     const discogsCard = document.getElementById("lyrics-discogs-card");
@@ -66,6 +68,15 @@
     let currentDisplayedTrack = null;
     let vinylSideEndPauseTimer = null;
     let vinylSideEndPauseArm = null;
+    let currentTrackEndsVinylSide = false;
+    let currentTrackVinylSide = "";
+    const VINYL_MODE_STORAGE_KEY = "navincitron-lyrics-vinyl-mode";
+    let vinylModeEnabled = false;
+    try {
+        vinylModeEnabled = window.localStorage.getItem(VINYL_MODE_STORAGE_KEY) === "1";
+    } catch (error) {
+        vinylModeEnabled = false;
+    }
     let lastDefaultArtworkUrl = "";
     let lastDefaultArtworkTitle = "";
     let coverPickerLookupToken = 0;
@@ -1744,6 +1755,37 @@
         });
     }
 
+    function updateVinylModeUi() {
+        if (vinylModeToggle) {
+            vinylModeToggle.checked = vinylModeEnabled;
+            vinylModeToggle.setAttribute("aria-checked", vinylModeEnabled ? "true" : "false");
+        }
+        if (vinylModeState) vinylModeState.textContent = vinylModeEnabled ? "On" : "Off";
+    }
+
+    function setVinylModeEnabled(enabled) {
+        vinylModeEnabled = Boolean(enabled);
+        try {
+            window.localStorage.setItem(VINYL_MODE_STORAGE_KEY, vinylModeEnabled ? "1" : "0");
+        } catch (error) {
+            // Vinyl Mode still works for the current page even when storage is unavailable.
+        }
+        updateVinylModeUi();
+
+        if (!vinylModeEnabled) {
+            clearVinylSideEndPause();
+            return;
+        }
+        if (currentTrackEndsVinylSide && currentDisplayedTrack && currentTrackVinylSide) {
+            armVinylSideEndPause(currentDisplayedTrack, currentTrackVinylSide);
+        }
+    }
+
+    if (vinylModeToggle) {
+        updateVinylModeUi();
+        vinylModeToggle.addEventListener("change", () => setVinylModeEnabled(vinylModeToggle.checked));
+    }
+
     function clearVinylSideEndPause(options = {}) {
         if (vinylSideEndPauseTimer) {
             window.clearTimeout(vinylSideEndPauseTimer);
@@ -1753,7 +1795,7 @@
     }
 
     async function pauseSpotifyAtVinylSideEnd(arm, options = {}) {
-        if (!arm || !spotifyAuthenticated) return;
+        if (!vinylModeEnabled || !arm || !spotifyAuthenticated) return;
         if (!options.force && vinylSideEndPauseArm !== arm) return;
         // Never let a heavily throttled background-tab timer pause an unrelated
         // song long after the intended vinyl side boundary.
@@ -1805,6 +1847,7 @@
             window.clearTimeout(vinylSideEndPauseTimer);
             vinylSideEndPauseTimer = null;
         }
+        if (!vinylModeEnabled) return;
         const arm = vinylSideEndPauseArm;
         if (!arm || !currentDisplayedTrack || !playbackClock.isPlaying) return;
         const currentTrackKey = String(currentDisplayedTrack.key || `${currentDisplayedTrack.artist}::${currentDisplayedTrack.title}`);
@@ -1823,6 +1866,10 @@
     }
 
     function armVinylSideEndPause(track, side) {
+        if (!vinylModeEnabled) {
+            clearVinylSideEndPause();
+            return;
+        }
         const trackKey = String(track && (track.key || `${track.artist}::${track.title}`) || "");
         const normalizedSide = String(side || "").trim().toUpperCase();
         if (!trackKey || !normalizedSide) {
@@ -1852,6 +1899,8 @@
         discogsReleaseMeta.hidden = true;
         discogsConditionMeta.replaceChildren();
         discogsConditionMeta.hidden = true;
+        currentTrackEndsVinylSide = false;
+        currentTrackVinylSide = "";
         clearVinylSideEndPause();
         discogsTotalLength.textContent = "";
         discogsTotalLength.hidden = true;
@@ -2176,6 +2225,26 @@
         if (conditionParts.length) {
             discogsConditionMeta.textContent = conditionParts.join(" · ");
             discogsConditionMeta.hidden = false;
+        } else {
+            const auth = payload && payload.discogsAuth && typeof payload.discogsAuth === "object" ? payload.discogsAuth : {};
+            const collectionUsername = String(auth.collectionUsername || "NNavincitron").trim();
+            const authenticatedUsername = String(auth.authenticatedUsername || "").trim();
+            const conditionFields = auth.conditionFields && typeof auth.conditionFields === "object" ? auth.conditionFields : {};
+            if (!auth.tokenConfigured) {
+                discogsConditionMeta.textContent = `Media/Sleeve Quality unavailable: Discogs owner authentication is required for ${collectionUsername}'s private collection fields.`;
+                discogsConditionMeta.hidden = false;
+            } else if (!auth.ownerAuthenticated) {
+                discogsConditionMeta.textContent = authenticatedUsername
+                    ? `Media/Sleeve Quality unavailable: the configured Discogs token is authenticated as ${authenticatedUsername}, not ${collectionUsername}.`
+                    : `Media/Sleeve Quality unavailable: the configured Discogs token could not be authenticated as ${collectionUsername}.`;
+                discogsConditionMeta.hidden = false;
+            } else if (!Object.keys(conditionFields).length) {
+                discogsConditionMeta.textContent = "Media/Sleeve Quality unavailable: Discogs did not return the collection field definitions.";
+                discogsConditionMeta.hidden = false;
+            } else {
+                discogsConditionMeta.textContent = "Media/Sleeve Quality not returned for this collection instance.";
+                discogsConditionMeta.hidden = false;
+            }
         }
 
         const groups = new Map();
@@ -2236,7 +2305,9 @@
             discogsSides.appendChild(side);
         });
 
-        if (currentTrackEndsSide && currentDisplayedTrack) {
+        currentTrackEndsVinylSide = currentTrackEndsSide;
+        currentTrackVinylSide = currentTrackSide;
+        if (vinylModeEnabled && currentTrackEndsSide && currentDisplayedTrack) {
             armVinylSideEndPause(currentDisplayedTrack, currentTrackSide);
         } else {
             clearVinylSideEndPause();
@@ -2768,13 +2839,17 @@
         // from an armed side-ending track while the previous track was already at
         // its end, pause the newly started side immediately. Manual Next/Previous
         // clears the arm before changing tracks and therefore does not trigger this.
-        if (trackChanged && vinylSideEndPauseArm && vinylSideEndPauseArm.trackKey === previousTrackKey && previousRemainingMs <= 1500) {
+        if (vinylModeEnabled && trackChanged && vinylSideEndPauseArm && vinylSideEndPauseArm.trackKey === previousTrackKey && previousRemainingMs <= 1500) {
             const missedBoundaryArm = vinylSideEndPauseArm;
             window.setTimeout(() => pauseSpotifyAtVinylSideEnd(missedBoundaryArm, { force: true }), 0);
         } else if (trackChanged && vinylSideEndPauseArm && vinylSideEndPauseArm.trackKey === previousTrackKey) {
             clearVinylSideEndPause();
         }
 
+        if (trackChanged) {
+            currentTrackEndsVinylSide = false;
+            currentTrackVinylSide = "";
+        }
         lastTrackKey = trackKey;
         hasDisplayedTrack = true;
 
@@ -2957,7 +3032,7 @@
         } else if (action === "play") {
             playbackClock.isPlaying = true;
             playbackClock.sampledAt = Date.now();
-            if (vinylSideEndPauseArm) scheduleVinylSideEndPause();
+            if (vinylModeEnabled && vinylSideEndPauseArm) scheduleVinylSideEndPause();
         }
 
         try {
