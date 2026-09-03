@@ -563,8 +563,32 @@
             text-align: center;
         }
 
-        .lyrics-score-value,
-        .lyrics-score-band {
+        .lyrics-score-rating-stack {
+            align-items: center;
+            display: inline-flex;
+            flex-direction: column;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        .lyrics-score-rating-image {
+            display: block;
+            height: auto;
+            object-fit: contain;
+            width: auto;
+        }
+
+        .lyrics-score-rating-image-top {
+            max-height: 38px;
+            max-width: 150px;
+        }
+
+        .lyrics-score-rating-image-bottom {
+            max-height: 66px;
+            max-width: 150px;
+        }
+
+        .lyrics-score-value {
             font-weight: 700;
         }
 
@@ -745,6 +769,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260903-score-display-colors-v10"></script>
+    <script src="lyrics.js?v=20260903-rating-images-stars-v11"></script>
 </body>
 </html>

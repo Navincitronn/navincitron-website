@@ -151,6 +151,35 @@
         { min: -Infinity, label: "DUMPSTER FIRE", color: "#8b5a2b" },
     ]);
 
+    const SCORE_RATING_IMAGE_BASE = "rating_images/";
+    const ALBUM_SCORE_VISUAL_BANDS = Object.freeze([
+        { min: 98, tier: "high", rating: 10 },
+        { min: 96, tier: "mid", rating: 10 },
+        { min: 94, tier: "low", rating: 10 },
+        { min: 92, tier: "high", rating: 9 },
+        { min: 90, tier: "mid", rating: 9 },
+        { min: 88, tier: "low", rating: 9 },
+        { min: 86, tier: "high", rating: 8 },
+        { min: 84, tier: "mid", rating: 8 },
+        { min: 82, tier: "low", rating: 8 },
+        { min: 80, tier: "high", rating: 7 },
+        { min: 78, tier: "mid", rating: 7 },
+        { min: 76, tier: "low", rating: 7 },
+        { min: 75, tier: "high", rating: 6 },
+        { min: 73, tier: "mid", rating: 6 },
+        { min: 71, tier: "low", rating: 6 },
+        { min: 68, tier: "high", rating: 5 },
+        { min: 64, tier: "mid", rating: 5 },
+        { min: 61, tier: "low", rating: 5 },
+        { min: 58, tier: "high", rating: 4 },
+        { min: 54, tier: "mid", rating: 4 },
+        { min: 51, tier: "low", rating: 4 },
+        { min: 48, tier: "high", rating: 3 },
+        { min: 44, tier: "mid", rating: 3 },
+        { min: 41, tier: "low", rating: 3 },
+        { min: -Infinity, tier: "not-good", rating: null },
+    ]);
+
     const focusSink = document.createElement("span");
     focusSink.tabIndex = -1;
     focusSink.setAttribute("aria-hidden", "true");
@@ -2335,7 +2364,7 @@
         if (!text) return "";
         if (/near\s+mint|\bnm\b/.test(text)) return "#3cb3ff";
         if (/very\s+good\s*(?:plus|\+)|\bvg\+\b/.test(text)) return "#7dd956";
-        if (/very\s+good|\bvg\b/.test(text)) return "#febd59";
+        if (/very\s+good|\bvg\b/.test(text)) return "#FFEF00";
         if (/good\s*(?:plus|\+)|\bg\+\b/.test(text)) return "#ff914c";
         if (/\bgood\b|\bg\b/.test(text)) return "#ff5757";
         if (/\bfair\b|\bpoor\b|\bf\b|\bp\b/.test(text)) return "#9F000F";
@@ -2352,6 +2381,30 @@
     function scoreBandForTrackScore(value) {
         const numeric = Number(value);
         return Number.isFinite(numeric) ? scoreBandForHundredScale(numeric * 10) : null;
+    }
+
+    function albumScoreVisualForHundredScale(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return null;
+        const band = ALBUM_SCORE_VISUAL_BANDS.find(candidate => numeric >= candidate.min)
+            || ALBUM_SCORE_VISUAL_BANDS[ALBUM_SCORE_VISUAL_BANDS.length - 1];
+        const topFilename = band.tier === "high"
+            ? "rating_strong.png"
+            : (band.tier === "mid" || band.tier === "low" ? "rating_decent.png" : "");
+        const bottomFilename = band.rating
+            ? `rating_${band.rating}.png`
+            : "rating_not_good.png";
+        return { ...band, topFilename, bottomFilename };
+    }
+
+    function makeAlbumScoreImage(filename, className, altText) {
+        const image = document.createElement("img");
+        image.className = className;
+        image.src = new URL(`${SCORE_RATING_IMAGE_BASE}${filename}`, window.location.href).href;
+        image.alt = altText;
+        image.loading = "lazy";
+        image.decoding = "async";
+        return image;
     }
 
     function parseMyAlbumsScoreFile(text) {
@@ -2534,7 +2587,13 @@
                 position.textContent = row.position || "—";
                 const title = document.createElement("span");
                 title.className = "lyrics-discogs-track-title";
+                const rollingStoneArtists = Array.isArray(row.artists) && row.artists.length
+                    ? row.artists
+                    : (Array.isArray(release && release.artists) ? release.artists : []);
+                title.dataset.rollingStoneTitle = row.title;
+                title.dataset.rollingStoneArtists = JSON.stringify(rollingStoneArtists);
                 title.textContent = row.title;
+                applyRollingStoneStarToTrackTitleElement(title);
                 const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row.title) : null;
                 const value = matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? matchedTrack.score : null;
                 const scoreValue = makeScoreValueElement(value, true);
@@ -2544,16 +2603,27 @@
             scoreSides.appendChild(side);
         });
         if (albumEntry && Number.isFinite(Number(albumEntry.overallScore))) {
-            const band = scoreBandForHundredScale(albumEntry.overallScore);
-            const label = document.createElement("span");
-            label.textContent = "Overall Score: ";
-            const value = makeScoreValueElement(albumEntry.overallScore, false);
-            const bandText = document.createElement("span");
-            bandText.className = "lyrics-score-band";
-            bandText.textContent = band ? ` · ${band.label}` : "";
-            if (band) bandText.style.color = band.color;
-            scoreOverall.append(label, value, bandText);
-            scoreOverall.hidden = false;
+            const visual = albumScoreVisualForHundredScale(albumEntry.overallScore);
+            if (visual) {
+                const ratingStack = document.createElement("div");
+                ratingStack.className = "lyrics-score-rating-stack";
+                if (visual.topFilename) {
+                    const topLabel = visual.tier === "high" ? "Strong" : "Decent";
+                    ratingStack.appendChild(makeAlbumScoreImage(
+                        visual.topFilename,
+                        "lyrics-score-rating-image lyrics-score-rating-image-top",
+                        topLabel
+                    ));
+                }
+                const bottomLabel = visual.rating ? `Rating ${visual.rating}` : "Not good";
+                ratingStack.appendChild(makeAlbumScoreImage(
+                    visual.bottomFilename,
+                    "lyrics-score-rating-image lyrics-score-rating-image-bottom",
+                    bottomLabel
+                ));
+                scoreOverall.appendChild(ratingStack);
+                scoreOverall.hidden = false;
+            }
         }
     }
 
@@ -2686,8 +2756,11 @@
     }
 
     function refreshRollingStoneStarsInRenderedTracklist() {
-        discogsSides.querySelectorAll(".lyrics-discogs-track-title[data-rolling-stone-title]")
-            .forEach(applyRollingStoneStarToTrackTitleElement);
+        [discogsSides, scoreSides].forEach(container => {
+            if (!container) return;
+            container.querySelectorAll(".lyrics-discogs-track-title[data-rolling-stone-title]")
+                .forEach(applyRollingStoneStarToTrackTitleElement);
+        });
     }
 
     function loadRollingStone500SongLists() {
