@@ -126,28 +126,28 @@
     let myAlbumsScoresPromise = null;
 
     const SCORE_COLOR_BANDS = Object.freeze([
-        { min: 110, label: "PINK", color: "#ff4fa3" },
-        { min: 98, label: "HIGH 10", color: "#ff3b30" },
-        { min: 96, label: "MID 10", color: "#ff3b30" },
-        { min: 94, label: "LOW 10", color: "#ff3b30" },
-        { min: 92, label: "HIGH 9", color: "#ff9500" },
-        { min: 90, label: "MID 9", color: "#ff9500" },
-        { min: 88, label: "LOW 9", color: "#ff9500" },
-        { min: 86, label: "HIGH 8", color: "#ffd60a" },
-        { min: 84, label: "MID 8", color: "#ffd60a" },
-        { min: 82, label: "LOW 8", color: "#ffd60a" },
-        { min: 80, label: "HIGH 7", color: "#34c759" },
-        { min: 78, label: "MID 7", color: "#34c759" },
-        { min: 76, label: "LOW 7", color: "#34c759" },
-        { min: 75, label: "HIGH 6", color: "#0a84ff" },
-        { min: 73, label: "MID 6", color: "#0a84ff" },
-        { min: 71, label: "LOW 6", color: "#0a84ff" },
-        { min: 68, label: "HIGH 5", color: "#5e5ce6" },
-        { min: 64, label: "MID 5", color: "#5e5ce6" },
-        { min: 61, label: "LOW 5", color: "#5e5ce6" },
-        { min: 58, label: "HIGH 4", color: "#af52de" },
-        { min: 54, label: "MID 4", color: "#af52de" },
-        { min: 51, label: "LOW 4", color: "#af52de" },
+        { min: 110, label: "VIOLET", color: "#a855f7" },
+        { min: 98, label: "HIGH 10", color: "#2563eb" },
+        { min: 96, label: "MID 10", color: "#3b82f6" },
+        { min: 94, label: "LOW 10", color: "#60a5fa" },
+        { min: 92, label: "HIGH 9", color: "#0891b2" },
+        { min: 90, label: "MID 9", color: "#06b6d4" },
+        { min: 88, label: "LOW 9", color: "#67e8f9" },
+        { min: 86, label: "HIGH 8", color: "#16a34a" },
+        { min: 84, label: "MID 8", color: "#22c55e" },
+        { min: 82, label: "LOW 8", color: "#86efac" },
+        { min: 80, label: "HIGH 7", color: "#ca8a04" },
+        { min: 78, label: "MID 7", color: "#eab308" },
+        { min: 76, label: "LOW 7", color: "#fde047" },
+        { min: 75, label: "HIGH 6", color: "#c2410c" },
+        { min: 73, label: "MID 6", color: "#f97316" },
+        { min: 71, label: "LOW 6", color: "#fb923c" },
+        { min: 68, label: "HIGH 5", color: "#b91c1c" },
+        { min: 64, label: "MID 5", color: "#ef4444" },
+        { min: 61, label: "LOW 5", color: "#f87171" },
+        { min: 58, label: "HIGH 4", color: "#9d174d" },
+        { min: 54, label: "MID 4", color: "#db2777" },
+        { min: 51, label: "LOW 4", color: "#f472b6" },
         { min: -Infinity, label: "DUMPSTER FIRE", color: "#8b5a2b" },
     ]);
 
@@ -2466,6 +2466,7 @@
         if (!scoreCard) return;
         scoreSides.replaceChildren();
         scoreStatus.textContent = "Waiting for a matched Discogs tracklist.";
+        scoreStatus.hidden = false;
         scoreOverall.textContent = "";
         scoreOverall.hidden = true;
         scoreCard.classList.add("lyrics-hidden");
@@ -2474,13 +2475,20 @@
     function makeScoreValueElement(value, isTrackScore = false) {
         const element = document.createElement("span");
         element.className = "lyrics-score-value";
-        if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) { element.textContent = "—"; return element; }
+        if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) {
+            element.textContent = "—";
+            return element;
+        }
         const numeric = Number(value);
         const band = isTrackScore ? scoreBandForTrackScore(numeric) : scoreBandForHundredScale(numeric);
-        element.textContent = isTrackScore
-            ? `${numeric.toFixed(1)}${band ? ` · ${band.label}` : ""}`
-            : `${numeric.toFixed(2)}%`;
-        if (band) { element.style.color = band.color; element.title = band.label; element.dataset.ratingBand = band.label; }
+        element.textContent = isTrackScore ? numeric.toFixed(1) : `${numeric.toFixed(2)}%`;
+        if (band) {
+            element.style.color = band.color;
+            if (!isTrackScore) {
+                element.title = band.label;
+                element.dataset.ratingBand = band.label;
+            }
+        }
         return element;
     }
 
@@ -2492,11 +2500,18 @@
         scoreOverall.hidden = true;
         if (!myAlbumsScoresLoaded) {
             scoreStatus.textContent = "Loading scores from my_albums.txt…";
+            scoreStatus.hidden = false;
             loadMyAlbumsScores();
             return;
         }
         const albumEntry = findMyAlbumsScoreEntry(release, collectionAlbum, discogsRows);
-        scoreStatus.textContent = albumEntry ? albumEntry.title : "No matching album score found in my_albums.txt.";
+        if (albumEntry) {
+            scoreStatus.textContent = "";
+            scoreStatus.hidden = true;
+        } else {
+            scoreStatus.textContent = "No matching album score found in my_albums.txt.";
+            scoreStatus.hidden = false;
+        }
         const groups = new Map();
         let mostRecentSide = "";
         discogsRows.forEach((row, index) => {
@@ -2514,7 +2529,6 @@
             groupRows.forEach(row => {
                 const trackRow = document.createElement("div");
                 trackRow.className = "lyrics-discogs-track lyrics-score-track";
-                if (row.index === currentRowIndex) { trackRow.classList.add("current"); trackRow.setAttribute("aria-current", "true"); }
                 const position = document.createElement("span");
                 position.className = "lyrics-discogs-track-position";
                 position.textContent = row.position || "—";
@@ -2524,10 +2538,6 @@
                 const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row.title) : null;
                 const value = matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? matchedTrack.score : null;
                 const scoreValue = makeScoreValueElement(value, true);
-                if (value !== null) {
-                    const band = scoreBandForTrackScore(value);
-                    scoreValue.title = band ? `${Number(value).toFixed(1)} · ${band.label}` : Number(value).toFixed(1);
-                }
                 trackRow.append(position, title, scoreValue);
                 side.appendChild(trackRow);
             });
