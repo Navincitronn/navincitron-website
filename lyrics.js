@@ -26,9 +26,7 @@
     const playButton = document.getElementById("lyrics-play");
     const nextTrackButton = document.getElementById("lyrics-next-track");
     const scrobbleModeToggle = document.getElementById("lyrics-scrobble-mode");
-    const scrobbleModeState = document.getElementById("lyrics-scrobble-mode-state");
     const vinylModeToggle = document.getElementById("lyrics-vinyl-mode");
-    const vinylModeState = document.getElementById("lyrics-vinyl-mode-state");
     const embedCard = document.getElementById("lyrics-embed-card");
     const embedContainer = document.getElementById("lyrics-embed-container");
     const discogsCard = document.getElementById("lyrics-discogs-card");
@@ -41,6 +39,9 @@
     const scoreStatus = document.getElementById("lyrics-score-status");
     const scoreSides = document.getElementById("lyrics-score-sides");
     const scoreOverall = document.getElementById("lyrics-score-overall");
+    const scoreActions = document.getElementById("lyrics-score-actions");
+    const scoreEditButton = document.getElementById("lyrics-score-edit");
+    const scoreSaveButton = document.getElementById("lyrics-score-save");
     const coverPicker = document.getElementById("lyrics-cover-picker");
     const coverPickerTitle = document.getElementById("lyrics-cover-picker-title");
     const coverPickerSearch = document.getElementById("lyrics-cover-picker-search");
@@ -69,6 +70,8 @@
     let annotationRestoreInProgress = false;
     let lastDiscogsAlbumLookupKey = "";
     let lastDiscogsTracklistPayload = null;
+    let lastDiscogsRenderedLookupKey = "";
+    let discogsLookupInFlightKey = "";
     let discogsLookupRequestId = 0;
     let currentDiscogsRelease = null;
     let currentDisplayedTrack = null;
@@ -119,11 +122,20 @@
     let rollingStone500SongEntries = [];
     let rollingStone500SongListsLoaded = false;
     let rollingStone500SongListsPromise = null;
+    let rollingStone500SongIndex = new Map();
+    let rollingStone500SongBuckets = new Map();
 
     const MY_ALBUMS_SCORE_FILE = "my_albums.txt";
     let myAlbumsScoreEntries = [];
+    let myAlbumsScoreText = "";
     let myAlbumsScoresLoaded = false;
     let myAlbumsScoresPromise = null;
+    const myAlbumsAlbumMatchCache = new Map();
+    let myAlbumsAlbumTitleIndex = new Map();
+    let myAlbumsTrackTitleIndex = new Map();
+    let currentScoreContext = null;
+    let scoreEditMode = false;
+    let scoreSaveInProgress = false;
 
     const SCORE_COLOR_BANDS = Object.freeze([
         { min: 110, label: "VIOLET", color: "#a855f7" },
@@ -1247,6 +1259,25 @@
             ],
         },
         {
+            // Spotify uses the later reissue title, while the owned LP is the
+            // original Bing Crosby release titled Merry Christmas.
+            sourceArtists: ['Bing Crosby'],
+            sourceTitles: ['White Christmas'],
+            targets: [
+                { artist: 'Bing Crosby', title: 'Merry Christmas' },
+            ],
+        },
+        {
+            // Local tracks from the Phil Spector box set are credited to each
+            // individual performer, but the owned Discogs container is filed
+            // under Phil Spector with the 1958-1969 title.
+            sourceArtists: [],
+            sourceTitles: ['Back To Mono (1958 - 1966)', 'Back To Mono (1958-1966)'],
+            targets: [
+                { artist: 'Phil Spector', title: 'Back To Mono (1958-1969)' },
+            ],
+        },
+        {
             // Spotify local-file metadata can credit "Various Artists" (or an
             // individual performer) while the owned physical anthology is filed
             // under curator Harry Smith. Match the distinctive album title, then
@@ -1847,7 +1878,6 @@
             scrobbleModeToggle.checked = scrobbleModeEnabled;
             scrobbleModeToggle.setAttribute("aria-checked", scrobbleModeEnabled ? "true" : "false");
         }
-        if (scrobbleModeState) scrobbleModeState.textContent = scrobbleModeEnabled ? "On" : "Off";
     }
 
     function updateVinylModeUi() {
@@ -1855,7 +1885,6 @@
             vinylModeToggle.checked = vinylModeEnabled;
             vinylModeToggle.setAttribute("aria-checked", vinylModeEnabled ? "true" : "false");
         }
-        if (vinylModeState) vinylModeState.textContent = vinylModeEnabled ? "On" : "Off";
     }
 
     function persistPlaybackModeState() {
@@ -2109,6 +2138,8 @@
         discogsLookupRequestId += 1;
         if (options.clearLookup !== false) {
             lastDiscogsAlbumLookupKey = "";
+            lastDiscogsRenderedLookupKey = "";
+            discogsLookupInFlightKey = "";
             lastDiscogsTracklistPayload = null;
         }
         discogsSides.replaceChildren();
@@ -2390,7 +2421,7 @@
             || ALBUM_SCORE_VISUAL_BANDS[ALBUM_SCORE_VISUAL_BANDS.length - 1];
         const topFilename = band.tier === "high"
             ? "rating_strong.png"
-            : (band.tier === "mid" || band.tier === "low" ? "rating_decent.png" : "");
+            : (band.tier === "mid" ? "rating_decent.png" : (band.tier === "low" ? "rating_light.png" : ""));
         const bottomFilename = band.rating
             ? `rating_${band.rating}.png`
             : "rating_not_good.png";
@@ -2409,45 +2440,112 @@
 
     function parseMyAlbumsScoreFile(text) {
         const albums = [];
-        let current = null;
-        for (const rawLine of String(text || "").split(/\r?\n/)) {
-            const line = rawLine.trim();
-            if (!line) continue;
-            const albumMatch = line.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)%\s*$/);
-            if (albumMatch) {
-                current = { title: albumMatch[1].trim(), overallScore: Number(albumMatch[2]), tracks: [] };
-                albums.push(current);
-                continue;
+        const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+        let index = 0;
+
+        while (index < lines.length) {
+            while (index < lines.length && !lines[index].trim()) index += 1;
+            if (index >= lines.length) break;
+
+            const startLine = index;
+            while (index < lines.length && lines[index].trim()) index += 1;
+            const endLine = index;
+            const block = lines.slice(startLine, endLine);
+            if (!block.length) continue;
+
+            const header = block[0].trim();
+            const scoredHeader = header.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)%\s*$/);
+            const unscoredHeader = header.match(/^(.+?):\s*$/);
+            const hasTrackLines = block.slice(1).some(line => /^.+?:\s*-?\d+(?:\.\d+)?(?:\s+.*)?$/.test(line.trim()));
+            if (!scoredHeader && !(unscoredHeader && hasTrackLines)) continue;
+
+            const entry = {
+                title: (scoredHeader ? scoredHeader[1] : unscoredHeader[1]).trim(),
+                overallScore: scoredHeader ? Number(scoredHeader[2]) : null,
+                tracks: [],
+                startLine,
+                endLine,
+                headerLine: block[0],
+                hasOverallScore: Boolean(scoredHeader),
+            };
+
+            for (const rawTrackLine of block.slice(1)) {
+                const line = rawTrackLine.trim();
+                const trackMatch = line.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)(?:\s+.*)?$/);
+                if (trackMatch) {
+                    entry.tracks.push({ title: trackMatch[1].trim(), score: Number(trackMatch[2]) });
+                    continue;
+                }
+                const blankTrackMatch = line.match(/^(.+?):\s*$/);
+                if (blankTrackMatch) entry.tracks.push({ title: blankTrackMatch[1].trim(), score: null });
             }
-            if (!current) continue;
-            const trackMatch = line.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)\s*$/);
-            if (trackMatch) {
-                current.tracks.push({ title: trackMatch[1].trim(), score: Number(trackMatch[2]) });
-                continue;
-            }
-            const blankTrackMatch = line.match(/^(.+?):\s*$/);
-            if (blankTrackMatch) current.tracks.push({ title: blankTrackMatch[1].trim(), score: null });
+            albums.push(entry);
         }
         return albums;
     }
 
+    async function fetchMyAlbumsScoreText() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/my-albums`, {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            if (response.ok) {
+                const payload = await response.json();
+                const storedText = payload && typeof payload.text === "string" ? payload.text : "";
+                if (storedText.trim()) return storedText;
+            }
+        } catch (error) {
+            // Before the first edit, production can still use the static site copy.
+        }
+
+        const response = await fetch(new URL(MY_ALBUMS_SCORE_FILE, window.location.href).href, { cache: "force-cache" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.text();
+    }
+
+    function setMyAlbumsScoreText(text) {
+        myAlbumsScoreText = String(text || "").replace(/\r\n?/g, "\n");
+        myAlbumsScoreEntries = parseMyAlbumsScoreFile(myAlbumsScoreText);
+        myAlbumsAlbumMatchCache.clear();
+        myAlbumsAlbumTitleIndex = new Map();
+        myAlbumsTrackTitleIndex = new Map();
+        const addIndexValue = (map, key, entry) => {
+            if (!key) return;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(entry);
+        };
+        myAlbumsScoreEntries.forEach(entry => {
+            addIndexValue(myAlbumsAlbumTitleIndex, normalizeAlbumTitle(entry.title || ""), entry);
+            (entry.tracks || []).forEach(track => {
+                lyricsDiscogsTrackTitleVariants(track.title || "").forEach(variant => {
+                    addIndexValue(myAlbumsTrackTitleIndex, lyricsDiscogsNormalizeTrackText(variant), entry);
+                });
+            });
+        });
+        myAlbumsScoresLoaded = true;
+    }
+
     function loadMyAlbumsScores() {
         if (myAlbumsScoresPromise) return myAlbumsScoresPromise;
-        myAlbumsScoresPromise = fetch(new URL(MY_ALBUMS_SCORE_FILE, window.location.href).href, { cache: "force-cache" })
-            .then(response => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.text();
-            })
+        myAlbumsScoresPromise = fetchMyAlbumsScoreText()
             .then(text => {
-                myAlbumsScoreEntries = parseMyAlbumsScoreFile(text);
-                myAlbumsScoresLoaded = true;
-                if (lastDiscogsTracklistPayload && currentDisplayedTrack) {
-                    renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, currentDisplayedTrack.title || "");
+                setMyAlbumsScoreText(text);
+                if (lastDiscogsTracklistPayload && lastDiscogsTracklistPayload.release) {
+                    const release = lastDiscogsTracklistPayload.release;
+                    const rows = flattenLyricsDiscogsTracklist(release.tracklist || []);
+                    if (rows.length) renderLyricsScoreCard(release, lastDiscogsTracklistPayload.collectionAlbum || {}, rows, -1);
                 }
                 return myAlbumsScoreEntries;
             })
             .catch(() => {
+                myAlbumsScoreText = "";
                 myAlbumsScoreEntries = [];
+                myAlbumsAlbumMatchCache.clear();
+                myAlbumsAlbumTitleIndex = new Map();
+                myAlbumsTrackTitleIndex = new Map();
                 myAlbumsScoresLoaded = true;
                 return [];
             });
@@ -2481,27 +2579,73 @@
         return matched / Math.max(1, Math.min(discogsRows.length, albumEntry.tracks.length));
     }
 
+    function myAlbumsAlbumMatchCacheKey(release, collectionAlbum, discogsRows) {
+        const releaseKey = Number(release && release.releaseId) || 0;
+        const titles = [
+            release && release.title,
+            collectionAlbum && collectionAlbum.title,
+            currentDisplayedTrack && currentDisplayedTrack.album,
+        ].map(value => normalizeAlbumTitle(value || "")).join("::");
+        const tracks = (discogsRows || []).map(row => lyricsDiscogsNormalizeTrackText(row && row.title || "")).join("|");
+        return `${releaseKey}::${titles}::${tracks}`;
+    }
+
     function findMyAlbumsScoreEntry(release, collectionAlbum, discogsRows) {
         if (!myAlbumsScoresLoaded || !myAlbumsScoreEntries.length) return null;
+        const cacheKey = myAlbumsAlbumMatchCacheKey(release, collectionAlbum, discogsRows);
+        if (myAlbumsAlbumMatchCache.has(cacheKey)) return myAlbumsAlbumMatchCache.get(cacheKey);
+
         const wantedTitles = [
             release && release.title,
             collectionAlbum && collectionAlbum.title,
             currentDisplayedTrack && currentDisplayedTrack.album,
         ].map(value => String(value || "").trim()).filter(Boolean);
+
+        const candidateSet = new Set();
+        wantedTitles.forEach(title => {
+            const exact = myAlbumsAlbumTitleIndex.get(normalizeAlbumTitle(title));
+            (exact || []).forEach(entry => candidateSet.add(entry));
+        });
+        (discogsRows || []).forEach(row => {
+            lyricsDiscogsTrackTitleVariants(row && row.title || "").forEach(variant => {
+                const indexed = myAlbumsTrackTitleIndex.get(lyricsDiscogsNormalizeTrackText(variant));
+                (indexed || []).forEach(entry => candidateSet.add(entry));
+            });
+        });
+
+        // Add a small set of high-scoring title candidates. This keeps the looser
+        // title matching behavior without running track-vs-track fuzzy comparisons
+        // across all ~1,000 albums on every track change.
+        const titleCandidates = [];
+        for (const entry of myAlbumsScoreEntries) {
+            let titleScore = 0;
+            for (const wanted of wantedTitles) titleScore = Math.max(titleScore, myAlbumsAlbumTitleScore(entry.title, wanted));
+            if (titleScore > 0) titleCandidates.push({ entry, titleScore });
+        }
+        titleCandidates.sort((left, right) => right.titleScore - left.titleScore);
+        titleCandidates.slice(0, 16).forEach(item => candidateSet.add(item.entry));
+
+        const candidates = candidateSet.size ? Array.from(candidateSet) : titleCandidates.slice(0, 16).map(item => item.entry);
         let bestEntry = null;
         let bestScore = 0;
-        for (const entry of myAlbumsScoreEntries) {
+        for (const entry of candidates) {
             let titleScore = 0;
             for (const wanted of wantedTitles) titleScore = Math.max(titleScore, myAlbumsAlbumTitleScore(entry.title, wanted));
             const trackCoverage = myAlbumsTrackCoverageScore(entry, discogsRows);
             const combined = titleScore * 0.72 + trackCoverage * 0.28;
             if (combined > bestScore) { bestScore = combined; bestEntry = entry; }
         }
-        if (!bestEntry) return null;
+        if (!bestEntry) {
+            myAlbumsAlbumMatchCache.set(cacheKey, null);
+            return null;
+        }
         const strongestTitle = Math.max(...wantedTitles.map(title => myAlbumsAlbumTitleScore(bestEntry.title, title)), 0);
         const coverage = myAlbumsTrackCoverageScore(bestEntry, discogsRows);
-        if (strongestTitle >= 0.84 || (strongestTitle >= 0.60 && coverage >= 0.45) || coverage >= 0.72) return bestEntry;
-        return null;
+        const result = strongestTitle >= 0.84 || (strongestTitle >= 0.60 && coverage >= 0.45) || coverage >= 0.72
+            ? bestEntry
+            : null;
+        myAlbumsAlbumMatchCache.set(cacheKey, result);
+        return result;
     }
 
     function findMyAlbumsTrackScore(albumEntry, discogsTitle) {
@@ -2517,11 +2661,17 @@
 
     function resetLyricsScoreCard() {
         if (!scoreCard) return;
+        scoreEditMode = false;
+        scoreSaveInProgress = false;
+        currentScoreContext = null;
         scoreSides.replaceChildren();
         scoreStatus.textContent = "Waiting for a matched Discogs tracklist.";
         scoreStatus.hidden = false;
         scoreOverall.textContent = "";
         scoreOverall.hidden = true;
+        if (scoreActions) scoreActions.hidden = true;
+        if (scoreEditButton) scoreEditButton.hidden = false;
+        if (scoreSaveButton) scoreSaveButton.hidden = true;
         scoreCard.classList.add("lyrics-hidden");
     }
 
@@ -2545,6 +2695,36 @@
         return element;
     }
 
+    function makeScoreInputElement(value, rowIndex) {
+        const input = document.createElement("input");
+        input.className = "lyrics-score-input";
+        input.type = "number";
+        input.min = "0";
+        input.max = "12";
+        input.step = "0.01";
+        input.inputMode = "decimal";
+        input.dataset.scoreRowIndex = String(rowIndex);
+        input.setAttribute("aria-label", "Track score from 0.0 to 12.0");
+        if (value !== null && value !== undefined && Number.isFinite(Number(value))) {
+            input.value = String(Number(value));
+        }
+        return input;
+    }
+
+    function updateScoreEditControls() {
+        if (!scoreActions) return;
+        scoreActions.hidden = !currentScoreContext;
+        if (scoreEditButton) {
+            scoreEditButton.hidden = scoreEditMode;
+            scoreEditButton.disabled = scoreSaveInProgress;
+        }
+        if (scoreSaveButton) {
+            scoreSaveButton.hidden = !scoreEditMode;
+            scoreSaveButton.disabled = scoreSaveInProgress;
+            scoreSaveButton.textContent = scoreSaveInProgress ? "Saving…" : "Save";
+        }
+    }
+
     function renderLyricsScoreCard(release, collectionAlbum, discogsRows, currentRowIndex) {
         if (!scoreCard) return;
         scoreCard.classList.remove("lyrics-hidden");
@@ -2552,15 +2732,22 @@
         scoreOverall.replaceChildren();
         scoreOverall.hidden = true;
         if (!myAlbumsScoresLoaded) {
+            currentScoreContext = null;
+            updateScoreEditControls();
             scoreStatus.textContent = "Loading scores from my_albums.txt…";
             scoreStatus.hidden = false;
             loadMyAlbumsScores();
             return;
         }
         const albumEntry = findMyAlbumsScoreEntry(release, collectionAlbum, discogsRows);
+        currentScoreContext = { release, collectionAlbum, discogsRows, albumEntry };
+        updateScoreEditControls();
         if (albumEntry) {
             scoreStatus.textContent = "";
             scoreStatus.hidden = true;
+        } else if (scoreEditMode) {
+            scoreStatus.textContent = "New album entry — enter scores, then Save.";
+            scoreStatus.hidden = false;
         } else {
             scoreStatus.textContent = "No matching album score found in my_albums.txt.";
             scoreStatus.hidden = false;
@@ -2573,6 +2760,7 @@
             if (!groups.has(groupKey)) groups.set(groupKey, []);
             groups.get(groupKey).push({ ...row, index });
         });
+        const sidesFragment = document.createDocumentFragment();
         groups.forEach((groupRows, groupKey) => {
             const side = document.createElement("section");
             side.className = "lyrics-discogs-side lyrics-score-side";
@@ -2596,19 +2784,23 @@
                 applyRollingStoneStarToTrackTitleElement(title);
                 const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row.title) : null;
                 const value = matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? matchedTrack.score : null;
-                const scoreValue = makeScoreValueElement(value, true);
-                trackRow.append(position, title, scoreValue);
+                const scoreControl = scoreEditMode
+                    ? makeScoreInputElement(value, row.index)
+                    : makeScoreValueElement(value, true);
+                trackRow.append(position, title, scoreControl);
                 side.appendChild(trackRow);
             });
-            scoreSides.appendChild(side);
+            sidesFragment.appendChild(side);
         });
+        scoreSides.appendChild(sidesFragment);
+
         if (albumEntry && Number.isFinite(Number(albumEntry.overallScore))) {
             const visual = albumScoreVisualForHundredScale(albumEntry.overallScore);
             if (visual) {
                 const ratingStack = document.createElement("div");
                 ratingStack.className = "lyrics-score-rating-stack";
                 if (visual.topFilename) {
-                    const topLabel = visual.tier === "high" ? "Strong" : "Decent";
+                    const topLabel = visual.tier === "high" ? "Strong" : (visual.tier === "mid" ? "Decent" : "Light");
                     ratingStack.appendChild(makeAlbumScoreImage(
                         visual.topFilename,
                         "lyrics-score-rating-image lyrics-score-rating-image-top",
@@ -2626,6 +2818,108 @@
             }
         }
     }
+
+    function scoreFileNumberText(rawValue) {
+        const raw = String(rawValue || "").trim();
+        if (!raw) return "";
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric) || numeric < 0 || numeric > 12) {
+            throw new Error("Every entered song score must be between 0.0 and 12.0.");
+        }
+        if (!raw.includes(".")) return numeric.toFixed(1);
+        return raw.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, ".0");
+    }
+
+    function updatedMyAlbumsTextFromScoreInputs(context) {
+        const sourceLines = String(myAlbumsScoreText || "").replace(/\r\n?/g, "\n").split("\n");
+        const scoreInputs = Array.from(scoreSides.querySelectorAll(".lyrics-score-input[data-score-row-index]"));
+        const values = new Map();
+        scoreInputs.forEach(input => values.set(Number(input.dataset.scoreRowIndex), scoreFileNumberText(input.value)));
+
+        const entry = context && context.albumEntry;
+        const release = context && context.release || {};
+        const collectionAlbum = context && context.collectionAlbum || {};
+        const rows = context && Array.isArray(context.discogsRows) ? context.discogsRows : [];
+        let albumTitle = String(entry && entry.title || release.title || collectionAlbum.title || currentDisplayedTrack && currentDisplayedTrack.album || "Untitled Album").trim();
+        if (!entry) albumTitle = albumTitle.toUpperCase();
+        const header = entry && entry.headerLine
+            ? String(entry.headerLine).trimEnd()
+            : `${albumTitle}:`;
+        const blockLines = [header];
+        rows.forEach((row, index) => {
+            const value = values.has(index) ? values.get(index) : "";
+            blockLines.push(`${row.title}: ${value}`.trimEnd());
+        });
+
+        if (entry && Number.isInteger(entry.startLine) && Number.isInteger(entry.endLine)) {
+            sourceLines.splice(entry.startLine, entry.endLine - entry.startLine, ...blockLines);
+            return sourceLines.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\s*$/, "\n");
+        }
+
+        const base = String(myAlbumsScoreText || "").replace(/\r\n?/g, "\n").replace(/\s*$/, "");
+        return `${base}${base ? "\n\n" : ""}${blockLines.join("\n")}\n`;
+    }
+
+    function rerenderCurrentScoreCard() {
+        if (!currentScoreContext) return;
+        const { release, collectionAlbum, discogsRows } = currentScoreContext;
+        renderLyricsScoreCard(release, collectionAlbum, discogsRows, -1);
+    }
+
+    function beginScoreEdit() {
+        if (!currentScoreContext || scoreSaveInProgress) return;
+        scoreEditMode = true;
+        rerenderCurrentScoreCard();
+    }
+
+    async function saveScoreEdits() {
+        if (!currentScoreContext || scoreSaveInProgress) return;
+        let updatedText = "";
+        try {
+            updatedText = updatedMyAlbumsTextFromScoreInputs(currentScoreContext);
+        } catch (error) {
+            scoreStatus.textContent = error.message || String(error);
+            scoreStatus.hidden = false;
+            return;
+        }
+
+        scoreSaveInProgress = true;
+        updateScoreEditControls();
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/my-albums`, {
+                method: "PUT",
+                credentials: "include",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({ text: updatedText }),
+            });
+            let payload = null;
+            try { payload = await response.json(); } catch (error) { payload = null; }
+            if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error(payload && payload.error ? payload.error : `Score save failed (${response.status}).`);
+            }
+            setMyAlbumsScoreText(typeof payload.text === "string" ? payload.text : updatedText);
+            scoreEditMode = false;
+            scoreSaveInProgress = false;
+            rerenderCurrentScoreCard();
+            scoreStatus.textContent = "Saved.";
+            scoreStatus.hidden = false;
+            window.setTimeout(() => {
+                if (!scoreEditMode && scoreStatus.textContent === "Saved.") {
+                    scoreStatus.textContent = "";
+                    scoreStatus.hidden = true;
+                }
+            }, 1600);
+        } catch (error) {
+            scoreSaveInProgress = false;
+            updateScoreEditControls();
+            scoreStatus.textContent = `Could not save scores: ${error.message || error}`;
+            scoreStatus.hidden = false;
+        }
+    }
+
+    if (scoreEditButton) scoreEditButton.addEventListener("click", beginScoreEdit);
+    if (scoreSaveButton) scoreSaveButton.addEventListener("click", saveScoreEdits);
 
     async function fetchRollingStoneSongListText(config) {
         for (const filename of config.files || []) {
@@ -2721,21 +3015,60 @@
             || candidates.some(candidate => discogsOwnedArtistsMatch(candidate, [artist]));
     }
 
+    function rollingStoneIndexKey(value) {
+        return lyricsDiscogsNormalizeTrackText(value || "");
+    }
+
+    function rollingStoneBucketKey(value) {
+        const normalized = rollingStoneIndexKey(value);
+        return normalized ? normalized.slice(0, 4) : "";
+    }
+
+    function rebuildRollingStoneSongIndexes() {
+        rollingStone500SongIndex = new Map();
+        rollingStone500SongBuckets = new Map();
+        const add = (map, key, entry) => {
+            if (!key) return;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(entry);
+        };
+        rollingStone500SongEntries.forEach(entry => {
+            rollingStoneSongTitleVariants(entry.title).forEach(variant => {
+                const key = rollingStoneIndexKey(variant);
+                add(rollingStone500SongIndex, key, entry);
+                add(rollingStone500SongBuckets, rollingStoneBucketKey(variant), entry);
+            });
+        });
+    }
+
     function isRollingStone500Song(trackTitle, candidateArtists) {
         if (!rollingStone500SongListsLoaded || !trackTitle) return false;
         const artists = (Array.isArray(candidateArtists) ? candidateArtists : [candidateArtists])
             .map(value => String(value || "").trim())
             .filter(Boolean);
+        const candidates = new Set();
+        const variants = rollingStoneSongTitleVariants(trackTitle);
+        variants.forEach(variant => {
+            const direct = rollingStone500SongIndex.get(rollingStoneIndexKey(variant));
+            (direct || []).forEach(entry => candidates.add(entry));
+        });
 
-        for (const entry of rollingStone500SongEntries) {
+        // Only use fuzzy matching when normalization did not produce an exact
+        // candidate, and then limit it to a tiny title-prefix bucket.
+        if (!candidates.size) {
+            variants.forEach(variant => {
+                const bucket = rollingStone500SongBuckets.get(rollingStoneBucketKey(variant));
+                (bucket || []).forEach(entry => candidates.add(entry));
+            });
+        }
+
+        for (const entry of candidates) {
             const score = rollingStoneSongTitleMatchScore(trackTitle, entry.title);
             if (score < 0.90) continue;
             if (entry.artist && artists.length) {
                 if (rollingStoneSongArtistsMatch(entry.artist, artists)) return true;
                 continue;
             }
-            // If the Discogs track does not expose a usable artist, require an
-            // essentially exact title match rather than starring a same-named song.
             if (score >= 0.99) return true;
         }
         return false;
@@ -2772,11 +3105,14 @@
             }))
         ).then(results => {
             rollingStone500SongEntries = results.flatMap(result => parseRollingStoneSongList(result.text, result.config));
+            rebuildRollingStoneSongIndexes();
             rollingStone500SongListsLoaded = true;
             refreshRollingStoneStarsInRenderedTracklist();
             return rollingStone500SongEntries;
         }).catch(() => {
             rollingStone500SongEntries = [];
+            rollingStone500SongIndex = new Map();
+            rollingStone500SongBuckets = new Map();
             rollingStone500SongListsLoaded = true;
             return [];
         });
@@ -2824,6 +3160,9 @@
         const overrideUrl = payload.coverOverride && payload.coverOverride.imageUrl ? String(payload.coverOverride.imageUrl) : "";
         if (overrideUrl) setArtwork(overrideUrl, lastDefaultArtworkTitle || release.title);
         const rows = flattenLyricsDiscogsTracklist(release.tracklist || []);
+        if (!rollingStone500SongListsLoaded && !rollingStone500SongListsPromise) {
+            window.setTimeout(() => loadRollingStone500SongLists(), 0);
+        }
         if (!rows.length) {
             setDiscogsStatus("The owned Discogs vinyl release does not have a tracklist in the Discogs response.");
             return;
@@ -3020,12 +3359,17 @@
         }
 
         const lookupKey = `${normalizeAlbumIdentityKey(albumArtist)}::${normalizeAlbumIdentityKey(albumTitle)}::${normalizeAlbumIdentityKey(track.title || "")}`;
+        if (!options.force && lookupKey === discogsLookupInFlightKey) return;
         if (!options.force && lookupKey === lastDiscogsAlbumLookupKey && lastDiscogsTracklistPayload) {
+            if (lastDiscogsRenderedLookupKey === lookupKey) return;
             renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, track.title || "");
+            lastDiscogsRenderedLookupKey = lookupKey;
             return;
         }
 
         lastDiscogsAlbumLookupKey = lookupKey;
+        lastDiscogsRenderedLookupKey = "";
+        discogsLookupInFlightKey = lookupKey;
         lastDiscogsTracklistPayload = null;
         const requestId = ++discogsLookupRequestId;
         discogsCard.classList.remove("lyrics-hidden");
@@ -3046,15 +3390,19 @@
         const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded();
         if (requestId !== discogsLookupRequestId) return;
         if (!collectionLoaded) {
+            discogsLookupInFlightKey = "";
             lastDiscogsTracklistPayload = { error: true, message: "The Discogs collection could not be loaded." };
             renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, track.title || "");
+            lastDiscogsRenderedLookupKey = lookupKey;
             return;
         }
 
         const matchedAlbums = findLyricsDiscogsCollectionAlbums({ artist: albumArtist, title: albumTitle });
         if (!matchedAlbums.length) {
+            discogsLookupInFlightKey = "";
             lastDiscogsTracklistPayload = { noCollectionMatch: true };
             renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, track.title || "");
+            lastDiscogsRenderedLookupKey = lookupKey;
             return;
         }
 
@@ -3093,12 +3441,16 @@
                 throw new Error(payload && payload.error ? payload.error : `Discogs tracklist request failed (${response.status}).`);
             }
             if (requestId !== discogsLookupRequestId) return;
+            discogsLookupInFlightKey = "";
             lastDiscogsTracklistPayload = payload;
             renderLyricsDiscogsTracklist(payload, track.title || "");
+            lastDiscogsRenderedLookupKey = lookupKey;
         } catch (error) {
             if (requestId !== discogsLookupRequestId) return;
+            discogsLookupInFlightKey = "";
             lastDiscogsTracklistPayload = { error: true, message: `Discogs vinyl tracklist unavailable: ${error.message || error}` };
             renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, track.title || "");
+            lastDiscogsRenderedLookupKey = lookupKey;
         }
     }
 
@@ -3474,13 +3826,13 @@
             let attempts = 0;
             stopEmbedResizePolling();
             embedResizeTimer = window.setInterval(() => {
-                if (frame !== activeEmbedFrame || !frame.isConnected || attempts >= 40) {
+                if (frame !== activeEmbedFrame || !frame.isConnected || attempts >= 8) {
                     stopEmbedResizePolling();
                     return;
                 }
                 attempts += 1;
                 resizeGeniusEmbedFrame(frame);
-            }, 250);
+            }, 750);
         });
 
         embedContainer.appendChild(frame);
@@ -3832,6 +4184,8 @@
         lastTrackKey = "";
         lastGeniusSongId = null;
         lastDiscogsAlbumLookupKey = "";
+        lastDiscogsRenderedLookupKey = "";
+        discogsLookupInFlightKey = "";
         lastDiscogsTracklistPayload = null;
         discogsLookupRequestId += 1;
         fetchCurrentLyrics(true);
@@ -3842,8 +4196,6 @@
     });
 
     window.setInterval(renderPlaybackProgress, 250);
-    loadRollingStone500SongLists();
-    loadMyAlbumsScores();
     renderEmptyPlaybackHud(false);
     fetchCurrentLyrics(false);
     schedulePolling();

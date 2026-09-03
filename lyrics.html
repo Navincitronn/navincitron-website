@@ -321,12 +321,6 @@
             outline-offset: 2px;
         }
 
-        .lyrics-vinyl-mode-state {
-            color: #cccccc;
-            font-size: 13px;
-            min-width: 24px;
-        }
-
         .lyrics-embed-card {
             background-color: #444444;
             border-radius: 10px;
@@ -543,8 +537,39 @@
         }
 
         .lyrics-score-card h3 {
-            margin: 0 0 12px;
+            margin: 0;
             text-align: center;
+        }
+
+        .lyrics-score-break {
+            height: 16px;
+        }
+
+        .lyrics-score-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin: 0 0 14px;
+        }
+
+        .lyrics-score-actions button {
+            background-color: #333333;
+            border: 1px solid #777777;
+            border-radius: 6px;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 7px 14px;
+        }
+
+        .lyrics-score-actions button:hover:not(:disabled) {
+            background-color: #555555;
+        }
+
+        .lyrics-score-actions button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
         }
 
         .lyrics-score-status {
@@ -579,17 +604,34 @@
         }
 
         .lyrics-score-rating-image-top {
-            max-height: 38px;
-            max-width: 150px;
+            max-height: 57px;
+            max-width: 225px;
         }
 
         .lyrics-score-rating-image-bottom {
-            max-height: 66px;
-            max-width: 150px;
+            max-height: 99px;
+            max-width: 225px;
         }
 
         .lyrics-score-value {
             font-weight: 700;
+        }
+
+        .lyrics-score-input {
+            background-color: #333333;
+            border: 1px solid #777777;
+            border-radius: 5px;
+            color: #ffffff;
+            font: inherit;
+            font-weight: 700;
+            max-width: 74px;
+            padding: 4px 6px;
+            text-align: right;
+        }
+
+        .lyrics-score-input:focus {
+            border-color: #40bcf4;
+            outline: 1px solid #40bcf4;
         }
 
         .lyrics-score-track {
@@ -678,14 +720,11 @@
                                 <input id="lyrics-scrobble-mode" type="checkbox" role="switch" aria-label="Scrobble Mode">
                                 <span class="lyrics-vinyl-mode-slider" aria-hidden="true"></span>
                             </label>
-                            <span id="lyrics-scrobble-mode-state" class="lyrics-vinyl-mode-state">Off</span>
-
                             <span class="lyrics-vinyl-mode-label lyrics-mode-divider">Vinyl Mode</span>
                             <label class="lyrics-vinyl-mode-switch" title="Pause Spotify automatically after the last song on each vinyl side.">
                                 <input id="lyrics-vinyl-mode" type="checkbox" role="switch" aria-label="Vinyl Mode">
                                 <span class="lyrics-vinyl-mode-slider" aria-hidden="true"></span>
                             </label>
-                            <span id="lyrics-vinyl-mode-state" class="lyrics-vinyl-mode-state">Off</span>
                         </div>
                     </div>
                 </div>
@@ -708,8 +747,14 @@
 
             <section id="lyrics-score-card" class="lyrics-score-card lyrics-hidden" aria-label="Album and track scores">
                 <h3>Score</h3>
+                <div class="lyrics-score-break" aria-hidden="true"></div>
+                <div id="lyrics-score-actions" class="lyrics-score-actions" hidden>
+                    <button id="lyrics-score-edit" type="button">Edit</button>
+                    <button id="lyrics-score-save" type="button" hidden>Save</button>
+                </div>
                 <p id="lyrics-score-status" class="lyrics-score-status">Waiting for a matched Discogs tracklist.</p>
                 <div id="lyrics-score-sides" class="lyrics-discogs-sides"></div>
+                <div class="lyrics-score-break" aria-hidden="true"></div>
                 <div id="lyrics-score-overall" class="lyrics-score-overall" hidden></div>
             </section>
 
@@ -769,6 +814,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260903-rating-images-stars-v11"></script>
+    <script src="lyrics.js?v=20260903-performance-score-edit-v12"></script>
 </body>
 </html>
