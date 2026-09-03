@@ -43,6 +43,10 @@
     const scoreEditButton = document.getElementById("lyrics-score-edit");
     const scoreSaveButton = document.getElementById("lyrics-score-save");
     const scoreCancelButton = document.getElementById("lyrics-score-cancel");
+    const scoreDeleteButton = document.getElementById("lyrics-score-delete");
+    const scoreDeleteConfirm = document.getElementById("lyrics-score-delete-confirm");
+    const scoreDeleteConfirmYes = document.getElementById("lyrics-score-delete-confirm-yes");
+    const scoreDeleteConfirmNo = document.getElementById("lyrics-score-delete-confirm-no");
     const coverPicker = document.getElementById("lyrics-cover-picker");
     const coverPickerTitle = document.getElementById("lyrics-cover-picker-title");
     const coverPickerSearch = document.getElementById("lyrics-cover-picker-search");
@@ -137,6 +141,8 @@
     let currentScoreContext = null;
     let scoreEditMode = false;
     let scoreSaveInProgress = false;
+    let scoreDeleteInProgress = false;
+    let scoreDeletePendingContext = null;
     let myAlbumsScoreRevision = "";
     const SCORE_DRAFT_STORAGE_KEY = "navincitron-lyrics-score-drafts-v1";
     const scoreDraftsByAlbum = new Map();
@@ -1994,6 +2000,10 @@
             return;
         }
 
+        if (arm.endsAlbum) {
+            void autoSaveScoreAtVinylAlbumEnd(arm);
+        }
+
         playbackControlInProgress = true;
         playbackClock.progressMs = estimatedPlaybackProgress();
         playbackClock.isPlaying = false;
@@ -2065,8 +2075,13 @@
             clearVinylSideEndPause();
             vinylSideEndPauseArm = { trackKey, side: normalizedSide };
         }
+        vinylSideEndPauseArm.endsAlbum = Boolean(currentTrackEndsAlbum);
+        vinylSideEndPauseArm.scoreContext = currentTrackEndsAlbum && currentScoreContext
+            ? scoreContextSnapshot(currentScoreContext)
+            : null;
         scheduleVinylSideEndPause();
     }
+
 
     function clearScrobbleAlbumEndPause(options = {}) {
         if (scrobbleAlbumEndPauseTimer) {
@@ -2750,6 +2765,7 @@
         if (!scoreCard) return;
         scoreEditMode = false;
         scoreSaveInProgress = false;
+        scoreDeleteInProgress = false;
         currentScoreContext = null;
         scoreSides.replaceChildren();
         scoreStatus.textContent = "Waiting for a matched Discogs tracklist.";
@@ -2760,6 +2776,7 @@
         if (scoreEditButton) scoreEditButton.hidden = false;
         if (scoreSaveButton) scoreSaveButton.hidden = true;
         if (scoreCancelButton) scoreCancelButton.hidden = true;
+        if (scoreDeleteButton) scoreDeleteButton.hidden = true;
         scoreCard.classList.add("lyrics-hidden");
     }
 
@@ -2814,19 +2831,25 @@
 
     function updateScoreEditControls() {
         if (!scoreActions) return;
+        const mutationInProgress = scoreSaveInProgress || scoreDeleteInProgress;
         scoreActions.hidden = !currentScoreContext;
         if (scoreEditButton) {
             scoreEditButton.hidden = scoreEditMode;
-            scoreEditButton.disabled = scoreSaveInProgress;
+            scoreEditButton.disabled = mutationInProgress;
         }
         if (scoreSaveButton) {
             scoreSaveButton.hidden = !scoreEditMode;
-            scoreSaveButton.disabled = scoreSaveInProgress;
-            scoreSaveButton.textContent = scoreSaveInProgress ? "Saving…" : "Save";
+            scoreSaveButton.disabled = mutationInProgress;
+            scoreSaveButton.textContent = scoreSaveInProgress ? "Saving..." : "Save";
         }
         if (scoreCancelButton) {
             scoreCancelButton.hidden = !scoreEditMode;
-            scoreCancelButton.disabled = scoreSaveInProgress;
+            scoreCancelButton.disabled = mutationInProgress;
+        }
+        if (scoreDeleteButton) {
+            scoreDeleteButton.hidden = !scoreEditMode || !(currentScoreContext && currentScoreContext.albumEntry);
+            scoreDeleteButton.disabled = mutationInProgress;
+            scoreDeleteButton.textContent = scoreDeleteInProgress ? "Deleting..." : "Delete";
         }
     }
 
@@ -2850,16 +2873,8 @@
         const activeDraft = scoreDraftsByAlbum.get(draftKey) || null;
         scoreEditMode = Boolean(activeDraft);
         updateScoreEditControls();
-        if (albumEntry) {
-            scoreStatus.textContent = "";
-            scoreStatus.hidden = true;
-        } else if (scoreEditMode) {
-            scoreStatus.textContent = "New album entry — enter scores, then Save.";
-            scoreStatus.hidden = false;
-        } else {
-            scoreStatus.textContent = "";
-            scoreStatus.hidden = true;
-        }
+        scoreStatus.textContent = "";
+        scoreStatus.hidden = true;
         const groups = new Map();
         let mostRecentSide = "";
         discogsRows.forEach((row, index) => {
@@ -2941,14 +2956,34 @@
         return raw.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, ".0");
     }
 
-    function updatedMyAlbumsTextFromScoreInputs(context) {
+    function scoreContextSnapshot(context) {
+        if (!context) return null;
+        return {
+            release: context.release || {},
+            collectionAlbum: context.collectionAlbum || {},
+            discogsRows: Array.isArray(context.discogsRows) ? context.discogsRows : [],
+            albumEntry: context.albumEntry || null,
+            draftKey: context.draftKey || scoreDraftAlbumKey(
+                context.release,
+                context.collectionAlbum,
+                context.albumEntry
+            ),
+        };
+    }
+
+    function updatedMyAlbumsTextFromScoreInputs(context, options = {}) {
         const sourceLines = String(myAlbumsScoreText || "").replace(/\r\n?/g, "\n").split("\n");
         const draft = scoreDraftForContext(context);
-        const scoreInputs = Array.from(scoreSides.querySelectorAll(".lyrics-score-input[data-score-row-index]"));
-        scoreInputs.forEach(input => {
-            const rowKey = String(input.dataset.scoreDraftRowKey || "");
-            if (draft && rowKey) draft.values.set(rowKey, input.value);
-        });
+        const captureDom = options.captureDom !== false;
+        if (captureDom && draft) {
+            const scoreInputs = Array.from(scoreSides.querySelectorAll(".lyrics-score-input[data-score-row-index]"));
+            scoreInputs.forEach(input => {
+                const inputAlbumKey = String(input.dataset.scoreDraftAlbumKey || "");
+                const rowKey = String(input.dataset.scoreDraftRowKey || "");
+                if (inputAlbumKey === draft.key && rowKey) draft.values.set(rowKey, input.value);
+            });
+            persistScoreDrafts();
+        }
 
         const entry = context && context.albumEntry;
         const release = context && context.release || {};
@@ -2976,6 +3011,16 @@
         return `${base}${base ? "\n\n" : ""}${blockLines.join("\n")}\n`;
     }
 
+    function deletedMyAlbumsTextForScoreContext(context) {
+        const entry = context && context.albumEntry;
+        if (!entry || !Number.isInteger(entry.startLine) || !Number.isInteger(entry.endLine)) {
+            throw new Error("This album does not have a saved my_albums.txt entry to delete.");
+        }
+        const sourceLines = String(myAlbumsScoreText || "").replace(/\r\n?/g, "\n").split("\n");
+        sourceLines.splice(entry.startLine, entry.endLine - entry.startLine);
+        return sourceLines.join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+/, "").replace(/\s*$/, "\n");
+    }
+
     function rerenderCurrentScoreCard() {
         if (!currentScoreContext) return;
         const { release, collectionAlbum, discogsRows } = currentScoreContext;
@@ -2983,14 +3028,18 @@
     }
 
     function beginScoreEdit() {
-        if (!currentScoreContext || scoreSaveInProgress) return;
+        if (!currentScoreContext || scoreSaveInProgress || scoreDeleteInProgress) return;
         ensureScoreDraft(currentScoreContext);
         scoreEditMode = true;
+        if (vinylModeEnabled && currentTrackEndsAlbum && vinylSideEndPauseArm) {
+            vinylSideEndPauseArm.endsAlbum = true;
+            vinylSideEndPauseArm.scoreContext = scoreContextSnapshot(currentScoreContext);
+        }
         rerenderCurrentScoreCard();
     }
 
     function cancelScoreEdits() {
-        if (!currentScoreContext || scoreSaveInProgress) return;
+        if (!currentScoreContext || scoreSaveInProgress || scoreDeleteInProgress) return;
         const draftKey = currentScoreContext.draftKey || scoreDraftAlbumKey(
             currentScoreContext.release,
             currentScoreContext.collectionAlbum,
@@ -3006,19 +3055,32 @@
         rerenderCurrentScoreCard();
     }
 
-    async function saveScoreEdits() {
-        if (!currentScoreContext || scoreSaveInProgress) return;
-        let updatedText = "";
-        try {
-            updatedText = updatedMyAlbumsTextFromScoreInputs(currentScoreContext);
-        } catch (error) {
-            scoreStatus.textContent = error.message || String(error);
-            scoreStatus.hidden = false;
-            return;
-        }
+    function closeScoreDeleteConfirmation() {
+        if (scoreDeleteConfirm) scoreDeleteConfirm.hidden = true;
+        scoreDeletePendingContext = null;
+    }
 
-        scoreSaveInProgress = true;
+    function openScoreDeleteConfirmation() {
+        if (!currentScoreContext || !currentScoreContext.albumEntry || scoreSaveInProgress || scoreDeleteInProgress) return;
+        if (!scoreDeleteConfirm) return;
+        scoreDeletePendingContext = scoreContextSnapshot(currentScoreContext);
+        scoreDeleteConfirm.hidden = false;
+        if (scoreDeleteConfirmNo) scoreDeleteConfirmNo.focus({ preventScroll: true });
+    }
+
+    async function persistScoreTextMutation(updatedText, targetContext, options = {}) {
+        const isDelete = Boolean(options.isDelete);
+        const targetDraftKey = targetContext && (
+            targetContext.draftKey
+            || scoreDraftAlbumKey(targetContext.release, targetContext.collectionAlbum, targetContext.albumEntry)
+        );
+        if (isDelete) {
+            scoreDeleteInProgress = true;
+        } else {
+            scoreSaveInProgress = true;
+        }
         updateScoreEditControls();
+
         try {
             const response = await fetch(`${API_BASE_URL}/api/lyrics/my-albums`, {
                 method: "PUT",
@@ -3030,40 +3092,147 @@
             let payload = null;
             try { payload = await response.json(); } catch (error) { payload = null; }
             if (!response.ok || !payload || payload.ok !== true) {
-                throw new Error(payload && payload.error ? payload.error : `Score save failed (${response.status}).`);
+                throw new Error(payload && payload.error ? payload.error : `Score ${isDelete ? "delete" : "save"} failed (${response.status}).`);
             }
+
             if (typeof payload.revision === "string") myAlbumsScoreRevision = payload.revision;
-            const savedDraftKey = currentScoreContext && currentScoreContext.draftKey;
-            if (savedDraftKey) {
-                scoreDraftsByAlbum.delete(savedDraftKey);
+            if (targetDraftKey) {
+                scoreDraftsByAlbum.delete(targetDraftKey);
                 persistScoreDrafts();
             }
             setMyAlbumsScoreText(typeof payload.text === "string" ? payload.text : updatedText);
-            scoreEditMode = false;
+
+            const currentDraftKey = currentScoreContext && (
+                currentScoreContext.draftKey
+                || scoreDraftAlbumKey(currentScoreContext.release, currentScoreContext.collectionAlbum, currentScoreContext.albumEntry)
+            );
+            if (targetDraftKey && currentDraftKey === targetDraftKey) scoreEditMode = false;
+
             scoreSaveInProgress = false;
-            rerenderCurrentScoreCard();
-            const saveWarnings = Array.isArray(payload.warnings) ? payload.warnings.filter(Boolean) : [];
-            scoreStatus.textContent = saveWarnings.length ? `Saved to GitHub. ${saveWarnings.join(" ")}` : "Saved.";
+            scoreDeleteInProgress = false;
+            if (currentScoreContext) rerenderCurrentScoreCard();
+            else updateScoreEditControls();
+
+            const warnings = Array.isArray(payload.warnings) ? payload.warnings.filter(Boolean) : [];
+            const normalMessage = isDelete ? "Deleted." : "Saved.";
+            scoreStatus.textContent = warnings.length
+                ? `${isDelete ? "Deleted" : "Saved"} on GitHub. ${warnings.join(" ")}`
+                : normalMessage;
             scoreStatus.hidden = false;
-            if (!saveWarnings.length) {
+            if (!warnings.length) {
                 window.setTimeout(() => {
-                    if (!scoreEditMode && scoreStatus.textContent === "Saved.") {
+                    if (!scoreEditMode && scoreStatus.textContent === normalMessage) {
                         scoreStatus.textContent = "";
                         scoreStatus.hidden = true;
                     }
                 }, 1600);
             }
+            return true;
         } catch (error) {
             scoreSaveInProgress = false;
+            scoreDeleteInProgress = false;
             updateScoreEditControls();
-            scoreStatus.textContent = `Could not save scores: ${error.message || error}`;
+            scoreStatus.textContent = isDelete
+                ? `Could not delete score entry: ${error.message || error}`
+                : `Could not save scores: ${error.message || error}`;
             scoreStatus.hidden = false;
+            return false;
         }
     }
 
+    async function saveScoreEdits(options = {}) {
+        const targetContext = options.context || currentScoreContext;
+        if (!targetContext || scoreSaveInProgress || scoreDeleteInProgress) return false;
+        let updatedText = "";
+        try {
+            updatedText = updatedMyAlbumsTextFromScoreInputs(targetContext, {
+                captureDom: options.captureDom !== false,
+            });
+        } catch (error) {
+            scoreStatus.textContent = error.message || String(error);
+            scoreStatus.hidden = false;
+            return false;
+        }
+        return persistScoreTextMutation(updatedText, targetContext, { isDelete: false });
+    }
+
+    async function deleteCurrentScoreEntry() {
+        if (scoreSaveInProgress || scoreDeleteInProgress) return false;
+        const targetContext = scoreDeletePendingContext
+            ? scoreContextSnapshot(scoreDeletePendingContext)
+            : scoreContextSnapshot(currentScoreContext);
+        if (!targetContext || !targetContext.albumEntry) return false;
+        let updatedText = "";
+        try {
+            updatedText = deletedMyAlbumsTextForScoreContext(targetContext);
+        } catch (error) {
+            scoreStatus.textContent = error.message || String(error);
+            scoreStatus.hidden = false;
+            return false;
+        }
+        closeScoreDeleteConfirmation();
+        return persistScoreTextMutation(updatedText, targetContext, { isDelete: true });
+    }
+
+    function scoreContextForVinylAutoSave(arm) {
+        if (!arm || !arm.endsAlbum) return null;
+        let context = arm.scoreContext ? scoreContextSnapshot(arm.scoreContext) : null;
+
+        if (!context && currentTrackEndsAlbum && currentScoreContext) {
+            context = scoreContextSnapshot(currentScoreContext);
+        }
+        if (!context) return null;
+
+        if (myAlbumsScoresLoaded) {
+            const latestEntry = findMyAlbumsScoreEntry(
+                context.release,
+                context.collectionAlbum,
+                context.discogsRows
+            );
+            const originalDraftKey = context.draftKey || "";
+            const latestDraftKey = scoreDraftAlbumKey(context.release, context.collectionAlbum, latestEntry);
+            context.albumEntry = latestEntry;
+            context.draftKey = scoreDraftsByAlbum.has(originalDraftKey) ? originalDraftKey : latestDraftKey;
+        }
+        return context;
+    }
+
+    async function autoSaveScoreAtVinylAlbumEnd(arm) {
+        if (!vinylModeEnabled || !arm || !arm.endsAlbum || scoreSaveInProgress || scoreDeleteInProgress) return false;
+        const context = scoreContextForVinylAutoSave(arm);
+        if (!context) return false;
+        const draft = scoreDraftForContext(context);
+        if (!draft) return false;
+
+        const currentDraftKey = currentScoreContext && (
+            currentScoreContext.draftKey
+            || scoreDraftAlbumKey(currentScoreContext.release, currentScoreContext.collectionAlbum, currentScoreContext.albumEntry)
+        );
+        return saveScoreEdits({
+            context,
+            automatic: true,
+            captureDom: Boolean(currentDraftKey && currentDraftKey === context.draftKey),
+        });
+    }
+
     if (scoreEditButton) scoreEditButton.addEventListener("click", beginScoreEdit);
-    if (scoreSaveButton) scoreSaveButton.addEventListener("click", saveScoreEdits);
+    if (scoreSaveButton) scoreSaveButton.addEventListener("click", () => saveScoreEdits());
     if (scoreCancelButton) scoreCancelButton.addEventListener("click", cancelScoreEdits);
+    if (scoreDeleteButton) scoreDeleteButton.addEventListener("click", openScoreDeleteConfirmation);
+    if (scoreDeleteConfirmNo) scoreDeleteConfirmNo.addEventListener("click", closeScoreDeleteConfirmation);
+    if (scoreDeleteConfirmYes) scoreDeleteConfirmYes.addEventListener("click", deleteCurrentScoreEntry);
+    if (scoreDeleteConfirm) {
+        scoreDeleteConfirm.addEventListener("click", event => {
+            if (event.target === scoreDeleteConfirm) closeScoreDeleteConfirmation();
+        });
+    }
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && scoreDeleteConfirm && !scoreDeleteConfirm.hidden) {
+            event.preventDefault();
+            closeScoreDeleteConfirmation();
+        }
+    });
+
 
     async function fetchRollingStoneSongListText(config) {
         for (const filename of config.files || []) {

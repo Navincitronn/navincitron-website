@@ -572,6 +572,86 @@
             opacity: 0.55;
         }
 
+        #lyrics-score-save {
+            background-color: #00e054;
+            border-color: #00e054;
+            color: #111111;
+        }
+
+        #lyrics-score-save:hover:not(:disabled) {
+            background-color: #00e054;
+        }
+
+        #lyrics-score-delete {
+            background-color: #ff8000;
+            border-color: #ff8000;
+            color: #111111;
+        }
+
+        #lyrics-score-delete:hover:not(:disabled) {
+            background-color: #ff8000;
+        }
+
+        .lyrics-score-delete-confirm {
+            align-items: center;
+            background: rgba(0, 0, 0, 0.72);
+            display: flex;
+            inset: 0;
+            justify-content: center;
+            padding: 20px;
+            position: fixed;
+            z-index: 10000;
+        }
+
+        .lyrics-score-delete-confirm[hidden] {
+            display: none;
+        }
+
+        .lyrics-score-delete-confirm-card {
+            background: #444444;
+            border: 1px solid #777777;
+            border-radius: 10px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+            max-width: 360px;
+            padding: 24px;
+            text-align: center;
+            width: min(100%, 360px);
+        }
+
+        .lyrics-score-delete-confirm-card p {
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0 0 20px;
+        }
+
+        .lyrics-score-delete-confirm-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .lyrics-score-delete-confirm-actions button {
+            border: 1px solid #777777;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            min-width: 82px;
+            padding: 8px 16px;
+        }
+
+        #lyrics-score-delete-confirm-yes {
+            background: #ff8000;
+            border-color: #ff8000;
+            color: #111111;
+        }
+
+        #lyrics-score-delete-confirm-no {
+            background: #333333;
+            color: #ffffff;
+        }
+
         .lyrics-score-status {
             color: #cccccc;
             font-size: 14px;
@@ -752,12 +832,23 @@
                     <button id="lyrics-score-edit" type="button">Edit</button>
                     <button id="lyrics-score-save" type="button" hidden>Save</button>
                     <button id="lyrics-score-cancel" type="button" hidden>Cancel</button>
+                    <button id="lyrics-score-delete" type="button" hidden>Delete</button>
                 </div>
                 <p id="lyrics-score-status" class="lyrics-score-status">Waiting for a matched Discogs tracklist.</p>
                 <div id="lyrics-score-sides" class="lyrics-discogs-sides"></div>
                 <div class="lyrics-score-break" aria-hidden="true"></div>
                 <div id="lyrics-score-overall" class="lyrics-score-overall" hidden></div>
             </section>
+
+            <div id="lyrics-score-delete-confirm" class="lyrics-score-delete-confirm" hidden role="dialog" aria-modal="true" aria-labelledby="lyrics-score-delete-confirm-title">
+                <div class="lyrics-score-delete-confirm-card">
+                    <p id="lyrics-score-delete-confirm-title">Delete this entry?</p>
+                    <div class="lyrics-score-delete-confirm-actions">
+                        <button id="lyrics-score-delete-confirm-yes" type="button">Yes</button>
+                        <button id="lyrics-score-delete-confirm-no" type="button">No</button>
+                    </div>
+                </div>
+            </div>
 
             <div class="topster-cover-picker" id="lyrics-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-cover-picker-title">
                 <div class="topster-cover-picker-card">
@@ -815,6 +906,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260903-github-sync-draft-v14"></script>
+    <script src="lyrics.js?v=20260903-score-delete-vinyl-autosave-v15"></script>
 </body>
 </html>
