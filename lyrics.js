@@ -137,6 +137,33 @@
     let currentScoreContext = null;
     let scoreEditMode = false;
     let scoreSaveInProgress = false;
+    let myAlbumsScoreRevision = "";
+    const SCORE_DRAFT_STORAGE_KEY = "navincitron-lyrics-score-drafts-v1";
+    const scoreDraftsByAlbum = new Map();
+
+    function persistScoreDrafts() {
+        try {
+            const serialized = {};
+            scoreDraftsByAlbum.forEach((draft, key) => {
+                serialized[key] = Object.fromEntries(draft && draft.values instanceof Map ? draft.values : []);
+            });
+            window.localStorage.setItem(SCORE_DRAFT_STORAGE_KEY, JSON.stringify(serialized));
+        } catch (error) {
+            // Drafts still remain in memory when storage is unavailable.
+        }
+    }
+
+    try {
+        const storedDrafts = JSON.parse(window.localStorage.getItem(SCORE_DRAFT_STORAGE_KEY) || "{}");
+        if (storedDrafts && typeof storedDrafts === "object" && !Array.isArray(storedDrafts)) {
+            Object.entries(storedDrafts).forEach(([key, values]) => {
+                if (!key || !values || typeof values !== "object" || Array.isArray(values)) return;
+                scoreDraftsByAlbum.set(key, { key, values: new Map(Object.entries(values)) });
+            });
+        }
+    } catch (error) {
+        // Ignore malformed/unavailable local draft storage.
+    }
 
     const SCORE_COLOR_BANDS = Object.freeze([
         { min: 110, label: "VIOLET", color: "#a855f7" },
@@ -2496,12 +2523,14 @@
             if (response.ok) {
                 const payload = await response.json();
                 const storedText = payload && typeof payload.text === "string" ? payload.text : "";
+                myAlbumsScoreRevision = payload && typeof payload.revision === "string" ? payload.revision : "";
                 if (storedText.trim()) return storedText;
             }
         } catch (error) {
             // Before the first edit, production can still use the static site copy.
         }
 
+        myAlbumsScoreRevision = "";
         const response = await fetch(new URL(MY_ALBUMS_SCORE_FILE, window.location.href).href, { cache: "force-cache" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await response.text();
@@ -2660,6 +2689,63 @@
         return bestScore >= 0.55 ? bestTrack : null;
     }
 
+    function scoreDraftAlbumKey(release, collectionAlbum, albumEntry = null) {
+        const title = String(
+            albumEntry && albumEntry.title
+            || collectionAlbum && collectionAlbum.title
+            || release && release.title
+            || currentDisplayedTrack && currentDisplayedTrack.album
+            || ""
+        ).trim();
+        const releaseArtists = Array.isArray(release && release.artists) ? release.artists : [];
+        const collectionArtists = Array.isArray(collectionAlbum && collectionAlbum.artists) ? collectionAlbum.artists : [];
+        const artist = String(
+            releaseArtists[0]
+            || collectionArtists[0]
+            || collectionAlbum && collectionAlbum.artist
+            || currentDisplayedTrack && (currentDisplayedTrack.albumArtist || currentDisplayedTrack.artist)
+            || ""
+        ).trim();
+        return `${normalizeAlbumIdentityKey(artist)}::${normalizeAlbumTitle(title)}`;
+    }
+
+    function scoreDraftRowKey(row, rowIndex) {
+        const position = String(row && row.position || "").trim().toUpperCase();
+        const title = lyricsDiscogsNormalizeTrackText(row && row.title || "");
+        return `${position}::${title}::${Number(rowIndex)}`;
+    }
+
+    function scoreSavedValueForRow(albumEntry, row) {
+        const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row && row.title || "") : null;
+        return matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? String(Number(matchedTrack.score)) : "";
+    }
+
+    function ensureScoreDraft(context) {
+        if (!context) return null;
+        const draftKey = context.draftKey || scoreDraftAlbumKey(context.release, context.collectionAlbum, context.albumEntry);
+        if (!draftKey || draftKey === "::") return null;
+        let draft = scoreDraftsByAlbum.get(draftKey);
+        if (!draft) {
+            const values = new Map();
+            (context.discogsRows || []).forEach((row, index) => {
+                values.set(scoreDraftRowKey(row, index), scoreSavedValueForRow(context.albumEntry, row));
+            });
+            draft = { key: draftKey, values };
+            scoreDraftsByAlbum.set(draftKey, draft);
+            persistScoreDrafts();
+        }
+        context.draftKey = draftKey;
+        return draft;
+    }
+
+    function scoreDraftForContext(context) {
+        if (!context) return null;
+        const draftKey = context.draftKey || scoreDraftAlbumKey(context.release, context.collectionAlbum, context.albumEntry);
+        if (!draftKey) return null;
+        context.draftKey = draftKey;
+        return scoreDraftsByAlbum.get(draftKey) || null;
+    }
+
     function resetLyricsScoreCard() {
         if (!scoreCard) return;
         scoreEditMode = false;
@@ -2697,7 +2783,7 @@
         return element;
     }
 
-    function makeScoreInputElement(value, rowIndex) {
+    function makeScoreInputElement(value, rowIndex, rowKey, draftKey) {
         const input = document.createElement("input");
         input.className = "lyrics-score-input";
         input.type = "number";
@@ -2706,12 +2792,25 @@
         input.step = "0.01";
         input.inputMode = "decimal";
         input.dataset.scoreRowIndex = String(rowIndex);
+        input.dataset.scoreDraftRowKey = String(rowKey || "");
+        input.dataset.scoreDraftAlbumKey = String(draftKey || "");
         input.setAttribute("aria-label", "Track score from 0.0 to 12.0");
-        if (value !== null && value !== undefined && Number.isFinite(Number(value))) {
+        if (value !== null && value !== undefined && String(value).trim() !== "" && Number.isFinite(Number(value))) {
             input.value = String(Number(value));
         }
+        input.addEventListener("input", () => {
+            const albumKey = String(input.dataset.scoreDraftAlbumKey || "");
+            const trackKey = String(input.dataset.scoreDraftRowKey || "");
+            if (!albumKey || !trackKey) return;
+            const draft = scoreDraftsByAlbum.get(albumKey);
+            if (draft) {
+                draft.values.set(trackKey, input.value);
+                persistScoreDrafts();
+            }
+        });
         return input;
     }
+
 
     function updateScoreEditControls() {
         if (!scoreActions) return;
@@ -2746,7 +2845,10 @@
             return;
         }
         const albumEntry = findMyAlbumsScoreEntry(release, collectionAlbum, discogsRows);
-        currentScoreContext = { release, collectionAlbum, discogsRows, albumEntry };
+        const draftKey = scoreDraftAlbumKey(release, collectionAlbum, albumEntry);
+        currentScoreContext = { release, collectionAlbum, discogsRows, albumEntry, draftKey };
+        const activeDraft = scoreDraftsByAlbum.get(draftKey) || null;
+        scoreEditMode = Boolean(activeDraft);
         updateScoreEditControls();
         if (albumEntry) {
             scoreStatus.textContent = "";
@@ -2789,10 +2891,12 @@
                 title.textContent = row.title;
                 applyRollingStoneStarToTrackTitleElement(title);
                 const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row.title) : null;
-                const value = matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? matchedTrack.score : null;
+                const savedValue = matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? matchedTrack.score : null;
+                const rowKey = scoreDraftRowKey(row, row.index);
+                const draftValue = activeDraft && activeDraft.values.has(rowKey) ? activeDraft.values.get(rowKey) : savedValue;
                 const scoreControl = scoreEditMode
-                    ? makeScoreInputElement(value, row.index)
-                    : makeScoreValueElement(value, true);
+                    ? makeScoreInputElement(draftValue, row.index, rowKey, draftKey)
+                    : makeScoreValueElement(savedValue, true);
                 trackRow.append(position, title, scoreControl);
                 side.appendChild(trackRow);
             });
@@ -2839,9 +2943,12 @@
 
     function updatedMyAlbumsTextFromScoreInputs(context) {
         const sourceLines = String(myAlbumsScoreText || "").replace(/\r\n?/g, "\n").split("\n");
+        const draft = scoreDraftForContext(context);
         const scoreInputs = Array.from(scoreSides.querySelectorAll(".lyrics-score-input[data-score-row-index]"));
-        const values = new Map();
-        scoreInputs.forEach(input => values.set(Number(input.dataset.scoreRowIndex), scoreFileNumberText(input.value)));
+        scoreInputs.forEach(input => {
+            const rowKey = String(input.dataset.scoreDraftRowKey || "");
+            if (draft && rowKey) draft.values.set(rowKey, input.value);
+        });
 
         const entry = context && context.albumEntry;
         const release = context && context.release || {};
@@ -2854,7 +2961,9 @@
             : `${albumTitle}:`;
         const blockLines = [header];
         rows.forEach((row, index) => {
-            const value = values.has(index) ? values.get(index) : "";
+            const rowKey = scoreDraftRowKey(row, index);
+            const rawValue = draft && draft.values.has(rowKey) ? draft.values.get(rowKey) : scoreSavedValueForRow(entry, row);
+            const value = scoreFileNumberText(rawValue);
             blockLines.push(`${row.title}: ${value}`.trimEnd());
         });
 
@@ -2875,14 +2984,22 @@
 
     function beginScoreEdit() {
         if (!currentScoreContext || scoreSaveInProgress) return;
+        ensureScoreDraft(currentScoreContext);
         scoreEditMode = true;
         rerenderCurrentScoreCard();
     }
 
     function cancelScoreEdits() {
         if (!currentScoreContext || scoreSaveInProgress) return;
-        // Inputs are rendered from the last saved myAlbumsScoreText snapshot, so
-        // leaving edit mode discards every unsaved field change immediately.
+        const draftKey = currentScoreContext.draftKey || scoreDraftAlbumKey(
+            currentScoreContext.release,
+            currentScoreContext.collectionAlbum,
+            currentScoreContext.albumEntry
+        );
+        if (draftKey) {
+            scoreDraftsByAlbum.delete(draftKey);
+            persistScoreDrafts();
+        }
         scoreEditMode = false;
         scoreStatus.textContent = "";
         scoreStatus.hidden = true;
@@ -2908,25 +3025,34 @@
                 credentials: "include",
                 cache: "no-store",
                 headers: { "Content-Type": "application/json", Accept: "application/json" },
-                body: JSON.stringify({ text: updatedText }),
+                body: JSON.stringify({ text: updatedText, baseRevision: myAlbumsScoreRevision }),
             });
             let payload = null;
             try { payload = await response.json(); } catch (error) { payload = null; }
             if (!response.ok || !payload || payload.ok !== true) {
                 throw new Error(payload && payload.error ? payload.error : `Score save failed (${response.status}).`);
             }
+            if (typeof payload.revision === "string") myAlbumsScoreRevision = payload.revision;
+            const savedDraftKey = currentScoreContext && currentScoreContext.draftKey;
+            if (savedDraftKey) {
+                scoreDraftsByAlbum.delete(savedDraftKey);
+                persistScoreDrafts();
+            }
             setMyAlbumsScoreText(typeof payload.text === "string" ? payload.text : updatedText);
             scoreEditMode = false;
             scoreSaveInProgress = false;
             rerenderCurrentScoreCard();
-            scoreStatus.textContent = "Saved.";
+            const saveWarnings = Array.isArray(payload.warnings) ? payload.warnings.filter(Boolean) : [];
+            scoreStatus.textContent = saveWarnings.length ? `Saved to GitHub. ${saveWarnings.join(" ")}` : "Saved.";
             scoreStatus.hidden = false;
-            window.setTimeout(() => {
-                if (!scoreEditMode && scoreStatus.textContent === "Saved.") {
-                    scoreStatus.textContent = "";
-                    scoreStatus.hidden = true;
-                }
-            }, 1600);
+            if (!saveWarnings.length) {
+                window.setTimeout(() => {
+                    if (!scoreEditMode && scoreStatus.textContent === "Saved.") {
+                        scoreStatus.textContent = "";
+                        scoreStatus.hidden = true;
+                    }
+                }, 1600);
+            }
         } catch (error) {
             scoreSaveInProgress = false;
             updateScoreEditControls();
