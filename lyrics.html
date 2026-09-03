@@ -257,6 +257,7 @@
         .lyrics-vinyl-mode-row {
             align-items: center;
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             justify-content: center;
             margin-top: 12px;
@@ -265,6 +266,10 @@
         .lyrics-vinyl-mode-label {
             font-size: 14px;
             font-weight: 700;
+        }
+
+        .lyrics-mode-divider {
+            margin-left: 12px;
         }
 
         .lyrics-vinyl-mode-switch {
@@ -529,6 +534,44 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .lyrics-score-card {
+            background-color: #444444;
+            border-radius: 10px;
+            margin: 20px auto 0;
+            padding: 20px;
+        }
+
+        .lyrics-score-card h3 {
+            margin: 0 0 12px;
+            text-align: center;
+        }
+
+        .lyrics-score-status {
+            color: #cccccc;
+            font-size: 14px;
+            line-height: 1.45;
+            margin: 0 0 14px;
+            text-align: center;
+        }
+
+        .lyrics-score-overall {
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            margin-top: 14px;
+            text-align: center;
+        }
+
+        .lyrics-score-value,
+        .lyrics-score-band {
+            font-weight: 700;
+        }
+
+        .lyrics-score-track {
+            grid-template-columns: minmax(38px, auto) minmax(0, 1fr) auto;
+        }
+
     </style>
 </head>
 <body data-admin-require-auth="true">
@@ -606,7 +649,14 @@
                         </div>
 
                         <div class="lyrics-vinyl-mode-row">
-                            <span class="lyrics-vinyl-mode-label">Vinyl Mode</span>
+                            <span class="lyrics-vinyl-mode-label">Scrobble Mode</span>
+                            <label class="lyrics-vinyl-mode-switch" title="Pause Spotify automatically after the final song on the overall album tracklist.">
+                                <input id="lyrics-scrobble-mode" type="checkbox" role="switch" aria-label="Scrobble Mode">
+                                <span class="lyrics-vinyl-mode-slider" aria-hidden="true"></span>
+                            </label>
+                            <span id="lyrics-scrobble-mode-state" class="lyrics-vinyl-mode-state">Off</span>
+
+                            <span class="lyrics-vinyl-mode-label lyrics-mode-divider">Vinyl Mode</span>
                             <label class="lyrics-vinyl-mode-switch" title="Pause Spotify automatically after the last song on each vinyl side.">
                                 <input id="lyrics-vinyl-mode" type="checkbox" role="switch" aria-label="Vinyl Mode">
                                 <span class="lyrics-vinyl-mode-slider" aria-hidden="true"></span>
@@ -630,6 +680,13 @@
                 <div id="lyrics-discogs-condition-meta" class="lyrics-discogs-condition-meta" hidden></div>
                 <div id="lyrics-discogs-sides" class="lyrics-discogs-sides"></div>
                 <div id="lyrics-discogs-total-length" class="lyrics-discogs-total-length" hidden></div>
+            </section>
+
+            <section id="lyrics-score-card" class="lyrics-score-card lyrics-hidden" aria-label="Album and track scores">
+                <h3>Score</h3>
+                <p id="lyrics-score-status" class="lyrics-score-status">Waiting for a matched Discogs tracklist.</p>
+                <div id="lyrics-score-sides" class="lyrics-discogs-sides"></div>
+                <div id="lyrics-score-overall" class="lyrics-score-overall" hidden></div>
             </section>
 
             <div class="topster-cover-picker" id="lyrics-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-cover-picker-title">
@@ -688,6 +745,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260903-sleeve-colors-rs500-stars-v8"></script>
+    <script src="lyrics.js?v=20260903-scrobble-score-media-colors-v9"></script>
 </body>
 </html>

@@ -25,6 +25,8 @@
     const pauseButton = document.getElementById("lyrics-pause");
     const playButton = document.getElementById("lyrics-play");
     const nextTrackButton = document.getElementById("lyrics-next-track");
+    const scrobbleModeToggle = document.getElementById("lyrics-scrobble-mode");
+    const scrobbleModeState = document.getElementById("lyrics-scrobble-mode-state");
     const vinylModeToggle = document.getElementById("lyrics-vinyl-mode");
     const vinylModeState = document.getElementById("lyrics-vinyl-mode-state");
     const embedCard = document.getElementById("lyrics-embed-card");
@@ -35,6 +37,10 @@
     const discogsConditionMeta = document.getElementById("lyrics-discogs-condition-meta");
     const discogsSides = document.getElementById("lyrics-discogs-sides");
     const discogsTotalLength = document.getElementById("lyrics-discogs-total-length");
+    const scoreCard = document.getElementById("lyrics-score-card");
+    const scoreStatus = document.getElementById("lyrics-score-status");
+    const scoreSides = document.getElementById("lyrics-score-sides");
+    const scoreOverall = document.getElementById("lyrics-score-overall");
     const coverPicker = document.getElementById("lyrics-cover-picker");
     const coverPickerTitle = document.getElementById("lyrics-cover-picker-title");
     const coverPickerSearch = document.getElementById("lyrics-cover-picker-search");
@@ -70,11 +76,19 @@
     let vinylSideEndPauseArm = null;
     let currentTrackEndsVinylSide = false;
     let currentTrackVinylSide = "";
+    let scrobbleAlbumEndPauseTimer = null;
+    let scrobbleAlbumEndPauseArm = null;
+    let currentTrackEndsAlbum = false;
+    const SCROBBLE_MODE_STORAGE_KEY = "navincitron-lyrics-scrobble-mode";
     const VINYL_MODE_STORAGE_KEY = "navincitron-lyrics-vinyl-mode";
+    let scrobbleModeEnabled = false;
     let vinylModeEnabled = false;
     try {
+        scrobbleModeEnabled = window.localStorage.getItem(SCROBBLE_MODE_STORAGE_KEY) === "1";
         vinylModeEnabled = window.localStorage.getItem(VINYL_MODE_STORAGE_KEY) === "1";
+        if (scrobbleModeEnabled && vinylModeEnabled) vinylModeEnabled = false;
     } catch (error) {
+        scrobbleModeEnabled = false;
         vinylModeEnabled = false;
     }
     let lastDefaultArtworkUrl = "";
@@ -105,6 +119,37 @@
     let rollingStone500SongEntries = [];
     let rollingStone500SongListsLoaded = false;
     let rollingStone500SongListsPromise = null;
+
+    const MY_ALBUMS_SCORE_FILE = "my_albums.txt";
+    let myAlbumsScoreEntries = [];
+    let myAlbumsScoresLoaded = false;
+    let myAlbumsScoresPromise = null;
+
+    const SCORE_COLOR_BANDS = Object.freeze([
+        { min: 110, label: "PINK", color: "#ff4fa3" },
+        { min: 98, label: "HIGH 10", color: "#ff3b30" },
+        { min: 96, label: "MID 10", color: "#ff3b30" },
+        { min: 94, label: "LOW 10", color: "#ff3b30" },
+        { min: 92, label: "HIGH 9", color: "#ff9500" },
+        { min: 90, label: "MID 9", color: "#ff9500" },
+        { min: 88, label: "LOW 9", color: "#ff9500" },
+        { min: 86, label: "HIGH 8", color: "#ffd60a" },
+        { min: 84, label: "MID 8", color: "#ffd60a" },
+        { min: 82, label: "LOW 8", color: "#ffd60a" },
+        { min: 80, label: "HIGH 7", color: "#34c759" },
+        { min: 78, label: "MID 7", color: "#34c759" },
+        { min: 76, label: "LOW 7", color: "#34c759" },
+        { min: 75, label: "HIGH 6", color: "#0a84ff" },
+        { min: 73, label: "MID 6", color: "#0a84ff" },
+        { min: 71, label: "LOW 6", color: "#0a84ff" },
+        { min: 68, label: "HIGH 5", color: "#5e5ce6" },
+        { min: 64, label: "MID 5", color: "#5e5ce6" },
+        { min: 61, label: "LOW 5", color: "#5e5ce6" },
+        { min: 58, label: "HIGH 4", color: "#af52de" },
+        { min: 54, label: "MID 4", color: "#af52de" },
+        { min: 51, label: "LOW 4", color: "#af52de" },
+        { min: -Infinity, label: "DUMPSTER FIRE", color: "#8b5a2b" },
+    ]);
 
     const focusSink = document.createElement("span");
     focusSink.tabIndex = -1;
@@ -1768,6 +1813,14 @@
         });
     }
 
+    function updateScrobbleModeUi() {
+        if (scrobbleModeToggle) {
+            scrobbleModeToggle.checked = scrobbleModeEnabled;
+            scrobbleModeToggle.setAttribute("aria-checked", scrobbleModeEnabled ? "true" : "false");
+        }
+        if (scrobbleModeState) scrobbleModeState.textContent = scrobbleModeEnabled ? "On" : "Off";
+    }
+
     function updateVinylModeUi() {
         if (vinylModeToggle) {
             vinylModeToggle.checked = vinylModeEnabled;
@@ -1776,13 +1829,42 @@
         if (vinylModeState) vinylModeState.textContent = vinylModeEnabled ? "On" : "Off";
     }
 
-    function setVinylModeEnabled(enabled) {
-        vinylModeEnabled = Boolean(enabled);
+    function persistPlaybackModeState() {
         try {
+            window.localStorage.setItem(SCROBBLE_MODE_STORAGE_KEY, scrobbleModeEnabled ? "1" : "0");
             window.localStorage.setItem(VINYL_MODE_STORAGE_KEY, vinylModeEnabled ? "1" : "0");
         } catch (error) {
-            // Vinyl Mode still works for the current page even when storage is unavailable.
+            // Playback modes still work for the current page when storage is unavailable.
         }
+    }
+
+    function setScrobbleModeEnabled(enabled) {
+        scrobbleModeEnabled = Boolean(enabled);
+        if (scrobbleModeEnabled) {
+            vinylModeEnabled = false;
+            clearVinylSideEndPause();
+        }
+        persistPlaybackModeState();
+        updateScrobbleModeUi();
+        updateVinylModeUi();
+
+        if (!scrobbleModeEnabled) {
+            clearScrobbleAlbumEndPause();
+            return;
+        }
+        if (currentTrackEndsAlbum && currentDisplayedTrack) {
+            armScrobbleAlbumEndPause(currentDisplayedTrack);
+        }
+    }
+
+    function setVinylModeEnabled(enabled) {
+        vinylModeEnabled = Boolean(enabled);
+        if (vinylModeEnabled) {
+            scrobbleModeEnabled = false;
+            clearScrobbleAlbumEndPause();
+        }
+        persistPlaybackModeState();
+        updateScrobbleModeUi();
         updateVinylModeUi();
 
         if (!vinylModeEnabled) {
@@ -1794,8 +1876,12 @@
         }
     }
 
+    updateScrobbleModeUi();
+    updateVinylModeUi();
+    if (scrobbleModeToggle) {
+        scrobbleModeToggle.addEventListener("change", () => setScrobbleModeEnabled(scrobbleModeToggle.checked));
+    }
     if (vinylModeToggle) {
-        updateVinylModeUi();
         vinylModeToggle.addEventListener("change", () => setVinylModeEnabled(vinylModeToggle.checked));
     }
 
@@ -1896,6 +1982,95 @@
         scheduleVinylSideEndPause();
     }
 
+    function clearScrobbleAlbumEndPause(options = {}) {
+        if (scrobbleAlbumEndPauseTimer) {
+            window.clearTimeout(scrobbleAlbumEndPauseTimer);
+            scrobbleAlbumEndPauseTimer = null;
+        }
+        if (options.forget !== false) scrobbleAlbumEndPauseArm = null;
+    }
+
+    async function pauseSpotifyAtScrobbleAlbumEnd(arm, options = {}) {
+        if (!scrobbleModeEnabled || !arm || !spotifyAuthenticated) return;
+        if (!options.force && scrobbleAlbumEndPauseArm !== arm) return;
+        if (arm.expectedEndAt && Date.now() - arm.expectedEndAt > 5000) {
+            if (scrobbleAlbumEndPauseArm === arm) clearScrobbleAlbumEndPause();
+            return;
+        }
+        if (!playbackClock.isPlaying) return;
+        if (playbackControlInProgress) {
+            scrobbleAlbumEndPauseTimer = window.setTimeout(() => pauseSpotifyAtScrobbleAlbumEnd(arm), 175);
+            return;
+        }
+
+        playbackControlInProgress = true;
+        playbackClock.progressMs = estimatedPlaybackProgress();
+        playbackClock.isPlaying = false;
+        playbackClock.sampledAt = Date.now();
+        renderPlaybackProgress();
+        updatePlaybackControls();
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/control/pause`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data || data.ok !== true) {
+                throw new Error(data && data.error ? data.error : `HTTP ${response.status}`);
+            }
+            setStatus("Paused after the final track of the album.", "success");
+            if (scrobbleAlbumEndPauseArm === arm) clearScrobbleAlbumEndPause();
+            window.setTimeout(() => fetchCurrentLyrics(false), 300);
+        } catch (error) {
+            playbackClock.isPlaying = true;
+            playbackClock.sampledAt = Date.now();
+            setStatus(`Could not pause at the end of the album: ${error.message || error}`, "error");
+            if (scrobbleAlbumEndPauseArm === arm) clearScrobbleAlbumEndPause();
+            window.setTimeout(() => fetchCurrentLyrics(false), 300);
+        } finally {
+            playbackControlInProgress = false;
+            updatePlaybackControls();
+        }
+    }
+
+    function scheduleScrobbleAlbumEndPause() {
+        if (scrobbleAlbumEndPauseTimer) {
+            window.clearTimeout(scrobbleAlbumEndPauseTimer);
+            scrobbleAlbumEndPauseTimer = null;
+        }
+        if (!scrobbleModeEnabled) return;
+        const arm = scrobbleAlbumEndPauseArm;
+        if (!arm || !currentDisplayedTrack || !playbackClock.isPlaying) return;
+        const currentTrackKey = String(currentDisplayedTrack.key || `${currentDisplayedTrack.artist}::${currentDisplayedTrack.title}`);
+        if (currentTrackKey !== arm.trackKey || lastTrackKey !== arm.trackKey) return;
+
+        const durationMs = Math.max(0, Number(playbackClock.durationMs) || 0);
+        if (!durationMs) return;
+        const remainingMs = Math.max(0, durationMs - estimatedPlaybackProgress());
+        arm.expectedEndAt = Date.now() + remainingMs;
+        scrobbleAlbumEndPauseTimer = window.setTimeout(() => pauseSpotifyAtScrobbleAlbumEnd(arm), Math.max(0, remainingMs + 100));
+    }
+
+    function armScrobbleAlbumEndPause(track) {
+        if (!scrobbleModeEnabled) {
+            clearScrobbleAlbumEndPause();
+            return;
+        }
+        const trackKey = String(track && (track.key || `${track.artist}::${track.title}`) || "");
+        if (!trackKey) {
+            clearScrobbleAlbumEndPause();
+            return;
+        }
+        if (!scrobbleAlbumEndPauseArm || scrobbleAlbumEndPauseArm.trackKey !== trackKey) {
+            clearScrobbleAlbumEndPause();
+            scrobbleAlbumEndPauseArm = { trackKey };
+        }
+        scheduleScrobbleAlbumEndPause();
+    }
+
     function setDiscogsStatus(message, type = "") {
         discogsStatus.textContent = message;
         discogsStatus.classList.toggle("error", type === "error");
@@ -1914,7 +2089,10 @@
         discogsConditionMeta.hidden = true;
         currentTrackEndsVinylSide = false;
         currentTrackVinylSide = "";
+        currentTrackEndsAlbum = false;
         clearVinylSideEndPause();
+        clearScrobbleAlbumEndPause();
+        resetLyricsScoreCard();
         discogsTotalLength.textContent = "";
         discogsTotalLength.hidden = true;
         setCoverPickerAvailability(null);
@@ -2152,7 +2330,7 @@
         return `${minutes}:${String(remainder).padStart(2, "0")}`;
     }
 
-    function lyricsDiscogsSleeveConditionColor(value) {
+    function lyricsDiscogsConditionColor(value) {
         const text = String(value || "").trim().toLowerCase();
         if (!text) return "";
         if (/near\s+mint|\bnm\b/.test(text)) return "#3cb3ff";
@@ -2163,6 +2341,210 @@
         if (/\bfair\b|\bpoor\b|\bf\b|\bp\b/.test(text)) return "#9F000F";
         if (/\bmint\b|^m(?:\s|\(|$)/.test(text)) return "#a47df0";
         return "";
+    }
+
+    function scoreBandForHundredScale(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return null;
+        return SCORE_COLOR_BANDS.find(band => numeric >= band.min) || SCORE_COLOR_BANDS[SCORE_COLOR_BANDS.length - 1];
+    }
+
+    function scoreBandForTrackScore(value) {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? scoreBandForHundredScale(numeric * 10) : null;
+    }
+
+    function parseMyAlbumsScoreFile(text) {
+        const albums = [];
+        let current = null;
+        for (const rawLine of String(text || "").split(/\r?\n/)) {
+            const line = rawLine.trim();
+            if (!line) continue;
+            const albumMatch = line.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)%\s*$/);
+            if (albumMatch) {
+                current = { title: albumMatch[1].trim(), overallScore: Number(albumMatch[2]), tracks: [] };
+                albums.push(current);
+                continue;
+            }
+            if (!current) continue;
+            const trackMatch = line.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)\s*$/);
+            if (trackMatch) {
+                current.tracks.push({ title: trackMatch[1].trim(), score: Number(trackMatch[2]) });
+                continue;
+            }
+            const blankTrackMatch = line.match(/^(.+?):\s*$/);
+            if (blankTrackMatch) current.tracks.push({ title: blankTrackMatch[1].trim(), score: null });
+        }
+        return albums;
+    }
+
+    function loadMyAlbumsScores() {
+        if (myAlbumsScoresPromise) return myAlbumsScoresPromise;
+        myAlbumsScoresPromise = fetch(new URL(MY_ALBUMS_SCORE_FILE, window.location.href).href, { cache: "force-cache" })
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.text();
+            })
+            .then(text => {
+                myAlbumsScoreEntries = parseMyAlbumsScoreFile(text);
+                myAlbumsScoresLoaded = true;
+                if (lastDiscogsTracklistPayload && currentDisplayedTrack) {
+                    renderLyricsDiscogsTracklist(lastDiscogsTracklistPayload, currentDisplayedTrack.title || "");
+                }
+                return myAlbumsScoreEntries;
+            })
+            .catch(() => {
+                myAlbumsScoreEntries = [];
+                myAlbumsScoresLoaded = true;
+                return [];
+            });
+        return myAlbumsScoresPromise;
+    }
+
+    function myAlbumsAlbumTitleScore(candidateTitle, wantedTitle) {
+        const left = normalizeAlbumTitle(candidateTitle);
+        const right = normalizeAlbumTitle(wantedTitle);
+        if (!left || !right) return 0;
+        if (left === right) return 1;
+        if (left.length >= 5 && right.length >= 5 && (left.includes(right) || right.includes(left))) return 0.88;
+        const leftTokens = new Set(tokenizeTitle(candidateTitle));
+        const rightTokens = new Set(tokenizeTitle(wantedTitle));
+        if (!leftTokens.size || !rightTokens.size) return 0;
+        let common = 0;
+        leftTokens.forEach(token => { if (rightTokens.has(token)) common += 1; });
+        const containment = common / Math.max(1, Math.min(leftTokens.size, rightTokens.size));
+        if (containment === 1 && Math.min(leftTokens.size, rightTokens.size) >= 2) return 0.84;
+        if (containment >= 0.75) return 0.72;
+        return 0;
+    }
+
+    function myAlbumsTrackCoverageScore(albumEntry, discogsRows) {
+        if (!albumEntry || !Array.isArray(albumEntry.tracks) || !albumEntry.tracks.length || !discogsRows.length) return 0;
+        let matched = 0;
+        for (const row of discogsRows) {
+            const best = albumEntry.tracks.reduce((value, track) => Math.max(value, lyricsDiscogsTrackMatchScore(row.title, track.title)), 0);
+            if (best >= 0.72) matched += 1;
+        }
+        return matched / Math.max(1, Math.min(discogsRows.length, albumEntry.tracks.length));
+    }
+
+    function findMyAlbumsScoreEntry(release, collectionAlbum, discogsRows) {
+        if (!myAlbumsScoresLoaded || !myAlbumsScoreEntries.length) return null;
+        const wantedTitles = [
+            release && release.title,
+            collectionAlbum && collectionAlbum.title,
+            currentDisplayedTrack && currentDisplayedTrack.album,
+        ].map(value => String(value || "").trim()).filter(Boolean);
+        let bestEntry = null;
+        let bestScore = 0;
+        for (const entry of myAlbumsScoreEntries) {
+            let titleScore = 0;
+            for (const wanted of wantedTitles) titleScore = Math.max(titleScore, myAlbumsAlbumTitleScore(entry.title, wanted));
+            const trackCoverage = myAlbumsTrackCoverageScore(entry, discogsRows);
+            const combined = titleScore * 0.72 + trackCoverage * 0.28;
+            if (combined > bestScore) { bestScore = combined; bestEntry = entry; }
+        }
+        if (!bestEntry) return null;
+        const strongestTitle = Math.max(...wantedTitles.map(title => myAlbumsAlbumTitleScore(bestEntry.title, title)), 0);
+        const coverage = myAlbumsTrackCoverageScore(bestEntry, discogsRows);
+        if (strongestTitle >= 0.84 || (strongestTitle >= 0.60 && coverage >= 0.45) || coverage >= 0.72) return bestEntry;
+        return null;
+    }
+
+    function findMyAlbumsTrackScore(albumEntry, discogsTitle) {
+        if (!albumEntry || !Array.isArray(albumEntry.tracks)) return null;
+        let bestTrack = null;
+        let bestScore = 0;
+        for (const track of albumEntry.tracks) {
+            const score = lyricsDiscogsTrackMatchScore(discogsTitle, track.title);
+            if (score > bestScore) { bestScore = score; bestTrack = track; }
+        }
+        return bestScore >= 0.55 ? bestTrack : null;
+    }
+
+    function resetLyricsScoreCard() {
+        if (!scoreCard) return;
+        scoreSides.replaceChildren();
+        scoreStatus.textContent = "Waiting for a matched Discogs tracklist.";
+        scoreOverall.textContent = "";
+        scoreOverall.hidden = true;
+        scoreCard.classList.add("lyrics-hidden");
+    }
+
+    function makeScoreValueElement(value, isTrackScore = false) {
+        const element = document.createElement("span");
+        element.className = "lyrics-score-value";
+        if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) { element.textContent = "—"; return element; }
+        const numeric = Number(value);
+        const band = isTrackScore ? scoreBandForTrackScore(numeric) : scoreBandForHundredScale(numeric);
+        element.textContent = isTrackScore
+            ? `${numeric.toFixed(1)}${band ? ` · ${band.label}` : ""}`
+            : `${numeric.toFixed(2)}%`;
+        if (band) { element.style.color = band.color; element.title = band.label; element.dataset.ratingBand = band.label; }
+        return element;
+    }
+
+    function renderLyricsScoreCard(release, collectionAlbum, discogsRows, currentRowIndex) {
+        if (!scoreCard) return;
+        scoreCard.classList.remove("lyrics-hidden");
+        scoreSides.replaceChildren();
+        scoreOverall.replaceChildren();
+        scoreOverall.hidden = true;
+        if (!myAlbumsScoresLoaded) {
+            scoreStatus.textContent = "Loading scores from my_albums.txt…";
+            loadMyAlbumsScores();
+            return;
+        }
+        const albumEntry = findMyAlbumsScoreEntry(release, collectionAlbum, discogsRows);
+        scoreStatus.textContent = albumEntry ? albumEntry.title : "No matching album score found in my_albums.txt.";
+        const groups = new Map();
+        let mostRecentSide = "";
+        discogsRows.forEach((row, index) => {
+            if (row.side) mostRecentSide = row.side;
+            const groupKey = row.side || mostRecentSide || "Tracklist";
+            if (!groups.has(groupKey)) groups.set(groupKey, []);
+            groups.get(groupKey).push({ ...row, index });
+        });
+        groups.forEach((groupRows, groupKey) => {
+            const side = document.createElement("section");
+            side.className = "lyrics-discogs-side lyrics-score-side";
+            const heading = document.createElement("h4");
+            heading.textContent = groupKey === "Tracklist" ? "TRACKLIST" : `SIDE ${String(groupKey).toUpperCase()}`;
+            side.appendChild(heading);
+            groupRows.forEach(row => {
+                const trackRow = document.createElement("div");
+                trackRow.className = "lyrics-discogs-track lyrics-score-track";
+                if (row.index === currentRowIndex) { trackRow.classList.add("current"); trackRow.setAttribute("aria-current", "true"); }
+                const position = document.createElement("span");
+                position.className = "lyrics-discogs-track-position";
+                position.textContent = row.position || "—";
+                const title = document.createElement("span");
+                title.className = "lyrics-discogs-track-title";
+                title.textContent = row.title;
+                const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row.title) : null;
+                const value = matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? matchedTrack.score : null;
+                const scoreValue = makeScoreValueElement(value, true);
+                if (value !== null) {
+                    const band = scoreBandForTrackScore(value);
+                    scoreValue.title = band ? `${Number(value).toFixed(1)} · ${band.label}` : Number(value).toFixed(1);
+                }
+                trackRow.append(position, title, scoreValue);
+                side.appendChild(trackRow);
+            });
+            scoreSides.appendChild(side);
+        });
+        if (albumEntry && Number.isFinite(Number(albumEntry.overallScore))) {
+            const band = scoreBandForHundredScale(albumEntry.overallScore);
+            const label = document.createElement("span");
+            label.textContent = "Overall Score: ";
+            const value = makeScoreValueElement(albumEntry.overallScore, false);
+            const bandText = document.createElement("span");
+            bandText.className = "lyrics-score-band";
+            bandText.textContent = band ? ` · ${band.label}` : "";
+            if (band) bandText.style.color = band.color;
+            scoreOverall.append(label, value, bandText);
+            scoreOverall.hidden = false;
+        }
     }
 
     async function fetchRollingStoneSongListText(config) {
@@ -2326,6 +2708,9 @@
         discogsConditionMeta.replaceChildren();
         discogsConditionMeta.hidden = true;
         clearVinylSideEndPause();
+        clearScrobbleAlbumEndPause();
+        currentTrackEndsAlbum = false;
+        resetLyricsScoreCard();
         discogsTotalLength.textContent = "";
         discogsTotalLength.hidden = true;
         setCoverPickerAvailability(null);
@@ -2405,7 +2790,12 @@
         if (mediaCondition || sleeveCondition) {
             discogsConditionMeta.replaceChildren();
             if (mediaCondition) {
-                discogsConditionMeta.appendChild(document.createTextNode(`Media Quality: ${mediaCondition}`));
+                discogsConditionMeta.appendChild(document.createTextNode("Media Quality: "));
+                const mediaValue = document.createElement("span");
+                mediaValue.textContent = mediaCondition;
+                const mediaColor = lyricsDiscogsConditionColor(mediaCondition);
+                if (mediaColor) mediaValue.style.color = mediaColor;
+                discogsConditionMeta.appendChild(mediaValue);
             }
             if (mediaCondition && sleeveCondition) {
                 discogsConditionMeta.appendChild(document.createTextNode(" · "));
@@ -2414,7 +2804,7 @@
                 discogsConditionMeta.appendChild(document.createTextNode("Sleeve Quality: "));
                 const sleeveValue = document.createElement("span");
                 sleeveValue.textContent = sleeveCondition;
-                const sleeveColor = lyricsDiscogsSleeveConditionColor(sleeveCondition);
+                const sleeveColor = lyricsDiscogsConditionColor(sleeveCondition);
                 if (sleeveColor) sleeveValue.style.color = sleeveColor;
                 discogsConditionMeta.appendChild(sleeveValue);
             }
@@ -2440,6 +2830,8 @@
                 discogsConditionMeta.hidden = false;
             }
         }
+
+        renderLyricsScoreCard(release, collectionAlbum, rows, currentRowIndex);
 
         const groups = new Map();
         let mostRecentSide = "";
@@ -2505,6 +2897,13 @@
             discogsSides.appendChild(side);
         });
 
+        currentTrackEndsAlbum = currentRowIndex >= 0 && currentRowIndex === rows.length - 1;
+        if (scrobbleModeEnabled && currentTrackEndsAlbum && currentDisplayedTrack) {
+            armScrobbleAlbumEndPause(currentDisplayedTrack);
+        } else {
+            clearScrobbleAlbumEndPause();
+        }
+
         currentTrackEndsVinylSide = currentTrackEndsSide;
         currentTrackVinylSide = currentTrackSide;
         if (vinylModeEnabled && currentTrackEndsSide && currentDisplayedTrack) {
@@ -2531,6 +2930,9 @@
             discogsReleaseMeta.hidden = true;
             discogsConditionMeta.hidden = true;
             clearVinylSideEndPause();
+            clearScrobbleAlbumEndPause();
+            currentTrackEndsAlbum = false;
+            resetLyricsScoreCard();
             return;
         }
 
@@ -2550,6 +2952,9 @@
         discogsConditionMeta.replaceChildren();
         discogsConditionMeta.hidden = true;
         clearVinylSideEndPause();
+        clearScrobbleAlbumEndPause();
+        currentTrackEndsAlbum = false;
+        resetLyricsScoreCard();
         discogsTotalLength.textContent = "";
         discogsTotalLength.hidden = true;
         setCoverPickerAvailability(null);
@@ -3039,6 +3444,13 @@
         // from an armed side-ending track while the previous track was already at
         // its end, pause the newly started side immediately. Manual Next/Previous
         // clears the arm before changing tracks and therefore does not trigger this.
+        if (scrobbleModeEnabled && trackChanged && scrobbleAlbumEndPauseArm && scrobbleAlbumEndPauseArm.trackKey === previousTrackKey && previousRemainingMs <= 1500) {
+            const missedAlbumArm = scrobbleAlbumEndPauseArm;
+            window.setTimeout(() => pauseSpotifyAtScrobbleAlbumEnd(missedAlbumArm, { force: true }), 0);
+        } else if (trackChanged && scrobbleAlbumEndPauseArm && scrobbleAlbumEndPauseArm.trackKey === previousTrackKey) {
+            clearScrobbleAlbumEndPause();
+        }
+
         if (vinylModeEnabled && trackChanged && vinylSideEndPauseArm && vinylSideEndPauseArm.trackKey === previousTrackKey && previousRemainingMs <= 1500) {
             const missedBoundaryArm = vinylSideEndPauseArm;
             window.setTimeout(() => pauseSpotifyAtVinylSideEnd(missedBoundaryArm, { force: true }), 0);
@@ -3049,6 +3461,7 @@
         if (trackChanged) {
             currentTrackEndsVinylSide = false;
             currentTrackVinylSide = "";
+            currentTrackEndsAlbum = false;
         }
         lastTrackKey = trackKey;
         hasDisplayedTrack = true;
@@ -3202,6 +3615,7 @@
         if (playbackControlInProgress || !spotifyAuthenticated) return;
         if (action === "next" || action === "previous" || action === "restart") {
             clearVinylSideEndPause();
+            clearScrobbleAlbumEndPause();
         }
 
         const labels = {
@@ -3228,11 +3642,16 @@
                 window.clearTimeout(vinylSideEndPauseTimer);
                 vinylSideEndPauseTimer = null;
             }
+            if (scrobbleAlbumEndPauseTimer) {
+                window.clearTimeout(scrobbleAlbumEndPauseTimer);
+                scrobbleAlbumEndPauseTimer = null;
+            }
             renderPlaybackProgress();
         } else if (action === "play") {
             playbackClock.isPlaying = true;
             playbackClock.sampledAt = Date.now();
             if (vinylModeEnabled && vinylSideEndPauseArm) scheduleVinylSideEndPause();
+            if (scrobbleModeEnabled && scrobbleAlbumEndPauseArm) scheduleScrobbleAlbumEndPause();
         }
 
         try {
@@ -3341,6 +3760,7 @@
 
     window.setInterval(renderPlaybackProgress, 250);
     loadRollingStone500SongLists();
+    loadMyAlbumsScores();
     renderEmptyPlaybackHud(false);
     fetchCurrentLyrics(false);
     schedulePolling();
