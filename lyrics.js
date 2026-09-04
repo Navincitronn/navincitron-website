@@ -197,6 +197,28 @@
         { min: -Infinity, label: "DUMPSTER FIRE", color: "#8b5a2b" },
     ]);
 
+    // Track scores use their own 0.0-12.0 color scale. Keep this separate
+    // from the album-level percentage/rating-image thresholds above.
+    const TRACK_SCORE_COLOR_BANDS = Object.freeze([
+        { min: 11.0, label: "11.0+", color: "#bf00ff" },
+        { min: 10.1, label: "10.9-10.1", color: "#8000ff" },
+        { min: 9.8, label: "10.0-9.8", color: "#4000ff" },
+        { min: 9.6, label: "9.7-9.6", color: "#0000ff" },
+        { min: 9.3, label: "9.5-9.3", color: "#0040ff" },
+        { min: 9.0, label: "9.2-9.0", color: "#0080ff" },
+        { min: 8.8, label: "8.9-8.8", color: "#00bfff" },
+        { min: 8.6, label: "8.7-8.6", color: "#00ffff" },
+        { min: 8.3, label: "8.5-8.3", color: "#00ffbf" },
+        { min: 8.0, label: "8.2-8.0", color: "#00ff80" },
+        { min: 7.6, label: "7.9-7.6", color: "#00ff40" },
+        { min: 7.3, label: "7.5-7.3", color: "#bfff00" },
+        { min: 6.9, label: "7.2-6.9", color: "#ffff00" },
+        { min: 6.5, label: "6.8-6.5", color: "#ffbf00" },
+        { min: 5.9, label: "6.4-5.9", color: "#ff8000" },
+        { min: 4.9, label: "5.8-4.9", color: "#ff4000" },
+        { min: -Infinity, label: "4.8 and below", color: "#ff0000" },
+    ]);
+
     const SCORE_RATING_IMAGE_BASE = "rating_images/";
     const ALBUM_SCORE_VISUAL_BANDS = Object.freeze([
         { min: 98, tier: "high", rating: 10 },
@@ -2454,7 +2476,9 @@
 
     function scoreBandForTrackScore(value) {
         const numeric = Number(value);
-        return Number.isFinite(numeric) ? scoreBandForHundredScale(numeric * 10) : null;
+        if (!Number.isFinite(numeric)) return null;
+        return TRACK_SCORE_COLOR_BANDS.find(band => numeric >= band.min)
+            || TRACK_SCORE_COLOR_BANDS[TRACK_SCORE_COLOR_BANDS.length - 1];
     }
 
     function albumScoreVisualForHundredScale(value) {
