@@ -227,22 +227,23 @@ document.addEventListener("DOMContentLoaded", () => {
             && !/^unknown artist$/i.test(identity.artist)
             && !/^unknown album$/i.test(identity.album)
         );
-        const editable = Boolean(validIdentity && currentShufflePlaybackPaused() && coverImage && !coverImage.classList.contains("empty-cover"));
+
+        // Artwork selection is tied to the currently identified Spotify album,
+        // not to the player's paused/running state. This also deliberately allows
+        // an empty cover frame to be clicked so a missing/local-file cover can be
+        // assigned manually.
+        const editable = Boolean(validIdentity);
         coverFrame.classList.toggle("editable", editable);
         if (editable) {
             coverFrame.setAttribute("role", "button");
             coverFrame.setAttribute("tabindex", "0");
             coverFrame.setAttribute("aria-label", "Change album artwork");
-            coverFrame.title = "Playback is paused. Click to change this album artwork.";
+            coverFrame.title = "Click to change this album artwork.";
         } else {
             coverFrame.removeAttribute("role");
             coverFrame.removeAttribute("tabindex");
             coverFrame.removeAttribute("aria-label");
-            if (validIdentity && coverImage && !coverImage.classList.contains("empty-cover")) {
-                coverFrame.title = "Pause playback to change this album artwork.";
-            } else {
-                coverFrame.removeAttribute("title");
-            }
+            coverFrame.removeAttribute("title");
         }
     }
 
@@ -510,7 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function openShuffleCoverPicker() {
-        if (!coverPicker || !currentShufflePlaybackPaused()) return;
+        if (!coverPicker) return;
         const entry = shuffleCoverSearchIdentity();
         if (!entry.title || /^unknown album$/i.test(entry.title) || !entry.artist || /^unknown artist$/i.test(entry.artist)) return;
         coverPickerLookupToken += 1;
@@ -663,7 +664,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateCover(coverArt) {
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
 
-        if (!coverArt || !coverArt.url) {
+        if (!coverArt) {
             coverImage.removeAttribute("src");
             coverImage.classList.add("empty-cover");
             coverFrame.classList.add("cover-frame-empty");
@@ -676,10 +677,6 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        coverImage.src = coverArt.url;
-        coverImage.classList.remove("empty-cover");
-        coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
-
         const artist = coverArt.artist || "Unknown Artist";
         const track = coverArt.track || coverArt.album || "Unknown Song";
         const album = coverArt.album || "Unknown album";
@@ -687,6 +684,21 @@ document.addEventListener("DOMContentLoaded", () => {
         currentCoverIdentity = { artist, album, track, year: coverArt.year || null };
         currentDefaultCoverUrl = String(coverArt.defaultUrl || coverArt.defaultCoverUrl || coverArt.url || "");
         currentManualCoverOverride = coverArt.manualCoverOverride || null;
+
+        if (coverArt.url) {
+            coverImage.src = coverArt.url;
+            coverImage.classList.remove("empty-cover");
+            coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
+        } else {
+            // Keep the now-playing artist/album identity even when Spotify has no
+            // usable image URL. The empty frame remains selectable so the user can
+            // manually assign a persistent cover.
+            coverImage.removeAttribute("src");
+            coverImage.classList.add("empty-cover");
+            coverFrame.classList.add("cover-frame-empty");
+            coverFrame.classList.remove("songguesser-placeholder");
+        }
+
         setShuffleCoverPickerAvailability();
     }
 
