@@ -2626,7 +2626,23 @@
         const right = normalizeAlbumTitle(wantedTitle);
         if (!left || !right) return 0;
         if (left === right) return 1;
-        if (left.length >= 5 && right.length >= 5 && (left.includes(right) || right.includes(left))) return 0.88;
+
+        // Character containment is useful for edition suffixes, but it must not let
+        // a short unrelated title match merely because its letters appear inside a
+        // longer title. Example: "Alive!" normalized to "alive" is a substring of
+        // "Magma Live" normalized to "magmalive". Require the two normalized titles
+        // to be reasonably close in length before treating containment as a match.
+        const shorterLength = Math.min(left.length, right.length);
+        const longerLength = Math.max(left.length, right.length);
+        const containmentLengthRatio = shorterLength / Math.max(1, longerLength);
+        if (
+            shorterLength >= 5
+            && containmentLengthRatio >= 0.72
+            && (left.includes(right) || right.includes(left))
+        ) {
+            return 0.88;
+        }
+
         const leftTokens = new Set(tokenizeTitle(candidateTitle));
         const rightTokens = new Set(tokenizeTitle(wantedTitle));
         if (!leftTokens.size || !rightTokens.size) return 0;
