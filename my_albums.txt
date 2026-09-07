@@ -12580,9 +12580,9 @@ Nothin' To Lose: 7.9
 C'mon And Love Me: 7.8
 Parasite: 8.3
 She: 7.8
-Watchin' You: 0.0
-100,000 Years: 0.0
-Black Diamond: 0.0
+Watchin' You: 7.6
+100,000 Years: 7.5
+Black Diamond: 7.9
 Rock Bottom: 0.0
 Cold Gin: 0.0
 Rock And Roll All Nite: 0.0
