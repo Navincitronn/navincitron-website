@@ -144,7 +144,7 @@
     let scoreDeleteInProgress = false;
     let scoreDeletePendingContext = null;
     let myAlbumsScoreRevision = "";
-    const SCORE_DRAFT_STORAGE_KEY = "navincitron-lyrics-score-drafts-v1";
+    const SCORE_DRAFT_STORAGE_KEY = "navincitron-lyrics-score-drafts-v2";
     const scoreDraftsByAlbum = new Map();
 
     function persistScoreDrafts() {
@@ -2711,24 +2711,45 @@
         titleCandidates.slice(0, 16).forEach(item => candidateSet.add(item.entry));
 
         const candidates = candidateSet.size ? Array.from(candidateSet) : titleCandidates.slice(0, 16).map(item => item.entry);
-        let bestEntry = null;
-        let bestScore = 0;
-        for (const entry of candidates) {
+        const evaluated = candidates.map(entry => {
             let titleScore = 0;
-            for (const wanted of wantedTitles) titleScore = Math.max(titleScore, myAlbumsAlbumTitleScore(entry.title, wanted));
-            const trackCoverage = myAlbumsTrackCoverageScore(entry, discogsRows);
-            const combined = titleScore * 0.72 + trackCoverage * 0.28;
-            if (combined > bestScore) { bestScore = combined; bestEntry = entry; }
+            for (const wanted of wantedTitles) {
+                titleScore = Math.max(titleScore, myAlbumsAlbumTitleScore(entry.title, wanted));
+            }
+            return {
+                entry,
+                titleScore,
+                trackCoverage: myAlbumsTrackCoverageScore(entry, discogsRows),
+            };
+        }).filter(item => item.titleScore > 0);
+
+        // Album title identity is authoritative for Score-file mutation. Track overlap
+        // may disambiguate two plausible title matches, but it must never make a
+        // completely different album title eligible. This is especially important
+        // after a bad save has already replaced one album's track lines with another
+        // album's tracks: otherwise that corrupted track coverage becomes a permanent
+        // self-reinforcing false match.
+        const exactTitleMatches = evaluated.filter(item => item.titleScore >= 0.999);
+        if (exactTitleMatches.length) {
+            exactTitleMatches.sort((left, right) => right.trackCoverage - left.trackCoverage);
+            const exactResult = exactTitleMatches[0].entry;
+            myAlbumsAlbumMatchCache.set(cacheKey, exactResult);
+            return exactResult;
         }
-        if (!bestEntry) {
-            myAlbumsAlbumMatchCache.set(cacheKey, null);
-            return null;
-        }
-        const strongestTitle = Math.max(...wantedTitles.map(title => myAlbumsAlbumTitleScore(bestEntry.title, title)), 0);
-        const coverage = myAlbumsTrackCoverageScore(bestEntry, discogsRows);
-        const result = strongestTitle >= 0.84 || (strongestTitle >= 0.60 && coverage >= 0.45) || coverage >= 0.72
-            ? bestEntry
-            : null;
+
+        const viable = evaluated.filter(item => item.titleScore >= 0.60);
+        viable.sort((left, right) => {
+            const leftCombined = left.titleScore * 0.72 + left.trackCoverage * 0.28;
+            const rightCombined = right.titleScore * 0.72 + right.trackCoverage * 0.28;
+            if (rightCombined !== leftCombined) return rightCombined - leftCombined;
+            return right.titleScore - left.titleScore;
+        });
+
+        const best = viable[0] || null;
+        const result = best && (
+            best.titleScore >= 0.84
+            || (best.titleScore >= 0.60 && best.trackCoverage >= 0.45)
+        ) ? best.entry : null;
         myAlbumsAlbumMatchCache.set(cacheKey, result);
         return result;
     }
@@ -2744,12 +2765,33 @@
         return bestScore >= 0.55 ? bestTrack : null;
     }
 
+    function scoreContextWantedTitles(release, collectionAlbum) {
+        return [
+            release && release.title,
+            collectionAlbum && collectionAlbum.title,
+            currentDisplayedTrack && currentDisplayedTrack.album,
+        ].map(value => String(value || "").trim()).filter(Boolean);
+    }
+
+    function scoreEntryTitleBelongsToContext(albumEntry, release, collectionAlbum) {
+        if (!albumEntry) return false;
+        return scoreContextWantedTitles(release, collectionAlbum).some(title =>
+            myAlbumsAlbumTitleScore(albumEntry.title, title) > 0
+        );
+    }
+
     function scoreDraftAlbumKey(release, collectionAlbum, albumEntry = null) {
+        // A Discogs release ID is a much safer draft identity than the matched
+        // my_albums.txt title. If the score matcher ever picks the wrong text block,
+        // two unrelated releases must still not share one browser draft.
+        const releaseId = Number(release && release.releaseId) || 0;
+        if (releaseId > 0) return `discogs-release::${releaseId}`;
+
         const title = String(
-            albumEntry && albumEntry.title
-            || collectionAlbum && collectionAlbum.title
+            collectionAlbum && collectionAlbum.title
             || release && release.title
             || currentDisplayedTrack && currentDisplayedTrack.album
+            || albumEntry && albumEntry.title
             || ""
         ).trim();
         const releaseArtists = Array.isArray(release && release.artists) ? release.artists : [];
@@ -3025,9 +3067,15 @@
             persistScoreDrafts();
         }
 
-        const entry = context && context.albumEntry;
         const release = context && context.release || {};
         const collectionAlbum = context && context.collectionAlbum || {};
+        const candidateEntry = context && context.albumEntry;
+        // Last line of defense against destructive cross-album replacement: even if
+        // a stale/malformed cached context contains an entry, only replace that block
+        // when its album title is actually compatible with the current release.
+        const entry = scoreEntryTitleBelongsToContext(candidateEntry, release, collectionAlbum)
+            ? candidateEntry
+            : null;
         const rows = context && Array.isArray(context.discogsRows) ? context.discogsRows : [];
         let albumTitle = String(entry && entry.title || release.title || collectionAlbum.title || currentDisplayedTrack && currentDisplayedTrack.album || "Untitled Album").trim();
         if (!entry) albumTitle = albumTitle.toUpperCase();
@@ -3053,8 +3101,15 @@
 
     function deletedMyAlbumsTextForScoreContext(context) {
         const entry = context && context.albumEntry;
-        if (!entry || !Number.isInteger(entry.startLine) || !Number.isInteger(entry.endLine)) {
-            throw new Error("This album does not have a saved my_albums.txt entry to delete.");
+        const release = context && context.release || {};
+        const collectionAlbum = context && context.collectionAlbum || {};
+        if (
+            !entry
+            || !scoreEntryTitleBelongsToContext(entry, release, collectionAlbum)
+            || !Number.isInteger(entry.startLine)
+            || !Number.isInteger(entry.endLine)
+        ) {
+            throw new Error("This album does not have a safely matched my_albums.txt entry to delete.");
         }
         const sourceLines = String(myAlbumsScoreText || "").replace(/\r\n?/g, "\n").split("\n");
         sourceLines.splice(entry.startLine, entry.endLine - entry.startLine);
