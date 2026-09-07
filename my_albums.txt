@@ -12684,7 +12684,7 @@ She: 7.8
 Watchin' You: 7.6
 100,000 Years: 7.5
 Black Diamond: 7.9
-Rock Bottom:
-Cold Gin:
-Rock And Roll All Nite:
-Let Me Go, Rock 'N Roll:
+Rock Bottom: 7.9
+Cold Gin: 7.9
+Rock And Roll All Nite: 8.4
+Let Me Go, Rock 'N Roll: 7.7
