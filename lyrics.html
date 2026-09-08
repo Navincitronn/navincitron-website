@@ -79,6 +79,19 @@
             background-color: #555555;
         }
 
+        .lyrics-toolbar [hidden] {
+            display: none !important;
+        }
+
+        .lyrics-toolbar .lyrics-link-album-button {
+            background-color: #fffc65;
+            color: #111111;
+        }
+
+        .lyrics-toolbar .lyrics-link-album-button:hover {
+            background-color: #fffc65;
+        }
+
         .lyrics-status {
             background-color: #444444;
             border-radius: 8px;
@@ -390,6 +403,51 @@
             color: #40bcf4;
             font-weight: bold;
             text-decoration: underline;
+        }
+
+        .lyrics-discogs-own-row {
+            display: flex;
+            justify-content: center;
+            margin: -4px 0 14px;
+        }
+
+        .lyrics-discogs-own-row[hidden] {
+            display: none;
+        }
+
+        .lyrics-discogs-own-row button {
+            background-color: #40bcf4;
+            border: 0;
+            border-radius: 5px;
+            color: #ffffff;
+            cursor: pointer;
+            font: inherit;
+            padding: 8px 15px;
+        }
+
+        .lyrics-link-picker .topster-cover-picker-card {
+            max-width: 620px;
+            width: min(94vw, 620px);
+        }
+
+        .lyrics-link-picker .topster-cover-picker-controls {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .lyrics-link-picker .topster-cover-picker-controls input[type="url"] {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .lyrics-link-picker .lyrics-link-picker-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .lyrics-link-picker .lyrics-link-picker-actions button {
+            min-width: 90px;
         }
 
         .lyrics-discogs-release-meta {
@@ -745,8 +803,9 @@
             <h2 class="lyrics-heading">LYRICS</h2>
             <hr>
             <div class="lyrics-toolbar">
-                <button type="button" id="lyrics-login" class="lyrics-login-button">Login with Spotify</button>
-                <button type="button" id="lyrics-refresh" class="lyrics-secondary-button">Refresh Now</button>
+                <button type="button" id="lyrics-login" class="lyrics-login-button" hidden>Login with Spotify</button>
+                <button type="button" id="lyrics-refresh" class="lyrics-secondary-button">Refresh</button>
+                <button type="button" id="lyrics-link-album" class="lyrics-link-album-button">Link To Album</button>
             </div>
 
             <div id="lyrics-status" class="lyrics-status" role="status" aria-live="polite">
@@ -819,6 +878,9 @@
             <section id="lyrics-discogs-card" class="lyrics-discogs-card lyrics-hidden" aria-label="Discogs vinyl tracklist">
                 <h3>Tracklist</h3>
                 <p id="lyrics-discogs-status" class="lyrics-discogs-status">Waiting for a currently playing album.</p>
+                <div id="lyrics-discogs-own-row" class="lyrics-discogs-own-row" hidden>
+                    <button id="lyrics-discogs-own" type="button">Own</button>
+                </div>
                 <div id="lyrics-discogs-release-meta" class="lyrics-discogs-release-meta" hidden></div>
                 <div id="lyrics-discogs-condition-meta" class="lyrics-discogs-condition-meta" hidden></div>
                 <div id="lyrics-discogs-sides" class="lyrics-discogs-sides"></div>
@@ -847,6 +909,40 @@
                         <button id="lyrics-score-delete-confirm-yes" type="button">Yes</button>
                         <button id="lyrics-score-delete-confirm-no" type="button">No</button>
                     </div>
+                </div>
+            </div>
+
+            <div class="topster-cover-picker lyrics-link-picker" id="lyrics-discogs-own-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-discogs-own-picker-title">
+                <div class="topster-cover-picker-card">
+                    <div class="topster-cover-picker-header">
+                        <h3 id="lyrics-discogs-own-picker-title">Link owned Discogs release</h3>
+                        <button type="button" id="lyrics-discogs-own-picker-close" class="secondary-button">Close</button>
+                    </div>
+                    <div class="topster-cover-picker-controls">
+                        <label for="lyrics-discogs-own-picker-link">Discogs Release Link</label>
+                        <input type="url" id="lyrics-discogs-own-picker-link" placeholder="https://www.discogs.com/release/12698907-Ryo-Fukui-Scenery">
+                        <div class="lyrics-link-picker-actions">
+                            <button type="button" id="lyrics-discogs-own-picker-save">Save</button>
+                        </div>
+                    </div>
+                    <p class="topster-cover-picker-status" id="lyrics-discogs-own-picker-status"></p>
+                </div>
+            </div>
+
+            <div class="topster-cover-picker lyrics-link-picker" id="lyrics-genius-album-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-genius-album-picker-title">
+                <div class="topster-cover-picker-card">
+                    <div class="topster-cover-picker-header">
+                        <h3 id="lyrics-genius-album-picker-title">Link Genius album</h3>
+                        <button type="button" id="lyrics-genius-album-picker-close" class="secondary-button">Close</button>
+                    </div>
+                    <div class="topster-cover-picker-controls">
+                        <label for="lyrics-genius-album-picker-link">Genius Album Link</label>
+                        <input type="url" id="lyrics-genius-album-picker-link" placeholder="https://genius.com/albums/Magma/Live-hhai">
+                        <div class="lyrics-link-picker-actions">
+                            <button type="button" id="lyrics-genius-album-picker-save">Save</button>
+                        </div>
+                    </div>
+                    <p class="topster-cover-picker-status" id="lyrics-genius-album-picker-status"></p>
                 </div>
             </div>
 
@@ -906,6 +1002,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260907-score-entry-isolation-v18"></script>
+    <script src="lyrics.js?v=20260908-manual-discogs-genius-links-v19"></script>
 </body>
 </html>

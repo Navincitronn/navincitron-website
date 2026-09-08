@@ -7,6 +7,7 @@
 
     const loginButton = document.getElementById("lyrics-login");
     const refreshButton = document.getElementById("lyrics-refresh");
+    const linkAlbumButton = document.getElementById("lyrics-link-album");
     const statusElement = document.getElementById("lyrics-status");
     const songCard = document.getElementById("lyrics-song-card");
     const coverFrame = document.getElementById("lyrics-cover-frame");
@@ -31,6 +32,8 @@
     const embedContainer = document.getElementById("lyrics-embed-container");
     const discogsCard = document.getElementById("lyrics-discogs-card");
     const discogsStatus = document.getElementById("lyrics-discogs-status");
+    const discogsOwnRow = document.getElementById("lyrics-discogs-own-row");
+    const discogsOwnButton = document.getElementById("lyrics-discogs-own");
     const discogsReleaseMeta = document.getElementById("lyrics-discogs-release-meta");
     const discogsConditionMeta = document.getElementById("lyrics-discogs-condition-meta");
     const discogsSides = document.getElementById("lyrics-discogs-sides");
@@ -47,6 +50,18 @@
     const scoreDeleteConfirm = document.getElementById("lyrics-score-delete-confirm");
     const scoreDeleteConfirmYes = document.getElementById("lyrics-score-delete-confirm-yes");
     const scoreDeleteConfirmNo = document.getElementById("lyrics-score-delete-confirm-no");
+    const discogsOwnPicker = document.getElementById("lyrics-discogs-own-picker");
+    const discogsOwnPickerTitle = document.getElementById("lyrics-discogs-own-picker-title");
+    const discogsOwnPickerLink = document.getElementById("lyrics-discogs-own-picker-link");
+    const discogsOwnPickerSave = document.getElementById("lyrics-discogs-own-picker-save");
+    const discogsOwnPickerClose = document.getElementById("lyrics-discogs-own-picker-close");
+    const discogsOwnPickerStatus = document.getElementById("lyrics-discogs-own-picker-status");
+    const geniusAlbumPicker = document.getElementById("lyrics-genius-album-picker");
+    const geniusAlbumPickerTitle = document.getElementById("lyrics-genius-album-picker-title");
+    const geniusAlbumPickerLink = document.getElementById("lyrics-genius-album-picker-link");
+    const geniusAlbumPickerSave = document.getElementById("lyrics-genius-album-picker-save");
+    const geniusAlbumPickerClose = document.getElementById("lyrics-genius-album-picker-close");
+    const geniusAlbumPickerStatus = document.getElementById("lyrics-genius-album-picker-status");
     const coverPicker = document.getElementById("lyrics-cover-picker");
     const coverPickerTitle = document.getElementById("lyrics-cover-picker-title");
     const coverPickerSearch = document.getElementById("lyrics-cover-picker-search");
@@ -78,6 +93,9 @@
     let lastDiscogsRenderedLookupKey = "";
     let discogsLookupInFlightKey = "";
     let discogsLookupRequestId = 0;
+    const manualDiscogsOwnershipCache = new Map();
+    let discogsOwnPickerContext = null;
+    let geniusAlbumPickerContext = null;
     let currentDiscogsRelease = null;
     let currentDisplayedTrack = null;
     let vinylSideEndPauseTimer = null;
@@ -1503,11 +1521,10 @@
 
     function setAuthenticated(authenticated) {
         spotifyAuthenticated = Boolean(authenticated);
-        loginButton.textContent = authenticated ? "Spotify Connected" : "Login with Spotify";
-        loginButton.classList.toggle("connected", authenticated);
-        loginButton.title = authenticated
-            ? "Reconnect or switch the Spotify account used by this page."
-            : "Connect Spotify so the page can identify the currently playing song.";
+        loginButton.hidden = spotifyAuthenticated;
+        loginButton.textContent = "Login with Spotify";
+        loginButton.classList.remove("connected");
+        loginButton.title = "Connect Spotify so the page can identify the currently playing song.";
         updatePlaybackControls();
     }
 
@@ -1929,6 +1946,211 @@
         });
     }
 
+    function currentLyricsAlbumLinkContext() {
+        const track = currentDisplayedTrack;
+        if (!track) return null;
+        const album = String(track.album || "").trim();
+        const artist = lyricsDiscogsAlbumArtist(track);
+        if (!album || /^unknown album$/i.test(album)) return null;
+        return {
+            artist,
+            album,
+            trackKey: String(track.key || ""),
+        };
+    }
+
+    function lyricsAlbumLinkCacheKey(artist, album) {
+        return `${normalizeAlbumIdentityKey(artist)}::${normalizeAlbumIdentityKey(album)}`;
+    }
+
+    function openDiscogsOwnPicker() {
+        const context = currentLyricsAlbumLinkContext();
+        if (!context || !discogsOwnPicker) return;
+        discogsOwnPickerContext = context;
+        discogsOwnPicker.hidden = false;
+        discogsOwnPickerTitle.textContent = `Own: ${context.artist ? `${context.artist} - ` : ""}${context.album}`;
+        discogsOwnPickerLink.value = "";
+        discogsOwnPickerStatus.textContent = "Paste the exact Discogs release link to use for this Spotify album.";
+        window.setTimeout(() => discogsOwnPickerLink.focus(), 0);
+    }
+
+    function closeDiscogsOwnPicker() {
+        if (discogsOwnPicker) discogsOwnPicker.hidden = true;
+        discogsOwnPickerContext = null;
+    }
+
+    async function saveDiscogsOwnPickerLink() {
+        const context = discogsOwnPickerContext;
+        const releaseUrl = String(discogsOwnPickerLink && discogsOwnPickerLink.value || "").trim();
+        if (!context || !releaseUrl) {
+            discogsOwnPickerStatus.textContent = "Enter a Discogs release link.";
+            return;
+        }
+
+        const previousLabel = discogsOwnPickerSave.textContent;
+        discogsOwnPickerSave.disabled = true;
+        discogsOwnPickerSave.textContent = "Saving...";
+        discogsOwnPickerStatus.textContent = "Saving ownership link and loading the Discogs tracklist...";
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/discogs-manual-ownership`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({
+                    artist: context.artist,
+                    album: context.album,
+                    releaseUrl,
+                }),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.ok !== true || !payload.matched) {
+                throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
+            }
+
+            manualDiscogsOwnershipCache.set(
+                lyricsAlbumLinkCacheKey(context.artist, context.album),
+                payload,
+            );
+            closeDiscogsOwnPicker();
+
+            const activeContext = currentLyricsAlbumLinkContext();
+            if (activeContext
+                && lyricsAlbumLinkCacheKey(activeContext.artist, activeContext.album)
+                    === lyricsAlbumLinkCacheKey(context.artist, context.album)) {
+                const track = currentDisplayedTrack;
+                const lookupKey = `${normalizeAlbumIdentityKey(context.artist)}::${normalizeAlbumIdentityKey(context.album)}::${normalizeAlbumIdentityKey(track && track.title || "")}`;
+                lastDiscogsAlbumLookupKey = lookupKey;
+                lastDiscogsTracklistPayload = payload;
+                lastDiscogsRenderedLookupKey = lookupKey;
+                discogsLookupInFlightKey = "";
+                renderLyricsDiscogsTracklist(payload, track && track.title || "");
+            }
+        } catch (error) {
+            discogsOwnPickerStatus.textContent = `Could not save Discogs ownership link: ${error.message || error}`;
+        } finally {
+            discogsOwnPickerSave.disabled = false;
+            discogsOwnPickerSave.textContent = previousLabel;
+        }
+    }
+
+    async function openGeniusAlbumPicker() {
+        const context = currentLyricsAlbumLinkContext();
+        if (!context || !geniusAlbumPicker) return;
+        geniusAlbumPickerContext = context;
+        geniusAlbumPicker.hidden = false;
+        geniusAlbumPickerTitle.textContent = `Link Genius album: ${context.artist ? `${context.artist} - ` : ""}${context.album}`;
+        geniusAlbumPickerLink.value = "";
+        geniusAlbumPickerStatus.textContent = "Paste the Genius album page whose tracklist should be used for lyrics matching.";
+        window.setTimeout(() => geniusAlbumPickerLink.focus(), 0);
+
+        try {
+            const params = new URLSearchParams({ artist: context.artist, album: context.album });
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-album-link?${params.toString()}`, {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            const payload = await response.json();
+            if (geniusAlbumPickerContext !== context || geniusAlbumPicker.hidden) return;
+            if (response.ok && payload && payload.ok === true && payload.linked && payload.mapping && payload.mapping.url) {
+                geniusAlbumPickerLink.value = String(payload.mapping.url);
+                geniusAlbumPickerStatus.textContent = "A Genius album is already linked. Replace the URL and Save to update it.";
+            }
+        } catch (error) {
+            // The modal remains usable even if the existing-link lookup fails.
+        }
+    }
+
+    function closeGeniusAlbumPicker() {
+        if (geniusAlbumPicker) geniusAlbumPicker.hidden = true;
+        geniusAlbumPickerContext = null;
+    }
+
+    async function saveGeniusAlbumPickerLink() {
+        const context = geniusAlbumPickerContext;
+        const url = String(geniusAlbumPickerLink && geniusAlbumPickerLink.value || "").trim();
+        if (!context || !url) {
+            geniusAlbumPickerStatus.textContent = "Enter a Genius album link.";
+            return;
+        }
+
+        const previousLabel = geniusAlbumPickerSave.textContent;
+        geniusAlbumPickerSave.disabled = true;
+        geniusAlbumPickerSave.textContent = "Saving...";
+        geniusAlbumPickerStatus.textContent = "Saving the Genius album link and loading its tracklist...";
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-album-link`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({
+                    artist: context.artist,
+                    album: context.album,
+                    url,
+                }),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.ok !== true || !payload.linked) {
+                throw new Error(payload && payload.error ? payload.error : `HTTP ${response.status}`);
+            }
+
+            closeGeniusAlbumPicker();
+            const activeContext = currentLyricsAlbumLinkContext();
+            if (activeContext
+                && lyricsAlbumLinkCacheKey(activeContext.artist, activeContext.album)
+                    === lyricsAlbumLinkCacheKey(context.artist, context.album)) {
+                lastTrackKey = "";
+                lastGeniusSongId = null;
+                window.setTimeout(() => fetchCurrentLyrics(true), 0);
+                window.setTimeout(() => fetchCurrentLyrics(true), 450);
+            }
+        } catch (error) {
+            geniusAlbumPickerStatus.textContent = `Could not save Genius album link: ${error.message || error}`;
+        } finally {
+            geniusAlbumPickerSave.disabled = false;
+            geniusAlbumPickerSave.textContent = previousLabel;
+        }
+    }
+
+    if (discogsOwnPicker && discogsOwnPickerClose && discogsOwnPickerSave && discogsOwnPickerLink) {
+        discogsOwnPickerClose.addEventListener("click", closeDiscogsOwnPicker);
+        discogsOwnPickerSave.addEventListener("click", saveDiscogsOwnPickerLink);
+        discogsOwnPickerLink.addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                saveDiscogsOwnPickerLink();
+            }
+        });
+        discogsOwnPicker.addEventListener("click", event => {
+            if (event.target === discogsOwnPicker) closeDiscogsOwnPicker();
+        });
+    }
+
+    if (geniusAlbumPicker && geniusAlbumPickerClose && geniusAlbumPickerSave && geniusAlbumPickerLink) {
+        geniusAlbumPickerClose.addEventListener("click", closeGeniusAlbumPicker);
+        geniusAlbumPickerSave.addEventListener("click", saveGeniusAlbumPickerLink);
+        geniusAlbumPickerLink.addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                saveGeniusAlbumPickerLink();
+            }
+        });
+        geniusAlbumPicker.addEventListener("click", event => {
+            if (event.target === geniusAlbumPicker) closeGeniusAlbumPicker();
+        });
+    }
+
+    document.addEventListener("keydown", event => {
+        if (event.key !== "Escape") return;
+        if (discogsOwnPicker && !discogsOwnPicker.hidden) closeDiscogsOwnPicker();
+        if (geniusAlbumPicker && !geniusAlbumPicker.hidden) closeGeniusAlbumPicker();
+    });
+
     function updateScrobbleModeUi() {
         if (scrobbleModeToggle) {
             scrobbleModeToggle.checked = scrobbleModeEnabled;
@@ -2199,6 +2421,10 @@
         discogsStatus.classList.toggle("error", type === "error");
     }
 
+    function setDiscogsOwnButtonVisible(visible) {
+        if (discogsOwnRow) discogsOwnRow.hidden = !visible;
+    }
+
     function resetDiscogsTracklist(options = {}) {
         discogsLookupRequestId += 1;
         if (options.clearLookup !== false) {
@@ -2212,6 +2438,7 @@
         discogsReleaseMeta.hidden = true;
         discogsConditionMeta.replaceChildren();
         discogsConditionMeta.hidden = true;
+        setDiscogsOwnButtonVisible(false);
         currentTrackEndsVinylSide = false;
         currentTrackVinylSide = "";
         currentTrackEndsAlbum = false;
@@ -3527,6 +3754,38 @@
         return rollingStone500SongListsPromise;
     }
 
+    async function fetchLyricsManualDiscogsOwnership(track, options = {}) {
+        if (!track) return null;
+        const album = String(track.album || "").trim();
+        const artist = lyricsDiscogsAlbumArtist(track);
+        if (!album || /^unknown album$/i.test(album)) return null;
+
+        const cacheKey = lyricsAlbumLinkCacheKey(artist, album);
+        if (!options.force && manualDiscogsOwnershipCache.has(cacheKey)) {
+            return manualDiscogsOwnershipCache.get(cacheKey);
+        }
+
+        try {
+            const params = new URLSearchParams({ artist, album });
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/discogs-manual-ownership?${params.toString()}`, {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.ok !== true) {
+                manualDiscogsOwnershipCache.set(cacheKey, null);
+                return null;
+            }
+            const value = payload.matched && payload.release ? payload : null;
+            manualDiscogsOwnershipCache.set(cacheKey, value);
+            return value;
+        } catch (error) {
+            return null;
+        }
+    }
+
     function renderLyricsDiscogsTracklist(payload, currentTrackTitle = "") {
         discogsCard.classList.remove("lyrics-hidden");
         discogsSides.replaceChildren();
@@ -3534,6 +3793,7 @@
         discogsReleaseMeta.hidden = true;
         discogsConditionMeta.replaceChildren();
         discogsConditionMeta.hidden = true;
+        setDiscogsOwnButtonVisible(false);
         clearVinylSideEndPause();
         clearScrobbleAlbumEndPause();
         currentTrackEndsAlbum = false;
@@ -3544,6 +3804,7 @@
 
         if (!payload || payload.noCollectionMatch) {
             setDiscogsStatus("Album not owned.");
+            setDiscogsOwnButtonVisible(true);
             return;
         }
         if (payload.error) {
@@ -3556,6 +3817,7 @@
         }
         if (!payload.matched) {
             setDiscogsStatus("Album not owned.");
+            setDiscogsOwnButtonVisible(true);
             return;
         }
         if (!payload.vinylFound || !payload.release) {
@@ -3639,7 +3901,7 @@
                 discogsConditionMeta.appendChild(sleeveValue);
             }
             discogsConditionMeta.hidden = false;
-        } else {
+        } else if (!payload.manualOwnership) {
             const auth = payload && payload.discogsAuth && typeof payload.discogsAuth === "object" ? payload.discogsAuth : {};
             const collectionUsername = String(auth.collectionUsername || "NNavincitron").trim();
             const authenticatedUsername = String(auth.authenticatedUsername || "").trim();
@@ -3786,6 +4048,7 @@
         discogsReleaseMeta.hidden = true;
         discogsConditionMeta.replaceChildren();
         discogsConditionMeta.hidden = true;
+        setDiscogsOwnButtonVisible(false);
         clearVinylSideEndPause();
         clearScrobbleAlbumEndPause();
         currentTrackEndsAlbum = false;
@@ -3794,6 +4057,16 @@
         discogsTotalLength.hidden = true;
         setCoverPickerAvailability(null);
         setDiscogsStatus("Searching for release...");
+
+        const manualOwnershipPayload = await fetchLyricsManualDiscogsOwnership(track, { force: Boolean(options.force) });
+        if (requestId !== discogsLookupRequestId) return;
+        if (manualOwnershipPayload && manualOwnershipPayload.matched && manualOwnershipPayload.release) {
+            discogsLookupInFlightKey = "";
+            lastDiscogsTracklistPayload = manualOwnershipPayload;
+            renderLyricsDiscogsTracklist(manualOwnershipPayload, track.title || "");
+            lastDiscogsRenderedLookupKey = lookupKey;
+            return;
+        }
 
         const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded();
         if (requestId !== discogsLookupRequestId) return;
@@ -4587,6 +4860,14 @@
         window.location.href = `${API_BASE_URL}/login?next=${encodeURIComponent("/lyrics.html")}`;
     });
 
+    if (discogsOwnButton) {
+        discogsOwnButton.addEventListener("click", openDiscogsOwnPicker);
+    }
+
+    if (linkAlbumButton) {
+        linkAlbumButton.addEventListener("click", openGeniusAlbumPicker);
+    }
+
     refreshButton.addEventListener("click", () => {
         previousRestartArmedUntil = 0;
         lastTrackKey = "";
@@ -4595,6 +4876,7 @@
         lastDiscogsRenderedLookupKey = "";
         discogsLookupInFlightKey = "";
         lastDiscogsTracklistPayload = null;
+        manualDiscogsOwnershipCache.clear();
         discogsLookupRequestId += 1;
         fetchCurrentLyrics(true);
     });
