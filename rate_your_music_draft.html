@@ -265,13 +265,13 @@
             </div>
     </main>
     <script>
-        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260830-discogs-dash-timing-controls-v64';
+        window.NAVINCITRON_TOPSTER_FRONTEND_VERSION = '20260908-discogs-owned-overrides-v68';
         function markTopsterPublishDirty() { window.__navincitronTopsterPublishDirty = true; }
         (function () {
             function forceBuildButtonLabel() { var button = document.getElementById('topster-build-button'); if (button && button.textContent !== 'Build') button.textContent = 'Build'; }
             document.addEventListener('DOMContentLoaded', function () { forceBuildButtonLabel(); var button = document.getElementById('topster-build-button'); if (button && typeof MutationObserver !== 'undefined') new MutationObserver(forceBuildButtonLabel).observe(button, { childList: true, characterData: true, subtree: true }); });
         })();
     </script>
-    <script src="topster_grid.js?v=20260831-public-published-covers-discogs-year-v66"></script>
+    <script src="topster_grid.js?v=20260908-discogs-owned-overrides-v68"></script>
 </body>
 </html>

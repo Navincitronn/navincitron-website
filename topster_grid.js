@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260831-public-published-covers-discogs-year-v66';
+const TOPSTER_FRONTEND_VERSION = '20260908-discogs-owned-overrides-v68';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -23,6 +23,7 @@ const TOPSTER_BACKEND_RETRY_MAX_DELAY_MS = 6000;
 const TOPSTER_DISCOGS_COLLECTION_USERNAME = 'NNavincitron';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_KEY = 'navincitron-discogs-owned-releases-v10';
 const TOPSTER_DISCOGS_COLLECTION_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+const TOPSTER_DISCOGS_OWNERSHIP_OVERRIDES_API = '/api/topster-discogs-ownership-overrides';
 let topsterDiscogsCollectionAlbums = null;
 let topsterDiscogsCollectionItemCount = 0;
 let topsterDiscogsCollectionLoadedAt = 0;
@@ -30,6 +31,9 @@ let topsterDiscogsCollectionLoadPromise = null;
 let topsterDiscogsArtistIndex = new Map();
 let topsterDiscogsOwnershipMemo = new Map();
 let topsterDiscogsExactIndex = new Set();
+let topsterDiscogsOwnershipOverrides = new Map();
+let topsterDiscogsOwnershipOverridesLoaded = false;
+let topsterDiscogsOwnershipOverridesLoadPromise = null;
 
 const TOPSTER_CHECKLIST_OVERLAYS = [
     { keyword: 'Hifiman Susvara Unveiled', id: 'susvara', imageSrc: 'susvara.png', label: 'Hifiman Susvara Unveiled' },
@@ -682,6 +686,119 @@ function normalizeDiscogsArtistForMatch(value) {
         .trim();
 }
 
+function topsterDiscogsOwnershipOverrideIdentity(artist, title) {
+    const artistKey = discogsOwnedRelationKey(normalizeDiscogsArtistForMatch(artist || ''));
+    const titleKey = discogsOwnedRelationKey(title || '');
+    if (!titleKey) return '';
+    return `${artistKey}::${titleKey}`;
+}
+
+function normalizeTopsterDiscogsOwnershipOverrideRecord(record) {
+    if (!record || typeof record !== 'object') return null;
+    const state = String(record.state || '').trim().toLowerCase().replace(/-/g, '_');
+    if (state !== 'owned' && state !== 'not_owned') return null;
+    const artist = cleanAlbumTitle(record.artist || '');
+    const title = cleanAlbumTitle(record.title || record.album || '');
+    const identity = String(record.identity || topsterDiscogsOwnershipOverrideIdentity(artist, title)).trim();
+    if (!identity || !title) return null;
+    return {
+        identity,
+        artist,
+        title,
+        state,
+        savedAt: String(record.savedAt || '')
+    };
+}
+
+function installTopsterDiscogsOwnershipOverrides(records) {
+    const next = new Map();
+    (Array.isArray(records) ? records : []).forEach(record => {
+        const normalized = normalizeTopsterDiscogsOwnershipOverrideRecord(record);
+        if (normalized) next.set(normalized.identity, normalized);
+    });
+    topsterDiscogsOwnershipOverrides = next;
+    topsterDiscogsOwnershipOverridesLoaded = true;
+    topsterDiscogsOwnershipMemo = new Map();
+    return next;
+}
+
+function getTopsterDiscogsOwnershipOverride(entry) {
+    if (!entry) return '';
+    const identity = topsterDiscogsOwnershipOverrideIdentity(entry.artist || '', entry.title || '');
+    if (!identity) return '';
+    const record = topsterDiscogsOwnershipOverrides.get(identity);
+    return record && (record.state === 'owned' || record.state === 'not_owned') ? record.state : '';
+}
+
+function setTopsterDiscogsOwnershipOverrideLocal(entry, state, record = null) {
+    if (!entry) return null;
+    const identity = topsterDiscogsOwnershipOverrideIdentity(entry.artist || '', entry.title || '');
+    if (!identity) return null;
+    const normalized = normalizeTopsterDiscogsOwnershipOverrideRecord(record || {
+        identity,
+        artist: entry.artist || '',
+        title: entry.title || '',
+        state
+    });
+    if (!normalized) return null;
+    topsterDiscogsOwnershipOverrides.set(identity, normalized);
+    topsterDiscogsOwnershipOverridesLoaded = true;
+    topsterDiscogsOwnershipMemo = new Map();
+    return normalized;
+}
+
+async function ensureTopsterDiscogsOwnershipOverridesLoaded(options = {}) {
+    if (!options.force && topsterDiscogsOwnershipOverridesLoaded) return true;
+    if (topsterDiscogsOwnershipOverridesLoadPromise) return topsterDiscogsOwnershipOverridesLoadPromise;
+
+    topsterDiscogsOwnershipOverridesLoadPromise = (async () => {
+        try {
+            const url = new URL(TOPSTER_DISCOGS_OWNERSHIP_OVERRIDES_API, getTopsterBackendOrigin() || window.location.origin);
+            url.searchParams.set('username', TOPSTER_DISCOGS_COLLECTION_USERNAME);
+            const response = await fetch(url.href, { credentials: 'include', cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const payload = await response.json();
+            if (!payload || payload.ok !== true || !Array.isArray(payload.overrides)) {
+                throw new Error('Discogs ownership override response was invalid.');
+            }
+            installTopsterDiscogsOwnershipOverrides(payload.overrides);
+            return true;
+        } catch (error) {
+            console.warn('Could not load persistent Discogs ownership overrides:', error);
+            return false;
+        } finally {
+            topsterDiscogsOwnershipOverridesLoadPromise = null;
+        }
+    })();
+
+    return topsterDiscogsOwnershipOverridesLoadPromise;
+}
+
+async function saveTopsterDiscogsOwnershipOverride(entry, state) {
+    const identity = topsterDiscogsOwnershipOverrideIdentity(entry && entry.artist || '', entry && entry.title || '');
+    if (!identity || !entry || !entry.title) throw new Error('This Topster entry does not have a usable album identity.');
+    const url = new URL(TOPSTER_DISCOGS_OWNERSHIP_OVERRIDES_API, getTopsterBackendOrigin() || window.location.origin);
+    const response = await fetch(url.href, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            username: TOPSTER_DISCOGS_COLLECTION_USERNAME,
+            identity,
+            artist: cleanAlbumTitle(entry.artist || ''),
+            title: cleanAlbumTitle(entry.title || ''),
+            state
+        })
+    });
+    let payload = null;
+    try { payload = await response.json(); } catch (error) { payload = null; }
+    if (!response.ok || !payload || payload.ok !== true || !payload.override) {
+        throw new Error(payload && payload.error ? String(payload.error) : `HTTP ${response.status}`);
+    }
+    return normalizeTopsterDiscogsOwnershipOverrideRecord(payload.override);
+}
+
 function topsterOwnedTextVariants(value, options = {}) {
     const raw = cleanAlbumTitle(value || '').trim();
     if (!raw) return [];
@@ -865,9 +982,20 @@ function loadDiscogsCollectionBrowserCache() {
 }
 
 async function ensureTopsterDiscogsCollectionLoaded(options = {}) {
-    if (!options.force && Array.isArray(topsterDiscogsCollectionAlbums) && topsterDiscogsCollectionAlbums.length) return true;
-    if (!options.force && loadDiscogsCollectionBrowserCache()) return true;
-    if (topsterDiscogsCollectionLoadPromise) return topsterDiscogsCollectionLoadPromise;
+    const ownershipOverridesReady = ensureTopsterDiscogsOwnershipOverridesLoaded({ force: Boolean(options.force) });
+    if (!options.force && Array.isArray(topsterDiscogsCollectionAlbums) && topsterDiscogsCollectionAlbums.length) {
+        await ownershipOverridesReady;
+        return true;
+    }
+    if (!options.force && loadDiscogsCollectionBrowserCache()) {
+        await ownershipOverridesReady;
+        return true;
+    }
+    if (topsterDiscogsCollectionLoadPromise) {
+        const collectionReady = await topsterDiscogsCollectionLoadPromise;
+        await ownershipOverridesReady;
+        return collectionReady;
+    }
 
     topsterDiscogsCollectionLoadPromise = (async () => {
         try {
@@ -913,7 +1041,9 @@ async function ensureTopsterDiscogsCollectionLoaded(options = {}) {
         }
     })();
 
-    return topsterDiscogsCollectionLoadPromise;
+    const collectionReady = await topsterDiscogsCollectionLoadPromise;
+    await ownershipOverridesReady;
+    return collectionReady;
 }
 
 function discogsOwnedNormalizeRomanVolumes(value) {
@@ -1485,7 +1615,11 @@ function discogsOwnedStrongTitleOnlyMatch(entryTitle, collectionTitle, entryArti
 }
 
 function topsterEntryIsInDiscogsCollection(entry) {
-    if (!entry || !Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return false;
+    if (!entry) return false;
+    const persistentOverride = getTopsterDiscogsOwnershipOverride(entry);
+    if (persistentOverride === 'owned') return true;
+    if (persistentOverride === 'not_owned') return false;
+    if (!Array.isArray(topsterDiscogsCollectionAlbums) || !topsterDiscogsCollectionAlbums.length) return false;
     const entryArtist = cleanAlbumTitle(entry.artist || ''), entryTitle = cleanAlbumTitle(entry.title || '');
     if (!entryTitle) return false;
 
@@ -2090,6 +2224,103 @@ async function initTopsterImporter(albumCards) {
     let currentSettings = normalizeTopsterSettings(currentSettingsProfiles[currentSettingsProfile]);
     let pendingSettingsDirty = false;
     let pendingSettingsStartedAt = 0;
+    let ownedFlagContextMenu = null;
+    let ownedFlagContextButton = null;
+    let ownedFlagContextEntry = null;
+    let ownedFlagSaveInProgress = false;
+
+    function hideOwnedFlagContextMenu() {
+        if (ownedFlagContextMenu) ownedFlagContextMenu.hidden = true;
+        ownedFlagContextEntry = null;
+    }
+
+    function ensureOwnedFlagContextMenu() {
+        if (ownedFlagContextMenu) return ownedFlagContextMenu;
+        const menu = document.createElement('div');
+        menu.id = 'topster-owned-flag-context-menu';
+        menu.hidden = true;
+        menu.setAttribute('role', 'menu');
+        Object.assign(menu.style, {
+            position: 'fixed',
+            zIndex: '10050',
+            background: '#222',
+            border: '1px solid #666',
+            borderRadius: '6px',
+            padding: '4px',
+            boxShadow: '0 6px 18px rgba(0,0,0,0.45)'
+        });
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('role', 'menuitem');
+        button.style.margin = '0';
+        button.style.whiteSpace = 'nowrap';
+        menu.appendChild(button);
+        document.body.appendChild(menu);
+
+        button.addEventListener('click', async () => {
+            if (!ownedFlagContextEntry || ownedFlagSaveInProgress) return;
+            const entry = ownedFlagContextEntry;
+            const nextState = String(button.dataset.nextState || 'owned');
+            const identity = topsterDiscogsOwnershipOverrideIdentity(entry.artist || '', entry.title || '');
+            if (!identity) return;
+
+            const previousRecord = topsterDiscogsOwnershipOverrides.get(identity) || null;
+            const previousLoaded = topsterDiscogsOwnershipOverridesLoaded;
+            ownedFlagSaveInProgress = true;
+            button.disabled = true;
+            hideOwnedFlagContextMenu();
+
+            // Apply immediately so the cover crosses/uncrosses as soon as the user
+            // chooses the command. If server persistence fails, restore the prior
+            // state rather than pretending the permanent flag succeeded.
+            setTopsterDiscogsOwnershipOverrideLocal(entry, nextState);
+            updateOwnedReleaseVisualStatesInPlace(true);
+            status.textContent = `${nextState === 'owned' ? 'Flagging as owned' : 'Flagging as not owned'}: ${formatEntryName(entry)}...`;
+
+            try {
+                const saved = await saveTopsterDiscogsOwnershipOverride(entry, nextState);
+                if (saved) setTopsterDiscogsOwnershipOverrideLocal(entry, nextState, saved);
+                updateOwnedReleaseVisualStatesInPlace(true);
+                status.textContent = `${nextState === 'owned' ? 'Flagged As Owned' : 'Flagged As Not Owned'} permanently: ${formatEntryName(entry)}.`;
+            } catch (error) {
+                if (previousRecord) {
+                    topsterDiscogsOwnershipOverrides.set(identity, previousRecord);
+                } else {
+                    topsterDiscogsOwnershipOverrides.delete(identity);
+                }
+                topsterDiscogsOwnershipOverridesLoaded = previousLoaded;
+                topsterDiscogsOwnershipMemo = new Map();
+                updateOwnedReleaseVisualStatesInPlace(true);
+                status.textContent = `Could not save the permanent Discogs ownership flag for ${formatEntryName(entry)}: ${error && error.message ? error.message : error}`;
+            } finally {
+                ownedFlagSaveInProgress = false;
+                button.disabled = false;
+            }
+        });
+
+        ownedFlagContextMenu = menu;
+        ownedFlagContextButton = button;
+        return menu;
+    }
+
+    function openOwnedFlagContextMenu(entry, clientX, clientY) {
+        if (!entry || !currentSettings.excludeOwnedReleases) return;
+        const menu = ensureOwnedFlagContextMenu();
+        const currentlyOwned = topsterEntryIsInDiscogsCollection(entry);
+        ownedFlagContextEntry = entry;
+        ownedFlagContextButton.textContent = currentlyOwned ? 'Flag As Not Owned' : 'Flag As Owned';
+        ownedFlagContextButton.dataset.nextState = currentlyOwned ? 'not_owned' : 'owned';
+        ownedFlagContextButton.disabled = ownedFlagSaveInProgress;
+        menu.hidden = false;
+        menu.style.left = '0px';
+        menu.style.top = '0px';
+        const rect = menu.getBoundingClientRect();
+        const x = Math.max(4, Math.min(Number(clientX) || 0, window.innerWidth - rect.width - 4));
+        const y = Math.max(4, Math.min(Number(clientY) || 0, window.innerHeight - rect.height - 4));
+        menu.style.left = `${Math.round(x)}px`;
+        menu.style.top = `${Math.round(y)}px`;
+    }
 
     if (topsterEditorPage && topsterSharedStoreAvailable && !topsterSharedStoreWritable) {
         status.textContent = 'Grid editing requires Topster admin login. Redirecting...';
@@ -2107,8 +2338,8 @@ async function initTopsterImporter(albumCards) {
     loadSavedTopster();
 
     if (currentSettings.excludeOwnedReleases) {
-        const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded();
-        if (collectionLoaded && importedEntries.length) {
+        await ensureTopsterDiscogsCollectionLoaded();
+        if (importedEntries.length) {
             renderTopster(importedEntries, 0, { scroll: false });
         }
     }
@@ -2142,8 +2373,8 @@ async function initTopsterImporter(albumCards) {
         // the next Refresh instead of waiting for cache expiry.
         const refreshOwnedCollection = Boolean(excludeOwnedSelect && excludeOwnedSelect.value === 'yes');
         if (refreshOwnedCollection) {
-            const collectionLoaded = await ensureTopsterDiscogsCollectionLoaded({ force: true });
-            if (collectionLoaded && !settingsApplied && importedEntries.length) {
+            await ensureTopsterDiscogsCollectionLoaded({ force: true });
+            if (!settingsApplied && importedEntries.length) {
                 updateOwnedReleaseVisualStatesInPlace(true);
                 scheduleCurrentTopsterSave();
             }
@@ -2203,6 +2434,30 @@ async function initTopsterImporter(albumCards) {
                 if (!saveSettingsButton.disabled) saveSettingsButton.click();
             });
         }
+    }
+
+    if (topsterEditorPage && excludeOwnedSelect) {
+        pagesContainer.addEventListener('contextmenu', event => {
+            if (!currentSettings.excludeOwnedReleases) return;
+            const target = event.target && event.target.closest ? event.target.closest('.topster-tile[data-topster-entry-index]') : null;
+            if (!target || !pagesContainer.contains(target)) return;
+            const index = Number(target.dataset.topsterEntryIndex);
+            if (!Number.isInteger(index) || index < 0 || !importedEntries[index]) return;
+            if (!target.querySelector('img')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            openOwnedFlagContextMenu(importedEntries[index], event.clientX, event.clientY);
+        });
+
+        document.addEventListener('pointerdown', event => {
+            if (ownedFlagContextMenu && !ownedFlagContextMenu.hidden && !ownedFlagContextMenu.contains(event.target)) {
+                hideOwnedFlagContextMenu();
+            }
+        });
+        window.addEventListener('resize', hideOwnedFlagContextMenu);
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') hideOwnedFlagContextMenu();
+        });
     }
 
     if (sourceFileInput) {
