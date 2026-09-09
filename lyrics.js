@@ -30,6 +30,12 @@
     const vinylModeToggle = document.getElementById("lyrics-vinyl-mode");
     const embedCard = document.getElementById("lyrics-embed-card");
     const embedContainer = document.getElementById("lyrics-embed-container");
+    const geniusLayout = document.getElementById("lyrics-genius-layout");
+    const geniusAnnotationPanel = document.getElementById("lyrics-genius-annotation-panel");
+    const geniusAnnotationClose = document.getElementById("lyrics-genius-annotation-close");
+    const geniusAnnotationFragment = document.getElementById("lyrics-genius-annotation-fragment");
+    const geniusAnnotationContent = document.getElementById("lyrics-genius-annotation-content");
+    const geniusAnnotationLink = document.getElementById("lyrics-genius-annotation-link");
     const discogsCard = document.getElementById("lyrics-discogs-card");
     const discogsStatus = document.getElementById("lyrics-discogs-status");
     const discogsOwnRow = document.getElementById("lyrics-discogs-own-row");
@@ -86,6 +92,9 @@
     let playbackControlInProgress = false;
     let previousRestartArmedUntil = 0;
     let currentGeniusAnnotationCount = 0;
+    let activeGeniusAnnotationElement = null;
+    let geniusAnnotationRequestToken = 0;
+    const geniusReferentCache = new Map();
     let discogsTrackPlayInProgress = false;
     let lastDiscogsAlbumLookupKey = "";
     let lastDiscogsTracklistPayload = null;
@@ -4363,12 +4372,148 @@
         restorePendingGeniusDocumentWrite();
     }
 
+    function closeGeniusAnnotationPanel() {
+        geniusAnnotationRequestToken += 1;
+        if (activeGeniusAnnotationElement) {
+            activeGeniusAnnotationElement.classList.remove("is-active");
+            activeGeniusAnnotationElement = null;
+        }
+        if (geniusLayout) geniusLayout.classList.remove("has-annotation");
+        if (geniusAnnotationPanel) geniusAnnotationPanel.hidden = true;
+        if (geniusAnnotationFragment) geniusAnnotationFragment.textContent = "";
+        if (geniusAnnotationContent) geniusAnnotationContent.replaceChildren();
+        if (geniusAnnotationLink) {
+            geniusAnnotationLink.hidden = true;
+            geniusAnnotationLink.href = "https://genius.com";
+        }
+    }
+
+    function setGeniusAnnotationLoading(fragmentText, sourceElement = null) {
+        if (activeGeniusAnnotationElement && activeGeniusAnnotationElement !== sourceElement) {
+            activeGeniusAnnotationElement.classList.remove("is-active");
+        }
+        activeGeniusAnnotationElement = sourceElement;
+        if (activeGeniusAnnotationElement) activeGeniusAnnotationElement.classList.add("is-active");
+        if (geniusLayout) geniusLayout.classList.add("has-annotation");
+        if (geniusAnnotationPanel) geniusAnnotationPanel.hidden = false;
+        if (geniusAnnotationFragment) geniusAnnotationFragment.textContent = fragmentText || "Annotated lyric";
+        if (geniusAnnotationContent) {
+            geniusAnnotationContent.replaceChildren();
+            const loading = document.createElement("p");
+            loading.textContent = "Loading Genius annotation…";
+            geniusAnnotationContent.appendChild(loading);
+        }
+        if (geniusAnnotationLink) geniusAnnotationLink.hidden = true;
+    }
+
+    function renderGeniusReferent(referent, sourceElement = null) {
+        const fragment = String(referent && referent.fragment || sourceElement && sourceElement.textContent || "Annotated lyric").trim();
+        if (geniusAnnotationFragment) geniusAnnotationFragment.textContent = fragment;
+        if (!geniusAnnotationContent) return;
+        geniusAnnotationContent.replaceChildren();
+
+        const annotations = Array.isArray(referent && referent.annotations) ? referent.annotations : [];
+        if (!annotations.length) {
+            const empty = document.createElement("p");
+            empty.textContent = "Genius did not return annotation text for this highlighted lyric.";
+            geniusAnnotationContent.appendChild(empty);
+        } else {
+            annotations.forEach((annotation) => {
+                const article = document.createElement("article");
+                article.className = "lyrics-genius-annotation-entry";
+
+                const body = document.createElement("div");
+                body.className = "lyrics-genius-annotation-body";
+                body.textContent = String(annotation && annotation.body || "").trim();
+                article.appendChild(body);
+
+                const authors = Array.isArray(annotation && annotation.authors)
+                    ? annotation.authors.map((name) => String(name || "").trim()).filter(Boolean)
+                    : [];
+                const votes = Number(annotation && annotation.votesTotal || 0);
+                const verified = Boolean(annotation && annotation.verified);
+                const metaParts = [];
+                if (authors.length) metaParts.push(`By ${authors.join(", ")}`);
+                if (verified) metaParts.push("Verified annotation");
+                if (Number.isFinite(votes) && votes !== 0) metaParts.push(`${votes} vote${Math.abs(votes) === 1 ? "" : "s"}`);
+                if (metaParts.length) {
+                    const meta = document.createElement("div");
+                    meta.className = "lyrics-genius-annotation-meta";
+                    meta.textContent = metaParts.join(" · ");
+                    article.appendChild(meta);
+                }
+                geniusAnnotationContent.appendChild(article);
+            });
+        }
+
+        const url = String(referent && referent.url || sourceElement && sourceElement.href || "").trim();
+        if (geniusAnnotationLink) {
+            geniusAnnotationLink.hidden = !url;
+            if (url) geniusAnnotationLink.href = url;
+        }
+    }
+
+    async function openGeniusAnnotation(referentId, sourceElement) {
+        const id = Number(referentId);
+        if (!Number.isFinite(id) || id <= 0) return;
+        const fragment = String(sourceElement && sourceElement.textContent || "").trim();
+        setGeniusAnnotationLoading(fragment, sourceElement);
+        const requestToken = ++geniusAnnotationRequestToken;
+
+        try {
+            let referent = geniusReferentCache.get(id);
+            if (!referent) {
+                const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-referent/${encodeURIComponent(id)}`, {
+                    method: "GET",
+                    credentials: "include",
+                    cache: "no-store",
+                    headers: { Accept: "application/json" },
+                });
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (_) {
+                    data = null;
+                }
+                if (!response.ok || !data || data.ok === false || !data.referent) {
+                    throw new Error(data && data.error ? data.error : `Genius annotation request failed with HTTP ${response.status}.`);
+                }
+                referent = data.referent;
+                geniusReferentCache.set(id, referent);
+            }
+            if (requestToken !== geniusAnnotationRequestToken) return;
+            renderGeniusReferent(referent, sourceElement);
+        } catch (error) {
+            if (requestToken !== geniusAnnotationRequestToken || !geniusAnnotationContent) return;
+            geniusAnnotationContent.replaceChildren();
+            const message = document.createElement("p");
+            message.textContent = `Could not load this Genius annotation: ${error && error.message ? error.message : error}`;
+            geniusAnnotationContent.appendChild(message);
+            if (geniusAnnotationLink) {
+                const fallbackUrl = String(sourceElement && sourceElement.href || "").trim();
+                geniusAnnotationLink.hidden = !fallbackUrl;
+                if (fallbackUrl) geniusAnnotationLink.href = fallbackUrl;
+            }
+        }
+    }
+
+    function handleNativeGeniusLyricsClick(event) {
+        const target = event.target instanceof Element
+            ? event.target.closest("[data-genius-referent-id]")
+            : null;
+        if (!target || !embedContainer.contains(target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openGeniusAnnotation(target.dataset.geniusReferentId, target);
+    }
+
     function clearEmbed(message = "Waiting for a currently playing song.") {
         geniusEmbedRenderToken += 1;
         currentGeniusAnnotationCount = 0;
         lastGeniusSongId = null;
         activeEmbedFrame = null;
         removePendingGeniusEmbedScript();
+        closeGeniusAnnotationPanel();
         embedContainer.replaceChildren();
         const placeholder = document.createElement("div");
         placeholder.className = "lyrics-embed-placeholder";
@@ -4422,7 +4567,7 @@
         return frame;
     }
 
-    function renderGeniusEmbed(geniusSong) {
+    function renderGeniusOfficialEmbed(geniusSong) {
         const songId = Number(geniusSong && geniusSong.id);
         if (!Number.isFinite(songId) || songId <= 0) {
             clearEmbed("No Genius lyrics page was matched for this track.");
@@ -4516,6 +4661,70 @@
         window.setTimeout(() => {
             if (renderToken === geniusEmbedRenderToken) restorePendingGeniusDocumentWrite();
         }, 10000);
+    }
+
+    async function renderGeniusEmbed(geniusSong) {
+        const songId = Number(geniusSong && geniusSong.id);
+        if (!Number.isFinite(songId) || songId <= 0) {
+            clearEmbed("No Genius lyrics page was matched for this track.");
+            return;
+        }
+
+        if (
+            lastGeniusSongId === songId &&
+            embedContainer.querySelector(`.lyrics-genius-native-host[data-song-id="${songId}"]`)
+        ) {
+            return;
+        }
+
+        const renderToken = ++geniusEmbedRenderToken;
+        removePendingGeniusEmbedScript();
+        closeGeniusAnnotationPanel();
+        lastGeniusSongId = songId;
+        activeEmbedFrame = null;
+        embedContainer.replaceChildren();
+
+        const placeholder = document.createElement("div");
+        placeholder.className = "lyrics-embed-placeholder";
+        placeholder.textContent = "Loading Genius lyrics and annotations…";
+        embedContainer.appendChild(placeholder);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-content/${encodeURIComponent(songId)}`, {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (_) {
+                data = null;
+            }
+            if (renderToken !== geniusEmbedRenderToken || songId !== lastGeniusSongId) return;
+            if (!response.ok || !data || data.ok === false || !data.lyricsHtml) {
+                throw new Error(data && data.error ? data.error : `Genius lyrics request failed with HTTP ${response.status}.`);
+            }
+
+            const host = document.createElement("div");
+            host.className = "lyrics-genius-native-host";
+            host.dataset.songId = String(songId);
+            // lyricsHtml is generated by the backend's allowlist sanitizer. Keeping
+            // it same-origin is what lets us intercept highlighted referent clicks.
+            host.innerHTML = String(data.lyricsHtml || "");
+            host.addEventListener("click", handleNativeGeniusLyricsClick);
+            embedContainer.replaceChildren(host);
+            activeEmbedFrame = null;
+        } catch (error) {
+            if (renderToken !== geniusEmbedRenderToken || songId !== lastGeniusSongId) return;
+            console.warn("Same-origin Genius annotation renderer unavailable; falling back to official embed.", error);
+            renderGeniusOfficialEmbed(geniusSong);
+            const note = document.createElement("div");
+            note.className = "lyrics-genius-fallback-note";
+            note.textContent = "Interactive annotations could not be loaded through the backend. The official Genius embed is shown as a fallback; annotation links may open on Genius instead.";
+            embedContainer.prepend(note);
+        }
     }
 
     function displayNoTrack() {
@@ -4831,6 +5040,10 @@
     }
 
 
+
+    if (geniusAnnotationClose) {
+        geniusAnnotationClose.addEventListener("click", closeGeniusAnnotationPanel);
+    }
 
     refreshButton.addEventListener("click", () => {
         previousRestartArmedUntil = 0;
