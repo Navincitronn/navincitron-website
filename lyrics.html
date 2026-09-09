@@ -141,17 +141,6 @@
             display: none;
         }
 
-        .lyrics-cover-frame.editable {
-            cursor: pointer;
-            outline: 2px solid transparent;
-            outline-offset: 3px;
-        }
-
-        .lyrics-cover-frame.editable:hover,
-        .lyrics-cover-frame.editable:focus {
-            outline-color: #40bcf4;
-        }
-
         .lyrics-song-title {
             color: #ffffff;
             font-size: 30px;
@@ -254,73 +243,6 @@
             opacity: 0.5;
         }
 
-        .lyrics-vinyl-mode-row {
-            align-items: center;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 12px;
-        }
-
-        .lyrics-vinyl-mode-label {
-            font-size: 14px;
-            font-weight: 700;
-        }
-
-        .lyrics-mode-divider {
-            margin-left: 12px;
-        }
-
-        .lyrics-vinyl-mode-switch {
-            display: inline-flex;
-            position: relative;
-        }
-
-        .lyrics-vinyl-mode-switch input {
-            height: 1px;
-            opacity: 0;
-            position: absolute;
-            width: 1px;
-        }
-
-        .lyrics-vinyl-mode-slider {
-            background-color: #ff8000;
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            border-radius: 999px;
-            cursor: pointer;
-            display: inline-block;
-            height: 26px;
-            position: relative;
-            transition: background-color 0.18s ease;
-            width: 48px;
-        }
-
-        .lyrics-vinyl-mode-slider::after {
-            background-color: #ffffff;
-            border-radius: 50%;
-            content: "";
-            height: 20px;
-            left: 2px;
-            position: absolute;
-            top: 2px;
-            transition: transform 0.18s ease;
-            width: 20px;
-        }
-
-        .lyrics-vinyl-mode-switch input:checked + .lyrics-vinyl-mode-slider {
-            background-color: #00e054;
-        }
-
-        .lyrics-vinyl-mode-switch input:checked + .lyrics-vinyl-mode-slider::after {
-            transform: translateX(22px);
-        }
-
-        .lyrics-vinyl-mode-switch input:focus-visible + .lyrics-vinyl-mode-slider {
-            outline: 2px solid #40bcf4;
-            outline-offset: 2px;
-        }
-
         .lyrics-embed-card {
             background-color: #444444;
             border-radius: 10px;
@@ -386,12 +308,6 @@
             color: #ffb0b0;
         }
 
-        .lyrics-discogs-status a {
-            color: #40bcf4;
-            font-weight: bold;
-            text-decoration: underline;
-        }
-
         .lyrics-discogs-release-meta {
             color: #dddddd;
             font-size: 14px;
@@ -400,12 +316,9 @@
             text-align: center;
         }
 
-        .lyrics-discogs-condition-meta {
-            color: #dddddd;
-            font-size: 14px;
-            line-height: 1.45;
-            margin: -10px 0 16px;
-            text-align: center;
+        .lyrics-discogs-release-meta a {
+            color: #87CEEB;
+            font-weight: bold;
         }
 
         .lyrics-discogs-sides {
@@ -431,9 +344,7 @@
 
         .lyrics-discogs-track {
             align-items: baseline;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.16);
             border-radius: 6px;
-            border-top: 1px solid rgba(255, 255, 255, 0.16);
             display: grid;
             gap: 8px;
             grid-template-columns: minmax(38px, auto) minmax(0, 1fr) auto;
@@ -463,22 +374,6 @@
             color: #aaaaaa;
             font-size: 12px;
             white-space: nowrap;
-        }
-
-        .lyrics-discogs-side-length {
-            color: #dddddd;
-            font-size: 13px;
-            font-weight: bold;
-            margin-top: 10px;
-            text-align: right;
-        }
-
-        .lyrics-discogs-total-length {
-            color: #ffffff;
-            font-size: 14px;
-            font-weight: bold;
-            margin-top: 16px;
-            text-align: right;
         }
 
         .lyrics-hidden {
@@ -528,116 +423,6 @@
                 grid-template-columns: 1fr;
             }
         }
-
-        .lyrics-score-card {
-            background-color: #444444;
-            border-radius: 10px;
-            margin: 20px auto 0;
-            padding: 20px;
-        }
-
-        .lyrics-score-card h3 {
-            margin: 0;
-            text-align: center;
-        }
-
-        .lyrics-score-break {
-            height: 16px;
-        }
-
-        .lyrics-score-actions {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            margin: 0 0 14px;
-        }
-
-        .lyrics-score-actions button {
-            background-color: #333333;
-            border: 1px solid #777777;
-            border-radius: 6px;
-            color: #ffffff;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 700;
-            padding: 7px 14px;
-        }
-
-        .lyrics-score-actions button:hover:not(:disabled) {
-            background-color: #555555;
-        }
-
-        .lyrics-score-actions button:disabled {
-            cursor: not-allowed;
-            opacity: 0.55;
-        }
-
-        .lyrics-score-status {
-            color: #cccccc;
-            font-size: 14px;
-            line-height: 1.45;
-            margin: 0 0 14px;
-            text-align: center;
-        }
-
-        .lyrics-score-overall {
-            color: #ffffff;
-            font-size: 16px;
-            font-weight: 700;
-            margin-top: 14px;
-            text-align: center;
-        }
-
-        .lyrics-score-rating-stack {
-            align-items: center;
-            display: inline-flex;
-            flex-direction: column;
-            gap: 5px;
-            justify-content: center;
-        }
-
-        .lyrics-score-rating-image {
-            display: block;
-            height: auto;
-            object-fit: contain;
-            width: auto;
-        }
-
-        .lyrics-score-rating-image-top {
-            max-height: 57px;
-            max-width: 225px;
-        }
-
-        .lyrics-score-rating-image-bottom {
-            max-height: 99px;
-            max-width: 225px;
-        }
-
-        .lyrics-score-value {
-            font-weight: 700;
-        }
-
-        .lyrics-score-input {
-            background-color: #333333;
-            border: 1px solid #777777;
-            border-radius: 5px;
-            color: #ffffff;
-            font: inherit;
-            font-weight: 700;
-            max-width: 74px;
-            padding: 4px 6px;
-            text-align: right;
-        }
-
-        .lyrics-score-input:focus {
-            border-color: #40bcf4;
-            outline: 1px solid #40bcf4;
-        }
-
-        .lyrics-score-track {
-            grid-template-columns: minmax(38px, auto) minmax(0, 1fr) auto;
-        }
-
     </style>
 </head>
 <body data-admin-require-auth="true">
@@ -713,19 +498,6 @@
                             <button id="lyrics-play" type="button">Play</button>
                             <button id="lyrics-next-track" type="button">Next Track</button>
                         </div>
-
-                        <div class="lyrics-vinyl-mode-row">
-                            <span class="lyrics-vinyl-mode-label">Scrobble Mode</span>
-                            <label class="lyrics-vinyl-mode-switch" title="Pause Spotify automatically after the final song on the overall album tracklist.">
-                                <input id="lyrics-scrobble-mode" type="checkbox" role="switch" aria-label="Scrobble Mode">
-                                <span class="lyrics-vinyl-mode-slider" aria-hidden="true"></span>
-                            </label>
-                            <span class="lyrics-vinyl-mode-label lyrics-mode-divider">Vinyl Mode</span>
-                            <label class="lyrics-vinyl-mode-switch" title="Pause Spotify automatically after the last song on each vinyl side.">
-                                <input id="lyrics-vinyl-mode" type="checkbox" role="switch" aria-label="Vinyl Mode">
-                                <span class="lyrics-vinyl-mode-slider" aria-hidden="true"></span>
-                            </label>
-                        </div>
                     </div>
                 </div>
             </article>
@@ -737,46 +509,11 @@
             </section>
 
             <section id="lyrics-discogs-card" class="lyrics-discogs-card lyrics-hidden" aria-label="Discogs vinyl tracklist">
-                <h3>Tracklist</h3>
+                <h3>Discogs Vinyl Tracklist</h3>
                 <p id="lyrics-discogs-status" class="lyrics-discogs-status">Waiting for a currently playing album.</p>
                 <div id="lyrics-discogs-release-meta" class="lyrics-discogs-release-meta" hidden></div>
-                <div id="lyrics-discogs-condition-meta" class="lyrics-discogs-condition-meta" hidden></div>
                 <div id="lyrics-discogs-sides" class="lyrics-discogs-sides"></div>
-                <div id="lyrics-discogs-total-length" class="lyrics-discogs-total-length" hidden></div>
             </section>
-
-            <section id="lyrics-score-card" class="lyrics-score-card lyrics-hidden" aria-label="Album and track scores">
-                <h3>Score</h3>
-                <div class="lyrics-score-break" aria-hidden="true"></div>
-                <div id="lyrics-score-actions" class="lyrics-score-actions" hidden>
-                    <button id="lyrics-score-edit" type="button">Edit</button>
-                    <button id="lyrics-score-save" type="button" hidden>Save</button>
-                </div>
-                <p id="lyrics-score-status" class="lyrics-score-status">Waiting for a matched Discogs tracklist.</p>
-                <div id="lyrics-score-sides" class="lyrics-discogs-sides"></div>
-                <div class="lyrics-score-break" aria-hidden="true"></div>
-                <div id="lyrics-score-overall" class="lyrics-score-overall" hidden></div>
-            </section>
-
-            <div class="topster-cover-picker" id="lyrics-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-cover-picker-title">
-                <div class="topster-cover-picker-card">
-                    <div class="topster-cover-picker-header">
-                        <h3 id="lyrics-cover-picker-title">Select album cover</h3>
-                        <button type="button" id="lyrics-cover-picker-close" class="secondary-button">Close</button>
-                    </div>
-
-                    <div class="topster-cover-picker-controls">
-                        <label for="lyrics-cover-picker-link">Image Link</label>
-                        <input type="url" id="lyrics-cover-picker-link" placeholder="Paste an image URL, then select Use Image Link">
-                        <button type="button" id="lyrics-cover-picker-link-button" class="secondary-button">Use Image Link</button>
-                        <button type="button" id="lyrics-cover-picker-search">Refresh Results</button>
-                        <button type="button" id="lyrics-cover-picker-reset-default" class="secondary-button">Reset to Default</button>
-                    </div>
-
-                    <p class="topster-cover-picker-status" id="lyrics-cover-picker-status"></p>
-                    <div class="topster-cover-picker-results" id="lyrics-cover-picker-results"></div>
-                </div>
-            </div>
         </section>
     </main>
 
@@ -814,6 +551,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260903-performance-score-edit-v12"></script>
+    <script src="lyrics.js?v=20260901-discogs-vinyl-tracklist-v1"></script>
 </body>
 </html>
