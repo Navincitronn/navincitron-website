@@ -79,19 +79,6 @@
             background-color: #555555;
         }
 
-        .lyrics-toolbar [hidden] {
-            display: none !important;
-        }
-
-        .lyrics-toolbar .lyrics-link-album-button {
-            background-color: #fffc65;
-            color: #111111;
-        }
-
-        .lyrics-toolbar .lyrics-link-album-button:hover {
-            background-color: #fffc65;
-        }
-
         .lyrics-status {
             background-color: #444444;
             border-radius: 8px;
@@ -347,7 +334,7 @@
             border-radius: 8px;
             color: #111111;
             min-height: 160px;
-            overflow: visible;
+            overflow: hidden;
             padding: 0;
         }
 
@@ -373,90 +360,6 @@
             background-color: #969693;
             min-height: 220px;
             overflow: hidden;
-        }
-
-        .lyrics-annotation-panel {
-            background-color: #333333;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 10px;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
-            color: #ffffff;
-            max-height: calc(100vh - 110px);
-            overflow: auto;
-            padding: 16px;
-            position: fixed;
-            right: 18px;
-            top: 82px;
-            width: min(420px, calc(100vw - 36px));
-            z-index: 10020;
-        }
-
-        .lyrics-annotation-panel[hidden] {
-            display: none;
-        }
-
-        .lyrics-annotation-panel-header {
-            align-items: center;
-            display: flex;
-            gap: 12px;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .lyrics-annotation-panel-header h3 {
-            font-size: 18px;
-            margin: 0;
-        }
-
-        .lyrics-annotation-panel-close {
-            background-color: #555555;
-            border: 0;
-            border-radius: 5px;
-            color: #ffffff;
-            cursor: pointer;
-            font: inherit;
-            padding: 7px 11px;
-        }
-
-        .lyrics-annotation-panel-status {
-            color: #cccccc;
-            font-size: 14px;
-            line-height: 1.45;
-            margin: 0;
-        }
-
-        .lyrics-annotation-list {
-            display: grid;
-            gap: 12px;
-            margin-top: 12px;
-        }
-
-        .lyrics-annotation-item {
-            background-color: #444444;
-            border-radius: 7px;
-            padding: 12px;
-        }
-
-        .lyrics-annotation-fragment {
-            color: #fffc65;
-            font-size: 14px;
-            font-weight: bold;
-            line-height: 1.4;
-            margin: 0 0 8px;
-        }
-
-        .lyrics-annotation-body {
-            color: #f2f2f2;
-            font-size: 14px;
-            line-height: 1.5;
-            margin: 0;
-            white-space: pre-wrap;
-        }
-
-        .lyrics-annotation-meta {
-            color: #bdbdbd;
-            font-size: 12px;
-            margin: 8px 0 0;
         }
 
         .lyrics-discogs-card {
@@ -487,51 +390,6 @@
             color: #40bcf4;
             font-weight: bold;
             text-decoration: underline;
-        }
-
-        .lyrics-discogs-own-row {
-            display: flex;
-            justify-content: center;
-            margin: -4px 0 14px;
-        }
-
-        .lyrics-discogs-own-row[hidden] {
-            display: none;
-        }
-
-        .lyrics-discogs-own-row button {
-            background-color: #40bcf4;
-            border: 0;
-            border-radius: 5px;
-            color: #ffffff;
-            cursor: pointer;
-            font: inherit;
-            padding: 8px 15px;
-        }
-
-        .lyrics-link-picker .topster-cover-picker-card {
-            max-width: 620px;
-            width: min(94vw, 620px);
-        }
-
-        .lyrics-link-picker .topster-cover-picker-controls {
-            align-items: stretch;
-            flex-direction: column;
-        }
-
-        .lyrics-link-picker .topster-cover-picker-controls input[type="url"] {
-            min-width: 0;
-            width: 100%;
-        }
-
-        .lyrics-link-picker .lyrics-link-picker-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        .lyrics-link-picker .lyrics-link-picker-actions button {
-            min-width: 90px;
         }
 
         .lyrics-discogs-release-meta {
@@ -587,20 +445,6 @@
 
         .lyrics-discogs-track.current {
             outline-color: #ff8000;
-        }
-
-        .lyrics-discogs-track.lyrics-discogs-track-playable {
-            cursor: pointer;
-        }
-
-        .lyrics-discogs-track.lyrics-discogs-track-playable:hover,
-        .lyrics-discogs-track.lyrics-discogs-track-playable:focus-visible {
-            background-color: rgba(255, 255, 255, 0.07);
-        }
-
-        .lyrics-discogs-track.lyrics-discogs-track-playing {
-            opacity: 0.65;
-            pointer-events: none;
         }
 
         .lyrics-discogs-track-position {
@@ -728,86 +572,6 @@
             opacity: 0.55;
         }
 
-        #lyrics-score-save {
-            background-color: #00e054;
-            border-color: #00e054;
-            color: #111111;
-        }
-
-        #lyrics-score-save:hover:not(:disabled) {
-            background-color: #00e054;
-        }
-
-        #lyrics-score-delete {
-            background-color: #ff8000;
-            border-color: #ff8000;
-            color: #111111;
-        }
-
-        #lyrics-score-delete:hover:not(:disabled) {
-            background-color: #ff8000;
-        }
-
-        .lyrics-score-delete-confirm {
-            align-items: center;
-            background: rgba(0, 0, 0, 0.72);
-            display: flex;
-            inset: 0;
-            justify-content: center;
-            padding: 20px;
-            position: fixed;
-            z-index: 10000;
-        }
-
-        .lyrics-score-delete-confirm[hidden] {
-            display: none;
-        }
-
-        .lyrics-score-delete-confirm-card {
-            background: #444444;
-            border: 1px solid #777777;
-            border-radius: 10px;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
-            max-width: 360px;
-            padding: 24px;
-            text-align: center;
-            width: min(100%, 360px);
-        }
-
-        .lyrics-score-delete-confirm-card p {
-            color: #ffffff;
-            font-size: 18px;
-            font-weight: 700;
-            margin: 0 0 20px;
-        }
-
-        .lyrics-score-delete-confirm-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        .lyrics-score-delete-confirm-actions button {
-            border: 1px solid #777777;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 700;
-            min-width: 82px;
-            padding: 8px 16px;
-        }
-
-        #lyrics-score-delete-confirm-yes {
-            background: #ff8000;
-            border-color: #ff8000;
-            color: #111111;
-        }
-
-        #lyrics-score-delete-confirm-no {
-            background: #333333;
-            color: #ffffff;
-        }
-
         .lyrics-score-status {
             color: #cccccc;
             font-size: 14px;
@@ -874,19 +638,6 @@
             grid-template-columns: minmax(38px, auto) minmax(0, 1fr) auto;
         }
 
-
-        @media only screen and (max-width: 700px) {
-            .lyrics-annotation-panel {
-                border-bottom-left-radius: 0;
-                border-bottom-right-radius: 0;
-                bottom: 0;
-                left: 0;
-                max-height: 58vh;
-                right: 0;
-                top: auto;
-                width: 100%;
-            }
-        }
     </style>
 </head>
 <body data-admin-require-auth="true">
@@ -914,9 +665,8 @@
             <h2 class="lyrics-heading">LYRICS</h2>
             <hr>
             <div class="lyrics-toolbar">
-                <button type="button" id="lyrics-login" class="lyrics-login-button" hidden>Login with Spotify</button>
-                <button type="button" id="lyrics-refresh" class="lyrics-secondary-button">Refresh</button>
-                <button type="button" id="lyrics-link-album" class="lyrics-link-album-button">Link To Album</button>
+                <button type="button" id="lyrics-login" class="lyrics-login-button">Login with Spotify</button>
+                <button type="button" id="lyrics-refresh" class="lyrics-secondary-button">Refresh Now</button>
             </div>
 
             <div id="lyrics-status" class="lyrics-status" role="status" aria-live="polite">
@@ -986,21 +736,9 @@
                 </div>
             </section>
 
-            <aside id="lyrics-annotation-panel" class="lyrics-annotation-panel" hidden aria-live="polite" aria-label="Genius annotations">
-                <div class="lyrics-annotation-panel-header">
-                    <h3>Genius Annotations</h3>
-                    <button id="lyrics-annotation-panel-close" class="lyrics-annotation-panel-close" type="button">Close</button>
-                </div>
-                <p id="lyrics-annotation-panel-status" class="lyrics-annotation-panel-status"></p>
-                <div id="lyrics-annotation-list" class="lyrics-annotation-list"></div>
-            </aside>
-
             <section id="lyrics-discogs-card" class="lyrics-discogs-card lyrics-hidden" aria-label="Discogs vinyl tracklist">
                 <h3>Tracklist</h3>
                 <p id="lyrics-discogs-status" class="lyrics-discogs-status">Waiting for a currently playing album.</p>
-                <div id="lyrics-discogs-own-row" class="lyrics-discogs-own-row" hidden>
-                    <button id="lyrics-discogs-own" type="button">Own</button>
-                </div>
                 <div id="lyrics-discogs-release-meta" class="lyrics-discogs-release-meta" hidden></div>
                 <div id="lyrics-discogs-condition-meta" class="lyrics-discogs-condition-meta" hidden></div>
                 <div id="lyrics-discogs-sides" class="lyrics-discogs-sides"></div>
@@ -1013,58 +751,12 @@
                 <div id="lyrics-score-actions" class="lyrics-score-actions" hidden>
                     <button id="lyrics-score-edit" type="button">Edit</button>
                     <button id="lyrics-score-save" type="button" hidden>Save</button>
-                    <button id="lyrics-score-cancel" type="button" hidden>Cancel</button>
-                    <button id="lyrics-score-delete" type="button" hidden>Delete</button>
                 </div>
                 <p id="lyrics-score-status" class="lyrics-score-status">Waiting for a matched Discogs tracklist.</p>
                 <div id="lyrics-score-sides" class="lyrics-discogs-sides"></div>
                 <div class="lyrics-score-break" aria-hidden="true"></div>
                 <div id="lyrics-score-overall" class="lyrics-score-overall" hidden></div>
             </section>
-
-            <div id="lyrics-score-delete-confirm" class="lyrics-score-delete-confirm" hidden role="dialog" aria-modal="true" aria-labelledby="lyrics-score-delete-confirm-title">
-                <div class="lyrics-score-delete-confirm-card">
-                    <p id="lyrics-score-delete-confirm-title">Delete this entry?</p>
-                    <div class="lyrics-score-delete-confirm-actions">
-                        <button id="lyrics-score-delete-confirm-yes" type="button">Yes</button>
-                        <button id="lyrics-score-delete-confirm-no" type="button">No</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="topster-cover-picker lyrics-link-picker" id="lyrics-discogs-own-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-discogs-own-picker-title">
-                <div class="topster-cover-picker-card">
-                    <div class="topster-cover-picker-header">
-                        <h3 id="lyrics-discogs-own-picker-title">Link owned Discogs release</h3>
-                        <button type="button" id="lyrics-discogs-own-picker-close" class="secondary-button">Close</button>
-                    </div>
-                    <div class="topster-cover-picker-controls">
-                        <label for="lyrics-discogs-own-picker-link">Discogs Release Link</label>
-                        <input type="url" id="lyrics-discogs-own-picker-link" placeholder="https://www.discogs.com/release/12698907-Ryo-Fukui-Scenery">
-                        <div class="lyrics-link-picker-actions">
-                            <button type="button" id="lyrics-discogs-own-picker-save">Save</button>
-                        </div>
-                    </div>
-                    <p class="topster-cover-picker-status" id="lyrics-discogs-own-picker-status"></p>
-                </div>
-            </div>
-
-            <div class="topster-cover-picker lyrics-link-picker" id="lyrics-genius-album-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-genius-album-picker-title">
-                <div class="topster-cover-picker-card">
-                    <div class="topster-cover-picker-header">
-                        <h3 id="lyrics-genius-album-picker-title">Link Genius album</h3>
-                        <button type="button" id="lyrics-genius-album-picker-close" class="secondary-button">Close</button>
-                    </div>
-                    <div class="topster-cover-picker-controls">
-                        <label for="lyrics-genius-album-picker-link">Genius Album Link</label>
-                        <input type="url" id="lyrics-genius-album-picker-link" placeholder="https://genius.com/albums/Magma/Live-hhai">
-                        <div class="lyrics-link-picker-actions">
-                            <button type="button" id="lyrics-genius-album-picker-save">Save</button>
-                        </div>
-                    </div>
-                    <p class="topster-cover-picker-status" id="lyrics-genius-album-picker-status"></p>
-                </div>
-            </div>
 
             <div class="topster-cover-picker" id="lyrics-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="lyrics-cover-picker-title">
                 <div class="topster-cover-picker-card">
@@ -1122,6 +814,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260909-annotations-score-clickable-tracklist-v21"></script>
+    <script src="lyrics.js?v=20260903-performance-score-edit-v12"></script>
 </body>
 </html>
