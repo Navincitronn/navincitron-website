@@ -372,7 +372,91 @@
         .lyrics-genius-frame {
             background-color: #969693;
             min-height: 220px;
-            overflow: visible;
+            overflow: hidden;
+        }
+
+        .lyrics-annotation-panel {
+            background-color: #333333;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 10px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+            color: #ffffff;
+            max-height: calc(100vh - 110px);
+            overflow: auto;
+            padding: 16px;
+            position: fixed;
+            right: 18px;
+            top: 82px;
+            width: min(420px, calc(100vw - 36px));
+            z-index: 10020;
+        }
+
+        .lyrics-annotation-panel[hidden] {
+            display: none;
+        }
+
+        .lyrics-annotation-panel-header {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .lyrics-annotation-panel-header h3 {
+            font-size: 18px;
+            margin: 0;
+        }
+
+        .lyrics-annotation-panel-close {
+            background-color: #555555;
+            border: 0;
+            border-radius: 5px;
+            color: #ffffff;
+            cursor: pointer;
+            font: inherit;
+            padding: 7px 11px;
+        }
+
+        .lyrics-annotation-panel-status {
+            color: #cccccc;
+            font-size: 14px;
+            line-height: 1.45;
+            margin: 0;
+        }
+
+        .lyrics-annotation-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .lyrics-annotation-item {
+            background-color: #444444;
+            border-radius: 7px;
+            padding: 12px;
+        }
+
+        .lyrics-annotation-fragment {
+            color: #fffc65;
+            font-size: 14px;
+            font-weight: bold;
+            line-height: 1.4;
+            margin: 0 0 8px;
+        }
+
+        .lyrics-annotation-body {
+            color: #f2f2f2;
+            font-size: 14px;
+            line-height: 1.5;
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        .lyrics-annotation-meta {
+            color: #bdbdbd;
+            font-size: 12px;
+            margin: 8px 0 0;
         }
 
         .lyrics-discogs-card {
@@ -503,6 +587,20 @@
 
         .lyrics-discogs-track.current {
             outline-color: #ff8000;
+        }
+
+        .lyrics-discogs-track.lyrics-discogs-track-playable {
+            cursor: pointer;
+        }
+
+        .lyrics-discogs-track.lyrics-discogs-track-playable:hover,
+        .lyrics-discogs-track.lyrics-discogs-track-playable:focus-visible {
+            background-color: rgba(255, 255, 255, 0.07);
+        }
+
+        .lyrics-discogs-track.lyrics-discogs-track-playing {
+            opacity: 0.65;
+            pointer-events: none;
         }
 
         .lyrics-discogs-track-position {
@@ -776,6 +874,19 @@
             grid-template-columns: minmax(38px, auto) minmax(0, 1fr) auto;
         }
 
+
+        @media only screen and (max-width: 700px) {
+            .lyrics-annotation-panel {
+                border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
+                bottom: 0;
+                left: 0;
+                max-height: 58vh;
+                right: 0;
+                top: auto;
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body data-admin-require-auth="true">
@@ -874,6 +985,15 @@
                     <div class="lyrics-embed-placeholder">Waiting for a currently playing song.</div>
                 </div>
             </section>
+
+            <aside id="lyrics-annotation-panel" class="lyrics-annotation-panel" hidden aria-live="polite" aria-label="Genius annotations">
+                <div class="lyrics-annotation-panel-header">
+                    <h3>Genius Annotations</h3>
+                    <button id="lyrics-annotation-panel-close" class="lyrics-annotation-panel-close" type="button">Close</button>
+                </div>
+                <p id="lyrics-annotation-panel-status" class="lyrics-annotation-panel-status"></p>
+                <div id="lyrics-annotation-list" class="lyrics-annotation-list"></div>
+            </aside>
 
             <section id="lyrics-discogs-card" class="lyrics-discogs-card lyrics-hidden" aria-label="Discogs vinyl tracklist">
                 <h3>Tracklist</h3>
@@ -1002,6 +1122,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260908-genius-album-discogs-composite-annotations-v20"></script>
+    <script src="lyrics.js?v=20260909-annotations-score-clickable-tracklist-v21"></script>
 </body>
 </html>

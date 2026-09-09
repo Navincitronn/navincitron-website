@@ -30,6 +30,10 @@
     const vinylModeToggle = document.getElementById("lyrics-vinyl-mode");
     const embedCard = document.getElementById("lyrics-embed-card");
     const embedContainer = document.getElementById("lyrics-embed-container");
+    const annotationPanel = document.getElementById("lyrics-annotation-panel");
+    const annotationPanelClose = document.getElementById("lyrics-annotation-panel-close");
+    const annotationPanelStatus = document.getElementById("lyrics-annotation-panel-status");
+    const annotationList = document.getElementById("lyrics-annotation-list");
     const discogsCard = document.getElementById("lyrics-discogs-card");
     const discogsStatus = document.getElementById("lyrics-discogs-status");
     const discogsOwnRow = document.getElementById("lyrics-discogs-own-row");
@@ -88,6 +92,10 @@
     let annotationScrollActive = false;
     let annotationAutoScrollAt = 0;
     let annotationRestoreInProgress = false;
+    let currentGeniusAnnotationCount = 0;
+    const geniusAnnotationCache = new Map();
+    let geniusAnnotationRequestId = 0;
+    let discogsTrackPlayInProgress = false;
     let lastDiscogsAlbumLookupKey = "";
     let lastDiscogsTracklistPayload = null;
     let lastDiscogsRenderedLookupKey = "";
@@ -2486,6 +2494,15 @@
         return text.replace(/\s+/g, " ").replace(/^\s*-|\s*-\s*$/g, "").trim();
     }
 
+    function lyricsDiscogsTrackPartRangeSignature(value) {
+        const text = String(value || "")
+            .normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[–—−]/g, "-");
+        const match = text.match(/\b(?:parts?|pts?\.?)\s*(\d+)\s*-\s*(\d+)\b/i);
+        return match ? `${Number(match[1])}-${Number(match[2])}` : "";
+    }
+
     function lyricsDiscogsTrackTitleVariants(value) {
         const raw = String(value || "").trim();
         const variants = [];
@@ -2533,6 +2550,12 @@
     }
 
     function lyricsDiscogsTrackMatchScore(currentTitle, candidateTitle) {
+        const currentPartRange = lyricsDiscogsTrackPartRangeSignature(currentTitle);
+        const candidatePartRange = lyricsDiscogsTrackPartRangeSignature(candidateTitle);
+        if (currentPartRange && candidatePartRange && currentPartRange !== candidatePartRange) {
+            return 0;
+        }
+
         const currentVariants = lyricsDiscogsTrackTitleVariants(currentTitle);
         const candidateVariants = lyricsDiscogsTrackTitleVariants(candidateTitle);
         if (!currentVariants.length || !candidateVariants.length) return 0;
@@ -2990,11 +3013,32 @@
 
     function findMyAlbumsTrackScore(albumEntry, discogsTitle) {
         if (!albumEntry || !Array.isArray(albumEntry.tracks)) return null;
+
+        // Prefer the literal full-title identity before any flexible matching.
+        // This is essential for repeated suite titles such as:
+        // "Shine On You Crazy Diamond (Parts 1-5)" and "(Parts 6-9)".
+        const wantedKey = lyricsDiscogsNormalizeTrackText(discogsTitle);
+        if (wantedKey) {
+            const exactTrack = albumEntry.tracks.find(track =>
+                lyricsDiscogsNormalizeTrackText(track && track.title || "") === wantedKey
+            );
+            if (exactTrack) return exactTrack;
+        }
+
+        const wantedPartRange = lyricsDiscogsTrackPartRangeSignature(discogsTitle);
         let bestTrack = null;
         let bestScore = 0;
         for (const track of albumEntry.tracks) {
+            const candidatePartRange = lyricsDiscogsTrackPartRangeSignature(track && track.title || "");
+            if (wantedPartRange && candidatePartRange && wantedPartRange !== candidatePartRange) {
+                continue;
+            }
+
             const score = lyricsDiscogsTrackMatchScore(discogsTitle, track.title);
-            if (score > bestScore) { bestScore = score; bestTrack = track; }
+            if (score > bestScore) {
+                bestScore = score;
+                bestTrack = track;
+            }
         }
         return bestScore >= 0.55 ? bestTrack : null;
     }
@@ -3793,6 +3837,67 @@
         }
     }
 
+    async function playDiscogsTrackOnSpotify(row, rowElement) {
+        if (discogsTrackPlayInProgress || !spotifyAuthenticated || !row || !row.title) return;
+
+        discogsTrackPlayInProgress = true;
+        if (rowElement) rowElement.classList.add("lyrics-discogs-track-playing");
+        const previousStatus = discogsStatus.textContent;
+        setStatus(`Playing ${row.title} on Spotify…`);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/play-track`, {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                },
+                body: JSON.stringify({
+                    title: row.title,
+                    position: row.position || "",
+                    album: currentDisplayedTrack && currentDisplayedTrack.album || "",
+                    artist: currentDisplayedTrack
+                        ? lyricsDiscogsAlbumArtist(currentDisplayedTrack)
+                        : "",
+                }),
+            });
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (error) {
+                throw new Error(`Spotify track selection returned an unreadable response (${response.status}).`);
+            }
+
+            if (response.status === 401 || !data.authenticated) {
+                setAuthenticated(false);
+                throw new Error(data.error || "Spotify is not connected.");
+            }
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || `Could not play ${row.title}.`);
+            }
+
+            previousRestartArmedUntil = 0;
+            clearVinylSideEndPause();
+            clearScrobbleAlbumEndPause();
+            lastTrackKey = "";
+            lastGeniusSongId = null;
+            setStatus(data.message || `Playing ${row.title} on Spotify.`, "success");
+            window.setTimeout(() => fetchCurrentLyrics(false), 450);
+            window.setTimeout(() => fetchCurrentLyrics(false), 1200);
+        } catch (error) {
+            setStatus(`Spotify track selection unavailable: ${error.message || error}`, "error");
+            if (previousStatus && discogsStatus && !discogsStatus.textContent) {
+                discogsStatus.textContent = previousStatus;
+            }
+        } finally {
+            discogsTrackPlayInProgress = false;
+            if (rowElement) rowElement.classList.remove("lyrics-discogs-track-playing");
+        }
+    }
+
     function renderLyricsDiscogsTracklist(payload, currentTrackTitle = "") {
         discogsCard.classList.remove("lyrics-hidden");
         discogsSides.replaceChildren();
@@ -3960,7 +4065,11 @@
 
             groupRows.forEach(row => {
                 const trackRow = document.createElement("div");
-                trackRow.className = "lyrics-discogs-track";
+                trackRow.className = "lyrics-discogs-track lyrics-discogs-track-playable";
+                trackRow.setAttribute("role", "button");
+                trackRow.setAttribute("tabindex", "0");
+                trackRow.setAttribute("aria-label", `Play ${row.title} on Spotify`);
+                trackRow.title = `Play ${row.title} on Spotify`;
                 if (row.index === currentRowIndex) {
                     trackRow.classList.add("current");
                     trackRow.setAttribute("aria-current", "true");
@@ -3983,6 +4092,12 @@
                 duration.textContent = row.duration || "";
 
                 trackRow.append(position, title, duration);
+                trackRow.addEventListener("click", () => playDiscogsTrackOnSpotify(row, trackRow));
+                trackRow.addEventListener("keydown", event => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    playDiscogsTrackOnSpotify(row, trackRow);
+                });
                 side.appendChild(trackRow);
             });
 
@@ -4325,6 +4440,108 @@
         }, 220);
     }
 
+
+    function closeGeniusAnnotationPanel() {
+        if (!annotationPanel) return;
+        geniusAnnotationRequestId += 1;
+        annotationPanel.hidden = true;
+        if (annotationPanelStatus) annotationPanelStatus.textContent = "";
+        if (annotationList) annotationList.replaceChildren();
+    }
+
+    function renderGeniusAnnotationPanelItems(items) {
+        if (!annotationList) return;
+        annotationList.replaceChildren();
+
+        const annotations = Array.isArray(items) ? items : [];
+        if (!annotations.length) {
+            if (annotationPanelStatus) {
+                annotationPanelStatus.textContent = "No Genius annotation text was returned for this song.";
+            }
+            return;
+        }
+
+        if (annotationPanelStatus) {
+            annotationPanelStatus.textContent = annotations.length === 1
+                ? "1 annotation"
+                : `${annotations.length} annotations`;
+        }
+
+        const fragment = document.createDocumentFragment();
+        annotations.forEach(item => {
+            const card = document.createElement("article");
+            card.className = "lyrics-annotation-item";
+
+            const lyricFragment = document.createElement("p");
+            lyricFragment.className = "lyrics-annotation-fragment";
+            lyricFragment.textContent = item.fragment || "Annotated lyric";
+
+            const body = document.createElement("p");
+            body.className = "lyrics-annotation-body";
+            body.textContent = item.body || "No annotation text was returned.";
+
+            card.append(lyricFragment, body);
+
+            const metaParts = [];
+            if (item.author) metaParts.push(item.author);
+            if (item.verified) metaParts.push("Verified");
+            if (Number.isFinite(Number(item.votes))) {
+                const votes = Number(item.votes);
+                metaParts.push(`${votes} vote${votes === 1 ? "" : "s"}`);
+            }
+            if (metaParts.length) {
+                const meta = document.createElement("p");
+                meta.className = "lyrics-annotation-meta";
+                meta.textContent = metaParts.join(" · ");
+                card.appendChild(meta);
+            }
+
+            fragment.appendChild(card);
+        });
+        annotationList.appendChild(fragment);
+    }
+
+    async function showGeniusAnnotationPanel(songId) {
+        const numericSongId = Number(songId);
+        if (!annotationPanel || !Number.isFinite(numericSongId) || numericSongId <= 0) return;
+
+        annotationPanel.hidden = false;
+        if (annotationPanelStatus) annotationPanelStatus.textContent = "Loading Genius annotations…";
+        if (annotationList) annotationList.replaceChildren();
+
+        if (geniusAnnotationCache.has(numericSongId)) {
+            renderGeniusAnnotationPanelItems(geniusAnnotationCache.get(numericSongId));
+            return;
+        }
+
+        const requestId = ++geniusAnnotationRequestId;
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/api/lyrics/genius-annotations?song_id=${encodeURIComponent(numericSongId)}`,
+                {
+                    method: "GET",
+                    credentials: "include",
+                    cache: "no-store",
+                    headers: { Accept: "application/json" },
+                }
+            );
+            const data = await response.json();
+            if (requestId !== geniusAnnotationRequestId) return;
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || `Could not load Genius annotations (${response.status}).`);
+            }
+
+            const items = Array.isArray(data.annotations) ? data.annotations : [];
+            geniusAnnotationCache.set(numericSongId, items);
+            renderGeniusAnnotationPanelItems(items);
+        } catch (error) {
+            if (requestId !== geniusAnnotationRequestId) return;
+            if (annotationPanelStatus) {
+                annotationPanelStatus.textContent = `Genius annotations unavailable: ${error.message || error}`;
+            }
+        }
+    }
+
     function stopEmbedResizePolling() {
         if (embedResizeTimer) {
             window.clearInterval(embedResizeTimer);
@@ -4334,6 +4551,8 @@
 
     function clearEmbed(message = "Waiting for a currently playing song.") {
         resetGeniusAnnotationScrollState();
+        currentGeniusAnnotationCount = 0;
+        closeGeniusAnnotationPanel();
         lastGeniusSongId = null;
         activeEmbedFrame = null;
         stopEmbedResizePolling();
@@ -4412,15 +4631,12 @@
             z-index: 2147483647;
         }
 
-        /* Keep Genius's own responsive iframe geometry intact. The annotation
-           drawer is controlled inside Genius's cross-origin embed; clipping or
-           zooming its iframe can hide the drawer after Genius layout updates. */
+        /* Do not force width/zoom/max-width onto Genius's own child iframe.
+           Genius controls the annotation layout inside that cross-origin frame. */
         iframe {
             background: #ffffff;
             border: 0;
             display: block;
-            max-width: 100% !important;
-            width: 100% !important;
         }
         .rg_embed_link { background: #ffffff; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 16px; padding: 18px; }
     </style>
@@ -4496,6 +4712,7 @@
 
         stopEmbedResizePolling();
         resetGeniusAnnotationScrollState();
+        closeGeniusAnnotationPanel();
         lastGeniusSongId = songId;
         embedContainer.replaceChildren();
 
@@ -4619,6 +4836,8 @@
         updateLyricsDiscogsTracklist(track);
 
         if (!geniusSong) {
+            currentGeniusAnnotationCount = 0;
+            closeGeniusAnnotationPanel();
             annotationBadge.classList.add("lyrics-hidden");
             descriptionElement.textContent = "There is no description for this track";
             descriptionElement.classList.add("empty");
@@ -4644,6 +4863,7 @@
         }
 
         const annotationCount = Number(geniusSong.annotationCount || 0);
+        currentGeniusAnnotationCount = Number.isFinite(annotationCount) ? annotationCount : 0;
         annotationBadge.textContent = `${annotationCount} Genius annotation${annotationCount === 1 ? "" : "s"}`;
         annotationBadge.classList.remove("lyrics-hidden");
 
@@ -4720,6 +4940,17 @@
 
         if (data.type === GENIUS_EMBED_INTERACTION_MESSAGE) {
             queueGeniusAnnotationReveal();
+            showGeniusAnnotationPanel(lastGeniusSongId);
+
+            // Returning focus to the host after the child iframe processes the
+            // pointer action makes the next annotated-lyric click observable too.
+            window.setTimeout(() => {
+                try {
+                    focusSink.focus({ preventScroll: true });
+                } catch (error) {
+                    focusSink.focus();
+                }
+            }, 350);
             return;
         }
 
@@ -4853,6 +5084,15 @@
         window.setTimeout(() => {
             if (activeEmbedFrame && document.activeElement === activeEmbedFrame) {
                 queueGeniusAnnotationReveal();
+                showGeniusAnnotationPanel(lastGeniusSongId);
+
+                window.setTimeout(() => {
+                    try {
+                        focusSink.focus({ preventScroll: true });
+                    } catch (error) {
+                        focusSink.focus();
+                    }
+                }, 350);
             }
         }, 0);
     });
@@ -4876,6 +5116,16 @@
     if (linkAlbumButton) {
         linkAlbumButton.addEventListener("click", openGeniusAlbumPicker);
     }
+
+    if (annotationPanelClose) {
+        annotationPanelClose.addEventListener("click", closeGeniusAnnotationPanel);
+    }
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && annotationPanel && !annotationPanel.hidden) {
+            closeGeniusAnnotationPanel();
+        }
+    });
 
     refreshButton.addEventListener("click", () => {
         previousRestartArmedUntil = 0;
