@@ -2591,7 +2591,10 @@
             .filter(Boolean);
         if (!positions.length) return "";
 
-        const bases = positions.map(position => position.replace(/[-.]?[IVXLCDM]+$/i, ""));
+        // A1.1/A1.2 and B3.1/B3.2 are sections of one numbered song,
+        // just like B3-I/B3-II. Strip only a separated child suffix so A1
+        // itself is never mistaken for a section.
+        const bases = positions.map(position => position.replace(/[-.](?:\d+|[IVXLCDM]+)$/i, ""));
         const firstBase = bases[0];
         if (firstBase && bases.every(base => base === firstBase)) return firstBase;
 
@@ -2614,17 +2617,21 @@
             const subTracks = Array.isArray(entry.subTracks) ? entry.subTracks : [];
 
             if (type === "index") {
-                if (title && duration) {
-                    // A timed Discogs index is the actual composite song; its A-I,
-                    // A-II / B3-I, B3-II children are sections/movements, not songs.
-                    const position = rawPosition || lyricsDiscogsCompositePosition(subTracks);
+                const compositePosition = lyricsDiscogsCompositePosition(subTracks);
+                const numberedComposite = Boolean(compositePosition && /\d/.test(compositePosition));
+                if (title && (duration || numberedComposite)) {
+                    // Discogs may omit a duration from a composite index. A shared
+                    // numbered parent position still makes the heading the actual
+                    // song: A1.1/A1.2/... -> A1 and B3.1/B3.2/... -> B3.
+                    // The child rows are sections/movements and must not render as
+                    // independent songs.
+                    const position = rawPosition || compositePosition;
                     const side = lyricsDiscogsSideFromPosition(position) || currentSide || inheritedSide;
                     if (side) currentSide = side;
                     rows.push({ position, title, duration, side, type, artists });
                 } else if (subTracks.length) {
-                    // An untimed index is only a structural heading (e.g. "Le Sacre
-                    // Du Printemps"). Omit the heading itself and keep its real A/B
-                    // child tracks.
+                    // Pure structural headings whose children are distinct A1/A2,
+                    // B1/B2 tracks remain headings only.
                     flattenLyricsDiscogsTracklist(subTracks, currentSide || inheritedSide, rows);
                 }
                 continue;
@@ -4388,7 +4395,7 @@
     <style>
         :root { color-scheme: light; }
         html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; font-size: 16px; }
-        body { isolation: isolate; overflow: hidden; position: relative; }
+        body { isolation: isolate; overflow: visible; position: relative; }
 
         /* Genius renders the lyrics inside a cross-origin child frame. Keep
            every surface below the tint white, then multiply one solid #969693
@@ -4405,13 +4412,15 @@
             z-index: 2147483647;
         }
 
+        /* Keep Genius's own responsive iframe geometry intact. The annotation
+           drawer is controlled inside Genius's cross-origin embed; clipping or
+           zooming its iframe can hide the drawer after Genius layout updates. */
         iframe {
             background: #ffffff;
             border: 0;
             display: block;
-            max-width: none !important;
-            width: 93.75% !important;
-            zoom: 1.0666667 !important;
+            max-width: 100% !important;
+            width: 100% !important;
         }
         .rg_embed_link { background: #ffffff; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 16px; padding: 18px; }
     </style>
