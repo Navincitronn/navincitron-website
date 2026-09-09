@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Navincitron - Lyrics</title>
-    <link rel="stylesheet" href="styles.css?v=20260830-v55">
+    <link rel="stylesheet" href="styles.css?v=20260712-lyrics">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
     <style>
         /* All page-specific rules are scoped to lyrics.html so they cannot alter
@@ -46,7 +46,7 @@
 
         .lyrics-toolbar button,
         .lyrics-toolbar a {
-            background-color: #40bcf4;
+            background-color: #1974D2;
             border: 0;
             border-radius: 5px;
             color: #ffffff;
@@ -60,15 +60,15 @@
 
         .lyrics-toolbar button:hover,
         .lyrics-toolbar a:hover {
-            background-color: #40bcf4;
+            background-color: #145a8a;
         }
 
         .lyrics-toolbar .lyrics-login-button.connected {
-            background-color: #00e054;
+            background-color: #1f8f3a;
         }
 
         .lyrics-toolbar .lyrics-login-button.connected:hover {
-            background-color: #00e054;
+            background-color: #16682b;
         }
 
         .lyrics-toolbar .lyrics-secondary-button {
@@ -91,11 +91,11 @@
         }
 
         .lyrics-status.error {
-            color: #ff8000;
+            color: #ffb0b0;
         }
 
         .lyrics-status.success {
-            color: #00e054;
+            color: #aee8ae;
         }
 
         .lyrics-song-card {
@@ -213,7 +213,7 @@
         }
 
         .lyrics-progress-fill {
-            background-color: #40bcf4;
+            background-color: #87CEEB;
             border-radius: inherit;
             height: 100%;
             transition: width 0.2s linear;
@@ -284,98 +284,6 @@
             overflow: hidden;
         }
 
-        .lyrics-discogs-card {
-            background-color: #444444;
-            border-radius: 10px;
-            margin: 20px auto 0;
-            padding: 20px;
-        }
-
-        .lyrics-discogs-card h3 {
-            margin: 0 0 12px;
-            text-align: center;
-        }
-
-        .lyrics-discogs-status {
-            color: #cccccc;
-            font-size: 14px;
-            line-height: 1.45;
-            margin: 0 0 14px;
-            text-align: center;
-        }
-
-        .lyrics-discogs-status.error {
-            color: #ffb0b0;
-        }
-
-        .lyrics-discogs-release-meta {
-            color: #dddddd;
-            font-size: 14px;
-            line-height: 1.45;
-            margin: 0 0 16px;
-            text-align: center;
-        }
-
-        .lyrics-discogs-release-meta a {
-            color: #87CEEB;
-            font-weight: bold;
-        }
-
-        .lyrics-discogs-sides {
-            display: grid;
-            gap: 14px;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .lyrics-discogs-side {
-            background-color: #333333;
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 8px;
-            min-width: 0;
-            padding: 12px;
-        }
-
-        .lyrics-discogs-side h4 {
-            color: #ffffff;
-            font-size: 16px;
-            margin: 0 0 8px;
-            text-align: center;
-        }
-
-        .lyrics-discogs-track {
-            align-items: baseline;
-            border-radius: 6px;
-            display: grid;
-            gap: 8px;
-            grid-template-columns: minmax(38px, auto) minmax(0, 1fr) auto;
-            margin: 3px 0;
-            outline: 2px solid transparent;
-            outline-offset: -2px;
-            padding: 7px 8px;
-        }
-
-        .lyrics-discogs-track.current {
-            outline-color: #ff8000;
-        }
-
-        .lyrics-discogs-track-position {
-            color: #aaaaaa;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .lyrics-discogs-track-title {
-            color: #f2f2f2;
-            min-width: 0;
-            overflow-wrap: anywhere;
-        }
-
-        .lyrics-discogs-track-duration {
-            color: #aaaaaa;
-            font-size: 12px;
-            white-space: nowrap;
-        }
-
         .lyrics-hidden {
             display: none !important;
         }
@@ -418,10 +326,6 @@
                 min-width: 0;
                 width: 100%;
             }
-
-            .lyrics-discogs-sides {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
@@ -449,6 +353,10 @@
         <section class="lyrics-page">
             <h2 class="lyrics-heading">LYRICS</h2>
             <hr>
+            <p class="lyrics-intro">
+                Displays the Genius lyrics and annotations for the song currently playing on the connected Spotify account. Local Spotify files are matched from their artist, title, and album metadata.
+            </p>
+
             <div class="lyrics-toolbar">
                 <button type="button" id="lyrics-login" class="lyrics-login-button">Login with Spotify</button>
                 <button type="button" id="lyrics-refresh" class="lyrics-secondary-button">Refresh Now</button>
@@ -507,13 +415,6 @@
                     <div class="lyrics-embed-placeholder">Waiting for a currently playing song.</div>
                 </div>
             </section>
-
-            <section id="lyrics-discogs-card" class="lyrics-discogs-card lyrics-hidden" aria-label="Discogs vinyl tracklist">
-                <h3>Discogs Vinyl Tracklist</h3>
-                <p id="lyrics-discogs-status" class="lyrics-discogs-status">Waiting for a currently playing album.</p>
-                <div id="lyrics-discogs-release-meta" class="lyrics-discogs-release-meta" hidden></div>
-                <div id="lyrics-discogs-sides" class="lyrics-discogs-sides"></div>
-            </section>
         </section>
     </main>
 
@@ -551,6 +452,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260901-discogs-vinyl-tracklist-v1"></script>
+    <script src="lyrics.js?v=20260824-lyrics-clean-v1"></script>
 </body>
 </html>
