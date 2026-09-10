@@ -36,6 +36,7 @@
     const geniusAnnotationFragment = document.getElementById("lyrics-genius-annotation-fragment");
     const geniusAnnotationContent = document.getElementById("lyrics-genius-annotation-content");
     const geniusAnnotationLink = document.getElementById("lyrics-genius-annotation-link");
+    const geniusFocusSink = document.getElementById("lyrics-genius-focus-sink");
     const discogsCard = document.getElementById("lyrics-discogs-card");
     const discogsStatus = document.getElementById("lyrics-discogs-status");
     const discogsOwnRow = document.getElementById("lyrics-discogs-own-row");
@@ -96,6 +97,10 @@
     let activeGeniusAnnotationElement = null;
     let geniusAnnotationRequestToken = 0;
     const geniusReferentCache = new Map();
+    const geniusSongReferentsCache = new Map();
+    const geniusSongReferentsPromiseCache = new Map();
+    let geniusEmbedInteractionFallbackTimer = null;
+    let lastExactGeniusReferentAt = 0;
     let discogsTrackPlayInProgress = false;
     let lastDiscogsAlbumLookupKey = "";
     let lastDiscogsTracklistPayload = null;
@@ -140,6 +145,7 @@
     const GENIUS_EMBED_HEIGHT_MESSAGE = "navincitron-genius-embed-height";
     const GENIUS_EMBED_ERROR_MESSAGE = "navincitron-genius-embed-error";
     const GENIUS_EMBED_INTERACTION_MESSAGE = "navincitron-genius-embed-interaction";
+    const GENIUS_EMBED_CHILD_MESSAGE = "navincitron-genius-embed-child-message";
     const LYRICS_LASTFM_API_KEY = "7c87436dbff96020ebb6e3a75cb0f396";
 
     // The three Rolling Stone song lists use two different text layouts:
@@ -4459,6 +4465,270 @@
         }
     }
 
+
+    async function loadGeniusSongReferents(songId) {
+        const id = Number(songId);
+        if (!Number.isFinite(id) || id <= 0) return [];
+
+        if (geniusSongReferentsCache.has(id)) {
+            return geniusSongReferentsCache.get(id) || [];
+        }
+        if (geniusSongReferentsPromiseCache.has(id)) {
+            return geniusSongReferentsPromiseCache.get(id);
+        }
+
+        const requestPromise = (async () => {
+            const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-referents/${encodeURIComponent(id)}`, {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+            });
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (_) {
+                data = null;
+            }
+            if (!response.ok || !data || data.ok === false || !Array.isArray(data.referents)) {
+                throw new Error(data && data.error
+                    ? data.error
+                    : `Genius annotations request failed with HTTP ${response.status}.`);
+            }
+
+            const referents = data.referents.filter((referent) => {
+                const referentId = Number(referent && referent.id);
+                return Number.isFinite(referentId) && referentId > 0;
+            });
+            for (const referent of referents) {
+                geniusReferentCache.set(Number(referent.id), referent);
+            }
+            geniusSongReferentsCache.set(id, referents);
+            return referents;
+        })();
+
+        geniusSongReferentsPromiseCache.set(id, requestPromise);
+        try {
+            return await requestPromise;
+        } finally {
+            if (geniusSongReferentsPromiseCache.get(id) === requestPromise) {
+                geniusSongReferentsPromiseCache.delete(id);
+            }
+        }
+    }
+
+    function geniusReferentIdFromChildPayload(payload, referents) {
+        const referentIds = new Set();
+        const annotationToReferent = new Map();
+
+        for (const referent of referents || []) {
+            const referentId = Number(referent && referent.id);
+            if (!Number.isFinite(referentId) || referentId <= 0) continue;
+            referentIds.add(referentId);
+            for (const annotation of Array.isArray(referent.annotations) ? referent.annotations : []) {
+                const annotationId = Number(annotation && annotation.id);
+                if (Number.isFinite(annotationId) && annotationId > 0) {
+                    annotationToReferent.set(annotationId, referentId);
+                }
+            }
+        }
+
+        const candidates = [];
+        const seenObjects = new Set();
+
+        const addNumber = (value) => {
+            const numeric = Number(value);
+            if (Number.isSafeInteger(numeric) && numeric > 0) candidates.push(numeric);
+        };
+
+        const inspect = (value, depth = 0, keyHint = "") => {
+            if (depth > 7 || value === null || value === undefined) return;
+
+            if (typeof value === "number") {
+                if (/id|referent|annotation/i.test(keyHint)) addNumber(value);
+                return;
+            }
+
+            if (typeof value === "string") {
+                if (/id|referent|annotation/i.test(keyHint) && /^\d+$/.test(value.trim())) {
+                    addNumber(value.trim());
+                }
+
+                // Genius referent URLs use /<referent-id>/<slug>/<fragment>.
+                const pathPattern = /(?:https?:\/\/(?:www\.)?genius\.com)?\/(\d+)(?:\/|$)/gi;
+                let match;
+                while ((match = pathPattern.exec(value)) !== null) {
+                    addNumber(match[1]);
+                }
+
+                // Also accept explicit annotation/referent key-value strings.
+                const labeledPattern = /(?:referent|annotation)(?:_?id)?["'\s:=/-]+(\d+)/gi;
+                while ((match = labeledPattern.exec(value)) !== null) {
+                    addNumber(match[1]);
+                }
+                return;
+            }
+
+            if (typeof value !== "object") return;
+            if (seenObjects.has(value)) return;
+            seenObjects.add(value);
+
+            if (Array.isArray(value)) {
+                for (const entry of value) inspect(entry, depth + 1, keyHint);
+                return;
+            }
+
+            for (const [key, entry] of Object.entries(value)) {
+                inspect(entry, depth + 1, key);
+            }
+        };
+
+        inspect(payload);
+
+        for (const candidate of candidates) {
+            if (referentIds.has(candidate)) return candidate;
+            if (annotationToReferent.has(candidate)) return annotationToReferent.get(candidate);
+        }
+        return null;
+    }
+
+    function renderGeniusReferentCollection(referents) {
+        if (!geniusAnnotationContent) return;
+        geniusAnnotationContent.replaceChildren();
+
+        const usable = Array.isArray(referents)
+            ? referents.filter((referent) => referent && referent.fragment)
+            : [];
+
+        if (!usable.length) {
+            const empty = document.createElement("p");
+            empty.textContent = "Genius did not return any readable annotations for this song.";
+            geniusAnnotationContent.appendChild(empty);
+            return;
+        }
+
+        const explanation = document.createElement("p");
+        explanation.className = "lyrics-genius-annotation-bridge-note";
+        explanation.textContent = usable.length === 1
+            ? "Genius returned one annotation for this song."
+            : `Genius returned ${usable.length} annotated lyric fragments.`;
+        geniusAnnotationContent.appendChild(explanation);
+
+        usable.forEach((referent, index) => {
+            const article = document.createElement("article");
+            article.className = "lyrics-genius-annotation-entry lyrics-genius-annotation-list-entry";
+
+            const fragmentButton = document.createElement("button");
+            fragmentButton.type = "button";
+            fragmentButton.className = "lyrics-genius-annotation-list-fragment";
+            fragmentButton.textContent = String(referent.fragment || `Annotation ${index + 1}`).trim();
+            fragmentButton.addEventListener("click", () => {
+                lastExactGeniusReferentAt = Date.now();
+                renderGeniusReferent(referent, null);
+            });
+            article.appendChild(fragmentButton);
+
+            const annotations = Array.isArray(referent.annotations) ? referent.annotations : [];
+            const firstAnnotation = annotations[0];
+            if (firstAnnotation && firstAnnotation.body) {
+                const preview = document.createElement("div");
+                preview.className = "lyrics-genius-annotation-list-preview";
+                const text = String(firstAnnotation.body || "").trim().replace(/\s+/g, " ");
+                preview.textContent = text.length > 240 ? `${text.slice(0, 237)}…` : text;
+                article.appendChild(preview);
+            }
+            geniusAnnotationContent.appendChild(article);
+        });
+    }
+
+    async function showGeniusAnnotationIndex(songId, reason = "embed") {
+        const id = Number(songId);
+        if (!Number.isFinite(id) || id <= 0 || currentGeniusAnnotationCount <= 0) return;
+
+        setGeniusAnnotationLoading("Genius annotations", null);
+        try {
+            const referents = await loadGeniusSongReferents(id);
+            if (id !== lastGeniusSongId) return;
+
+            if (geniusAnnotationFragment) {
+                geniusAnnotationFragment.textContent = reason === "badge"
+                    ? "Annotations for this song"
+                    : "Annotated lyrics";
+            }
+            renderGeniusReferentCollection(referents);
+            if (geniusAnnotationLink) geniusAnnotationLink.hidden = true;
+        } catch (error) {
+            if (!geniusAnnotationContent || id !== lastGeniusSongId) return;
+            geniusAnnotationContent.replaceChildren();
+            const message = document.createElement("p");
+            message.textContent = `Could not load Genius annotations: ${error && error.message ? error.message : error}`;
+            geniusAnnotationContent.appendChild(message);
+        }
+    }
+
+    function rearmGeniusEmbedInteractionDetection() {
+        window.setTimeout(() => {
+            try {
+                if (geniusFocusSink) {
+                    geniusFocusSink.focus({ preventScroll: true });
+                } else {
+                    document.body.setAttribute("tabindex", "-1");
+                    document.body.focus({ preventScroll: true });
+                }
+            } catch (_) {
+                // Focus re-arming is only used so a later click inside the
+                // cross-origin Genius frame can be observed as another focus transition.
+            }
+        }, 350);
+    }
+
+    async function handleGeniusChildMessage(songId, payload) {
+        const id = Number(songId);
+        if (!Number.isFinite(id) || id <= 0 || id !== lastGeniusSongId) return;
+        try {
+            const referents = await loadGeniusSongReferents(id);
+            if (id !== lastGeniusSongId) return;
+            const referentId = geniusReferentIdFromChildPayload(payload, referents);
+            if (!referentId) return;
+
+            const referent = geniusReferentCache.get(Number(referentId));
+            if (!referent) return;
+
+            lastExactGeniusReferentAt = Date.now();
+            if (geniusEmbedInteractionFallbackTimer) {
+                window.clearTimeout(geniusEmbedInteractionFallbackTimer);
+                geniusEmbedInteractionFallbackTimer = null;
+            }
+            setGeniusAnnotationLoading(referent.fragment || "Annotated lyric", null);
+            renderGeniusReferent(referent, null);
+        } catch (_) {
+            // A forwarded Genius child-frame message is an optimization only.
+            // The generic iframe-interaction fallback below still exposes the
+            // song's annotations if Genius does not reveal a referent ID.
+        }
+    }
+
+    function handleGeniusEmbedInteraction(songId) {
+        const id = Number(songId);
+        if (!Number.isFinite(id) || id <= 0 || id !== lastGeniusSongId) return;
+        if (currentGeniusAnnotationCount <= 0) return;
+
+        if (geniusEmbedInteractionFallbackTimer) {
+            window.clearTimeout(geniusEmbedInteractionFallbackTimer);
+        }
+
+        // Give Genius a short window to send a child-frame message containing
+        // the clicked referent/annotation ID. If it does not expose that detail,
+        // open the song's annotation index rather than doing nothing.
+        geniusEmbedInteractionFallbackTimer = window.setTimeout(() => {
+            geniusEmbedInteractionFallbackTimer = null;
+            if (Date.now() - lastExactGeniusReferentAt < 500) return;
+            showGeniusAnnotationIndex(id, "embed");
+        }, 180);
+
+        rearmGeniusEmbedInteractionDetection();
+    }
+
     async function openGeniusAnnotation(referentId, sourceElement) {
         const id = Number(referentId);
         if (!Number.isFinite(id) || id <= 0) return;
@@ -4515,6 +4785,10 @@
 
     function clearEmbed(message = "Waiting for a currently playing song.") {
         geniusEmbedRenderToken += 1;
+        if (geniusEmbedInteractionFallbackTimer) {
+            window.clearTimeout(geniusEmbedInteractionFallbackTimer);
+            geniusEmbedInteractionFallbackTimer = null;
+        }
         currentGeniusAnnotationCount = 0;
         lastGeniusSongId = null;
         activeEmbedFrame = null;
@@ -4632,6 +4906,26 @@
                     songId: ${songId}
                 }, '*');
             };
+
+            // Preserve any structured messages that Genius's own embedded frame
+            // sends to its host. If a current/future embed message contains a
+            // referent or annotation ID, the top-level page can resolve the
+            // exact annotation through api.genius.com without reading the
+            // cross-origin child DOM.
+            window.addEventListener('message', (event) => {
+                const childFrame = document.querySelector('iframe');
+                if (!childFrame || event.source !== childFrame.contentWindow) return;
+                try {
+                    parent.postMessage({
+                        type: '${GENIUS_EMBED_CHILD_MESSAGE}',
+                        songId: ${songId},
+                        payload: event.data
+                    }, '*');
+                } catch (_) {
+                    // Some provider messages may contain values that cannot be
+                    // forwarded. Ignore only that diagnostic/optimization path.
+                }
+            });
 
             // A click inside Genius's cross-origin child iframe focuses that
             // iframe and blurs this srcdoc window. We cannot inspect the child
@@ -4976,6 +5270,12 @@
         currentGeniusAnnotationCount = Number.isFinite(annotationCount) ? annotationCount : 0;
         annotationBadge.textContent = `${annotationCount} Genius annotation${annotationCount === 1 ? "" : "s"}`;
         annotationBadge.classList.remove("lyrics-hidden");
+        annotationBadge.setAttribute("role", "button");
+        annotationBadge.setAttribute("tabindex", "0");
+        annotationBadge.title = annotationCount > 0 ? "Show Genius annotations for this song" : "No Genius annotations";
+        if (annotationCount > 0) {
+            void loadGeniusSongReferents(Number(geniusSong.id)).catch(() => {});
+        }
 
         const geniusDescription = String(geniusSong.description || "").trim();
         if (geniusDescription && geniusDescription !== "?") {
@@ -5056,9 +5356,18 @@
             return;
         }
 
+        if (data.type === GENIUS_EMBED_CHILD_MESSAGE) {
+            void handleGeniusChildMessage(data.songId, data.payload);
+            return;
+        }
+
         if (data.type === GENIUS_EMBED_INTERACTION_MESSAGE) {
-            // Let Genius handle its own highlighted-lyric click. Re-measure only;
-            // never replace/navigate the embed from the parent page.
+            // The current Genius embed is cross-origin. A click can be detected
+            // as an iframe focus transition even though the host page cannot
+            // inspect the clicked <a>. Try to resolve an exact ID from Genius's
+            // own postMessage traffic; otherwise expose the song's annotation
+            // index in the existing side panel.
+            handleGeniusEmbedInteraction(data.songId);
             window.setTimeout(() => resizeGeniusEmbedFrame(frame), 50);
             window.setTimeout(() => resizeGeniusEmbedFrame(frame), 300);
             window.setTimeout(() => resizeGeniusEmbedFrame(frame), 1000);
@@ -5208,9 +5517,39 @@
 
 
 
+    // Same-origin annotated lyric spans (used by the older native-composition
+    // path and retained as a forward-compatible fallback).
+    embedContainer.addEventListener("click", handleNativeGeniusLyricsClick);
+
     if (geniusAnnotationClose) {
         geniusAnnotationClose.addEventListener("click", closeGeniusAnnotationPanel);
     }
+
+    if (annotationBadge) {
+        annotationBadge.addEventListener("click", () => {
+            if (lastGeniusSongId && currentGeniusAnnotationCount > 0) {
+                void showGeniusAnnotationIndex(lastGeniusSongId, "badge");
+            }
+        });
+        annotationBadge.addEventListener("keydown", (event) => {
+            if ((event.key === "Enter" || event.key === " ") && lastGeniusSongId && currentGeniusAnnotationCount > 0) {
+                event.preventDefault();
+                void showGeniusAnnotationIndex(lastGeniusSongId, "badge");
+            }
+        });
+    }
+
+    // Chrome and Firefox both make the outer iframe the active element when a
+    // user enters/clicks its nested Genius browsing context. This top-level
+    // focus hook complements the srcdoc blur bridge and is intentionally
+    // de-duplicated by handleGeniusEmbedInteraction().
+    window.addEventListener("blur", () => {
+        window.setTimeout(() => {
+            if (activeEmbedFrame && document.activeElement === activeEmbedFrame) {
+                handleGeniusEmbedInteraction(lastGeniusSongId);
+            }
+        }, 0);
+    });
 
     refreshButton.addEventListener("click", () => {
         previousRestartArmedUntil = 0;

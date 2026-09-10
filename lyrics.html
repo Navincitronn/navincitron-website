@@ -202,6 +202,15 @@
             padding: 5px 9px;
         }
 
+        #lyrics-annotation-badge[role="button"] {
+            cursor: pointer;
+        }
+
+        #lyrics-annotation-badge[role="button"]:focus-visible {
+            outline: 2px solid #40bcf4;
+            outline-offset: 2px;
+        }
+
         .lyrics-description {
             color: #eeeeee;
             font-size: 16px;
@@ -503,6 +512,56 @@
             display: inline-block;
             font-weight: 700;
             margin-top: 16px;
+        }
+
+        .lyrics-genius-focus-sink {
+            height: 1px;
+            left: -10000px;
+            opacity: 0;
+            overflow: hidden;
+            pointer-events: none;
+            position: fixed;
+            top: -10000px;
+            width: 1px;
+        }
+
+        .lyrics-genius-annotation-bridge-note {
+            color: #555555;
+            font-size: 0.86rem;
+            line-height: 1.45;
+            margin: 0 0 14px;
+        }
+
+        .lyrics-genius-annotation-list-entry {
+            display: block;
+        }
+
+        .lyrics-genius-annotation-list-fragment {
+            background: #ececea;
+            border: 1px solid #c8c8c4;
+            border-radius: 5px;
+            color: #111111;
+            cursor: pointer;
+            display: block;
+            font: inherit;
+            font-weight: 700;
+            line-height: 1.4;
+            padding: 8px 10px;
+            text-align: left;
+            width: 100%;
+        }
+
+        .lyrics-genius-annotation-list-fragment:hover,
+        .lyrics-genius-annotation-list-fragment:focus-visible {
+            background: #ffff64;
+            outline: none;
+        }
+
+        .lyrics-genius-annotation-list-preview {
+            color: #444444;
+            font-size: 0.9rem;
+            line-height: 1.45;
+            margin-top: 7px;
         }
 
         .lyrics-genius-fallback-note {
@@ -1054,6 +1113,7 @@
                         <a id="lyrics-genius-annotation-link" class="lyrics-genius-annotation-link" href="https://genius.com" target="_blank" rel="noopener noreferrer" hidden>View on Genius</a>
                     </aside>
                 </div>
+                <button id="lyrics-genius-focus-sink" class="lyrics-genius-focus-sink" type="button" tabindex="-1" aria-hidden="true"></button>
             </section>
 
 
@@ -1184,6 +1244,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260910-stable-genius-embed-v26"></script>
+    <script src="lyrics.js?v=20260910-genius-annotation-bridge-v27"></script>
 </body>
 </html>
