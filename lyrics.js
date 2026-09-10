@@ -4718,13 +4718,21 @@
             activeEmbedFrame = null;
         } catch (error) {
             if (renderToken !== geniusEmbedRenderToken || songId !== lastGeniusSongId) return;
-            console.warn("Same-origin Genius annotation renderer unavailable; falling back to official embed.", error);
-            renderGeniusOfficialEmbed(geniusSong);
+            console.warn("Same-origin Genius annotation renderer unavailable.", error);
+            embedContainer.replaceChildren();
             const note = document.createElement("div");
             note.className = "lyrics-genius-fallback-note";
             const detail = String(error && error.message || error || "Unknown backend error");
-            note.textContent = `Interactive annotations could not be loaded. Backend detail: ${detail} The official Genius embed is shown only as a lyrics fallback.`;
-            embedContainer.prepend(note);
+            note.textContent = `Interactive lyrics/annotations could not be composed. Backend detail: ${detail}`;
+            embedContainer.appendChild(note);
+
+            const openLink = document.createElement("a");
+            openLink.className = "lyrics-genius-open-link";
+            openLink.href = geniusSong.url || `https://genius.com/songs/${songId}`;
+            openLink.target = "_blank";
+            openLink.rel = "noopener noreferrer";
+            openLink.textContent = "Open this song on Genius";
+            embedContainer.appendChild(openLink);
         }
     }
 
