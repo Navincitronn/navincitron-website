@@ -4713,18 +4713,15 @@
         if (!Number.isFinite(id) || id <= 0 || id !== lastGeniusSongId) return;
         if (currentGeniusAnnotationCount <= 0) return;
 
+        // A generic focus transition only proves that the user interacted with
+        // Genius's cross-origin iframe. It does not identify the highlighted lyric,
+        // so never substitute the whole-song annotation index here. Exact annotation
+        // rendering is driven only by a child payload containing a referent or
+        // annotation ID/URL.
         if (geniusEmbedInteractionFallbackTimer) {
             window.clearTimeout(geniusEmbedInteractionFallbackTimer);
-        }
-
-        // Give Genius a short window to send a child-frame message containing
-        // the clicked referent/annotation ID. If it does not expose that detail,
-        // open the song's annotation index rather than doing nothing.
-        geniusEmbedInteractionFallbackTimer = window.setTimeout(() => {
             geniusEmbedInteractionFallbackTimer = null;
-            if (Date.now() - lastExactGeniusReferentAt < 500) return;
-            showGeniusAnnotationIndex(id, "embed");
-        }, 180);
+        }
 
         rearmGeniusEmbedInteractionDetection();
     }
@@ -4840,6 +4837,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src * data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; frame-src https://genius.com/songs/${songId}/ https://www.genius.com/songs/${songId}/;"
+    >
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base target="_blank">
     <style>
@@ -4907,6 +4908,27 @@
                 }, '*');
             };
 
+            // Genius's highlighted lyric anchors navigate to URLs shaped like
+            // https://genius.com/<referent-id>/... . The child iframe is cross-origin,
+            // so the parent cannot inspect that anchor directly. The frame-src CSP
+            // above allows the normal /songs/<id>/ embed but blocks annotation-page
+            // navigation. securitypolicyviolation then reveals the blocked target URL
+            // to this same-origin wrapper, giving the parent the exact referent ID.
+            window.addEventListener('securitypolicyviolation', (event) => {
+                const blockedUri = String(event && event.blockedURI || '');
+                const directive = String(event && (event.effectiveDirective || event.violatedDirective) || '');
+                if (!/frame-src|child-src/i.test(directive)) return;
+                if (!/^https:\/\/(?:www\.)?genius\.com\/\d+(?:\/|$)/i.test(blockedUri)) return;
+                parent.postMessage({
+                    type: '${GENIUS_EMBED_CHILD_MESSAGE}',
+                    songId: ${songId},
+                    payload: {
+                        type: 'blocked-genius-annotation-navigation',
+                        url: blockedUri
+                    }
+                }, '*');
+            });
+
             // Preserve any structured messages that Genius's own embedded frame
             // sends to its host. If a current/future embed message contains a
             // referent or annotation ID, the top-level page can resolve the
@@ -4914,7 +4936,7 @@
             // cross-origin child DOM.
             window.addEventListener('message', (event) => {
                 const childFrame = document.querySelector('iframe');
-                if (!childFrame || event.source !== childFrame.contentWindow) return;
+                if (!childFrame || event.source === parent || event.source === window) return;
                 try {
                     parent.postMessage({
                         type: '${GENIUS_EMBED_CHILD_MESSAGE}',
@@ -5362,11 +5384,10 @@
         }
 
         if (data.type === GENIUS_EMBED_INTERACTION_MESSAGE) {
-            // The current Genius embed is cross-origin. A click can be detected
-            // as an iframe focus transition even though the host page cannot
-            // inspect the clicked <a>. Try to resolve an exact ID from Genius's
-            // own postMessage traffic; otherwise expose the song's annotation
-            // index in the existing side panel.
+            // The current Genius embed is cross-origin. A focus transition alone
+            // cannot identify the clicked lyric. Exact annotation opening therefore
+            // happens only when the child bridge supplies a referent/annotation ID
+            // or URL; generic iframe clicks never open every annotation.
             handleGeniusEmbedInteraction(data.songId);
             window.setTimeout(() => resizeGeniusEmbedFrame(frame), 50);
             window.setTimeout(() => resizeGeniusEmbedFrame(frame), 300);
