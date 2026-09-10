@@ -419,7 +419,7 @@
             background-color: #969693;
             color: #111111;
             box-sizing: border-box;
-            font-family: Arial, sans-serif;
+            font-family: "Times New Roman", Times, serif;
             font-size: 16px;
             line-height: 1.65;
             min-height: 220px;
@@ -432,23 +432,30 @@
         }
 
         .lyrics-genius-annotated-fragment {
-            background-color: rgba(154, 154, 151, 0.48);
+            background-color: #ffff64;
             border-radius: 2px;
-            color: inherit;
+            color: #111111;
             cursor: pointer;
             text-decoration: none;
-            transition: background-color 0.14s ease;
+            transition: filter 0.14s ease, box-shadow 0.14s ease;
         }
 
         .lyrics-genius-annotated-fragment:hover,
         .lyrics-genius-annotated-fragment:focus-visible,
         .lyrics-genius-annotated-fragment.is-active {
-            background-color: rgba(255, 255, 100, 0.82);
+            background-color: #ffff64;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.28);
+            filter: brightness(0.96);
             outline: none;
+        }
+
+        .lyrics-genius-section-heading {
+            font-weight: 700;
         }
 
         .lyrics-genius-annotation-panel {
             background-color: #444444;
+            font-family: "Times New Roman", Times, serif;
             border: 1px solid #5d5d5d;
             border-radius: 8px;
             box-sizing: border-box;
@@ -1247,6 +1254,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260910-native-genius-annotations-v29"></script>
+    <script src="lyrics.js?v=20260910-genius-verbatim-v30"></script>
 </body>
 </html>
