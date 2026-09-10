@@ -4722,7 +4722,8 @@
             renderGeniusOfficialEmbed(geniusSong);
             const note = document.createElement("div");
             note.className = "lyrics-genius-fallback-note";
-            note.textContent = "Interactive annotations could not be loaded through the backend. The official Genius embed is shown as a fallback; annotation links may open on Genius instead.";
+            const detail = String(error && error.message || error || "Unknown backend error");
+            note.textContent = `Interactive annotations could not be loaded. Backend detail: ${detail} The official Genius embed is shown only as a lyrics fallback.`;
             embedContainer.prepend(note);
         }
     }
