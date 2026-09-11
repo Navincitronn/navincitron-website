@@ -5123,6 +5123,224 @@
         }, 10000);
     }
 
+
+    function geniusReferentIdFromHref(href) {
+        const raw = String(href || "").trim();
+        if (!raw) return null;
+        try {
+            const parsed = new URL(raw, "https://genius.com/");
+            if (!/(^|\.)genius\.com$/i.test(parsed.hostname)) return null;
+            const match = parsed.pathname.match(/^\/(\d+)(?:\/|$)/);
+            if (!match) return null;
+            const id = Number(match[1]);
+            return Number.isFinite(id) && id > 0 ? id : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function decorateCapturedGeniusSectionHeadings(root) {
+        if (!root || !root.ownerDocument) return;
+        const doc = root.ownerDocument;
+        const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+
+        for (const textNode of nodes) {
+            const text = String(textNode.nodeValue || "");
+            const match = text.match(/^(\s*)(\[[^\[\]\r\n]{1,160}\])(\s*)$/);
+            if (!match || !textNode.parentNode) continue;
+            const fragment = doc.createDocumentFragment();
+            if (match[1]) fragment.appendChild(doc.createTextNode(match[1]));
+            const span = doc.createElement("span");
+            span.className = "lyrics-genius-section-heading";
+            span.textContent = match[2];
+            fragment.appendChild(span);
+            if (match[3]) fragment.appendChild(doc.createTextNode(match[3]));
+            textNode.parentNode.replaceChild(fragment, textNode);
+        }
+    }
+
+    function sanitizeCapturedGeniusLyricsDocument(sourceDocument) {
+        if (!sourceDocument) return null;
+
+        const sourceRoot =
+            sourceDocument.querySelector(".rg_embed_body") ||
+            sourceDocument.querySelector("[data-lyrics-container]") ||
+            sourceDocument.querySelector(".lyrics") ||
+            sourceDocument.body;
+        if (!sourceRoot) return null;
+
+        const scratch = document.createElement("div");
+        const allowedTags = new Set(["A", "B", "BR", "DIV", "EM", "I", "P", "SPAN", "STRONG"]);
+        const blockedSelectors = [
+            "script", "style", "noscript", "svg", "img", "button", "form", "input", "textarea",
+            "[aria-hidden='true']", "[data-exclude-from-selection='true']"
+        ].join(",");
+
+        function cloneNode(node, parent) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                parent.appendChild(document.createTextNode(node.nodeValue || ""));
+                return;
+            }
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            const element = node;
+            if (element.matches && element.matches(blockedSelectors)) return;
+
+            const tag = element.tagName.toUpperCase();
+            if (!allowedTags.has(tag)) {
+                for (const child of Array.from(element.childNodes)) cloneNode(child, parent);
+                return;
+            }
+
+            let clone;
+            if (tag === "A") {
+                const href = String(element.getAttribute("href") || "").trim();
+                const referentId = geniusReferentIdFromHref(href);
+                if (referentId) {
+                    clone = document.createElement("a");
+                    clone.className = "lyrics-genius-annotated-fragment";
+                    clone.dataset.geniusReferentId = String(referentId);
+                    clone.href = new URL(href, "https://genius.com/").href;
+                } else {
+                    // Non-annotation Genius links are presentation chrome in the
+                    // embed. Preserve their visible text, not their navigation.
+                    clone = document.createElement("span");
+                }
+            } else {
+                clone = document.createElement(tag.toLowerCase());
+            }
+
+            parent.appendChild(clone);
+            if (tag === "BR") return;
+            for (const child of Array.from(element.childNodes)) cloneNode(child, clone);
+        }
+
+        for (const child of Array.from(sourceRoot.childNodes)) cloneNode(child, scratch);
+        decorateCapturedGeniusSectionHeadings(scratch);
+
+        const plainText = String(scratch.textContent || "").trim();
+        if (!plainText || plainText.length < 20) return null;
+
+        // The official embed can include small pieces of provider chrome around
+        // the lyric body. Remove known labels while leaving the transcription,
+        // line breaks, section headings, and annotation anchors untouched.
+        for (const element of Array.from(scratch.querySelectorAll("*"))) {
+            const text = String(element.textContent || "").trim();
+            if (/^(?:powered by genius|read .+ on genius)$/i.test(text) && !element.querySelector("[data-genius-referent-id]")) {
+                element.remove();
+            }
+        }
+
+        return {
+            html: `<div class="lyrics-genius-verse">${scratch.innerHTML}</div>`,
+            annotationMatchCount: scratch.querySelectorAll("[data-genius-referent-id]").length,
+        };
+    }
+
+    function extractCapturedGeniusLyrics(captureHost, writtenMarkup) {
+        const candidates = [];
+
+        for (const frame of Array.from(captureHost.querySelectorAll("iframe"))) {
+            const srcdoc = String(frame.getAttribute("srcdoc") || frame.srcdoc || "").trim();
+            if (srcdoc) candidates.push(srcdoc);
+        }
+
+        const combined = String(writtenMarkup || "").trim();
+        if (combined) candidates.push(combined);
+
+        for (const candidate of candidates) {
+            try {
+                const parsed = new DOMParser().parseFromString(candidate, "text/html");
+                const result = sanitizeCapturedGeniusLyricsDocument(parsed);
+                if (result && result.html) return result;
+            } catch (_) {
+                // Try the next captured representation.
+            }
+        }
+        return null;
+    }
+
+    async function captureNativeLyricsFromOfficialGeniusEmbed(geniusSong, songId, renderToken) {
+        const scriptUrl = geniusSong.embedScriptUrl || `https://genius.com/songs/${songId}/embed.js`;
+        const captureHost = document.createElement("div");
+        captureHost.setAttribute("aria-hidden", "true");
+        Object.assign(captureHost.style, {
+            position: "fixed",
+            left: "-20000px",
+            top: "0",
+            width: "900px",
+            height: "1px",
+            overflow: "hidden",
+            visibility: "hidden",
+            pointerEvents: "none",
+        });
+
+        const embedLink = document.createElement("div");
+        embedLink.id = `rg_embed_link_${songId}`;
+        embedLink.className = "rg_embed_link";
+        embedLink.dataset.songId = String(songId);
+        const anchor = document.createElement("a");
+        anchor.href = geniusSong.url || `https://genius.com/songs/${songId}`;
+        anchor.textContent = geniusSong.title || "Genius lyrics";
+        embedLink.appendChild(anchor);
+        captureHost.appendChild(embedLink);
+        document.body.appendChild(captureHost);
+
+        const written = [];
+        const originalWrite = document.write;
+        const originalWriteln = document.writeln;
+        let settled = false;
+
+        const appendCapturedMarkup = markup => {
+            const text = String(markup || "");
+            if (!text) return;
+            written.push(text);
+            const template = document.createElement("template");
+            template.innerHTML = text;
+            captureHost.appendChild(template.content);
+        };
+
+        const writeProxy = (...parts) => appendCapturedMarkup(parts.join(""));
+        const writelnProxy = (...parts) => appendCapturedMarkup(`${parts.join("")}\n`);
+        document.write = writeProxy;
+        document.writeln = writelnProxy;
+
+        const restore = () => {
+            if (document.write === writeProxy) document.write = originalWrite;
+            if (document.writeln === writelnProxy) document.writeln = originalWriteln;
+        };
+
+        try {
+            const script = document.createElement("script");
+            script.crossOrigin = "anonymous";
+            script.async = true;
+            script.src = scriptUrl;
+
+            await new Promise((resolve, reject) => {
+                const timer = window.setTimeout(() => reject(new Error("Timed out loading the Genius embed script.")), 6500);
+                script.addEventListener("load", () => {
+                    window.clearTimeout(timer);
+                    resolve();
+                }, { once: true });
+                script.addEventListener("error", () => {
+                    window.clearTimeout(timer);
+                    reject(new Error("The Genius embed script could not be loaded."));
+                }, { once: true });
+                document.head.appendChild(script);
+            });
+
+            // document.write() calls normally happen synchronously while embed.js
+            // executes, but give the generated iframe/srcdoc one event turn to land.
+            await new Promise(resolve => window.setTimeout(resolve, 120));
+            if (renderToken !== geniusEmbedRenderToken || lastGeniusSongId !== songId) return null;
+            return extractCapturedGeniusLyrics(captureHost, written.join("\n"));
+        } finally {
+            restore();
+            captureHost.remove();
+        }
+    }
+
     async function renderGeniusNativeLyrics(geniusSong) {
         const songId = Number(geniusSong && geniusSong.id);
         if (!Number.isFinite(songId) || songId <= 0) {
@@ -5157,6 +5375,30 @@
         embedContainer.appendChild(placeholder);
 
         try {
+            // The browser can load Genius's official embed script even when the
+            // cloud backend receives 403s from genius.com. Capture the embed's
+            // generated srcdoc before it becomes a cross-origin iframe, sanitize
+            // it, and render that exact Genius transcription in NAVINCITRON's DOM.
+            // This preserves [Verse], [Refrain], [Pre-Chorus], [Chorus], etc.
+            // verbatim while retaining exact numeric Genius referent links.
+            try {
+                const captured = await captureNativeLyricsFromOfficialGeniusEmbed(geniusSong, songId, renderToken);
+                if (renderToken !== geniusEmbedRenderToken || lastGeniusSongId !== songId) return;
+                if (captured && String(captured.html || "").trim()) {
+                    const host = document.createElement("div");
+                    host.className = "lyrics-genius-native-host";
+                    host.dataset.songId = String(songId);
+                    host.dataset.lyricsSource = "genius_official_embed_capture";
+                    host.innerHTML = String(captured.html || "");
+                    embedContainer.replaceChildren(host);
+                    geniusNativeLyricsState = "ready";
+                    return;
+                }
+            } catch (_) {
+                // Fall through to the backend compositor. This remains useful for
+                // browsers/provider changes where Genius stops emitting srcdoc.
+            }
+
             const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-content/${encodeURIComponent(songId)}`, {
                 method: "GET",
                 credentials: "include",
