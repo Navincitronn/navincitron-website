@@ -95,6 +95,7 @@
     let previousRestartArmedUntil = 0;
     let currentGeniusAnnotationCount = 0;
     let activeGeniusAnnotationElement = null;
+    let lastClickedGeniusAnnotationElement = null;
     let geniusAnnotationRequestToken = 0;
     const geniusReferentCache = new Map();
     const geniusSongReferentsCache = new Map();
@@ -4386,7 +4387,12 @@
         restorePendingGeniusDocumentWrite();
     }
 
-    function closeGeniusAnnotationPanel() {
+    function closeGeniusAnnotationPanel(options = {}) {
+        const restoreSource = Boolean(options && options.restoreSource);
+        const restoreTarget = restoreSource && lastClickedGeniusAnnotationElement && lastClickedGeniusAnnotationElement.isConnected
+            ? lastClickedGeniusAnnotationElement
+            : null;
+
         geniusAnnotationRequestToken += 1;
         if (activeGeniusAnnotationElement) {
             activeGeniusAnnotationElement.classList.remove("is-active");
@@ -4400,6 +4406,26 @@
             geniusAnnotationLink.hidden = true;
             geniusAnnotationLink.href = "https://genius.com";
         }
+
+        // On phones/tablets the annotation is a fixed side drawer. When the user
+        // explicitly closes it, return the document to the highlighted lyric that
+        // opened the drawer, even if they scrolled while reading the annotation.
+        if (restoreTarget) {
+            window.requestAnimationFrame(() => {
+                if (!restoreTarget.isConnected) return;
+                restoreTarget.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+            });
+        }
+    }
+
+    function geniusDisplayedFragmentText(sourceElement, fallbackText = "") {
+        if (sourceElement instanceof HTMLElement) {
+            // innerText preserves visible <br> / line-boundary breaks from the
+            // locally rendered Genius transcription; textContent does not.
+            const visibleText = String(sourceElement.innerText || "").replace(/\r\n?/g, "\n").trim();
+            if (visibleText) return visibleText;
+        }
+        return String(fallbackText || "").replace(/\r\n?/g, "\n").trim();
     }
 
     function setGeniusAnnotationLoading(fragmentText, sourceElement = null) {
@@ -4410,7 +4436,7 @@
         if (activeGeniusAnnotationElement) activeGeniusAnnotationElement.classList.add("is-active");
         if (geniusLayout) geniusLayout.classList.add("has-annotation");
         if (geniusAnnotationPanel) geniusAnnotationPanel.hidden = false;
-        if (geniusAnnotationFragment) geniusAnnotationFragment.textContent = fragmentText || "Annotated lyric";
+        if (geniusAnnotationFragment) geniusAnnotationFragment.textContent = geniusDisplayedFragmentText(sourceElement, fragmentText) || "Annotated lyric";
         if (geniusAnnotationContent) {
             geniusAnnotationContent.replaceChildren();
             const loading = document.createElement("p");
@@ -4421,7 +4447,7 @@
     }
 
     function renderGeniusReferent(referent, sourceElement = null) {
-        const fragment = String(referent && referent.fragment || sourceElement && sourceElement.textContent || "Annotated lyric").trim();
+        const fragment = geniusDisplayedFragmentText(sourceElement, referent && referent.fragment || "Annotated lyric");
         if (geniusAnnotationFragment) geniusAnnotationFragment.textContent = fragment;
         if (!geniusAnnotationContent) return;
         geniusAnnotationContent.replaceChildren();
@@ -4608,13 +4634,13 @@
     function setExactGeniusAnnotationCount(count) {
         const numeric = Math.max(0, Number(count) || 0);
         currentGeniusAnnotationCount = numeric;
-        annotationBadge.textContent = `${numeric} Genius annotation${numeric === 1 ? "" : "s"}`;
+        annotationBadge.textContent = `${numeric} annotation${numeric === 1 ? "" : "s"}`;
         annotationBadge.classList.remove("lyrics-hidden");
         annotationBadge.removeAttribute("role");
         annotationBadge.removeAttribute("tabindex");
         annotationBadge.title = numeric > 0
-            ? "Number of lyric annotations on this Genius song"
-            : "No lyric annotations on this Genius song";
+            ? "Number of annotated lyric passages on this song"
+            : "No annotated lyric passages on this song";
     }
 
     async function refreshExactGeniusAnnotationCount(songId) {
@@ -4772,7 +4798,10 @@
     async function openGeniusAnnotation(referentId, sourceElement) {
         const id = Number(referentId);
         if (!Number.isFinite(id) || id <= 0) return;
-        const fragment = String(sourceElement && sourceElement.textContent || "").trim();
+        if (sourceElement instanceof HTMLElement && sourceElement.isConnected) {
+            lastClickedGeniusAnnotationElement = sourceElement;
+        }
+        const fragment = geniusDisplayedFragmentText(sourceElement, "");
         setGeniusAnnotationLoading(fragment, sourceElement);
         const requestToken = ++geniusAnnotationRequestToken;
 
@@ -4834,6 +4863,7 @@
             geniusEmbedInteractionFallbackTimer = null;
         }
         currentGeniusAnnotationCount = 0;
+        lastClickedGeniusAnnotationElement = null;
         lastGeniusSongId = null;
         geniusNativeLyricsSongId = null;
         geniusNativeLyricsState = "idle";
@@ -5873,7 +5903,7 @@
     embedContainer.addEventListener("click", handleNativeGeniusLyricsClick);
 
     if (geniusAnnotationClose) {
-        geniusAnnotationClose.addEventListener("click", closeGeniusAnnotationPanel);
+        geniusAnnotationClose.addEventListener("click", () => closeGeniusAnnotationPanel({ restoreSource: true }));
     }
 
 

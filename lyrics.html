@@ -498,6 +498,7 @@
             line-height: 1.5;
             margin: 0 0 16px;
             padding-left: 12px;
+            white-space: pre-line;
         }
 
         .lyrics-genius-annotation-entry + .lyrics-genius-annotation-entry {
@@ -820,9 +821,10 @@
             display: none !important;
         }
 
-        /* On phones and tablets the annotation is part of document flow after the
-           complete lyric transcription. This avoids a narrow/overlapping sidebar
-           and keeps it reachable at the bottom of the lyrics on iPhone/iPad. */
+        /* Phones and tablets use a right-side drawer rather than placing the
+           annotation after the entire transcription. The lyric document therefore
+           stays at the clicked passage while the annotation remains independently
+           scrollable. Safe-area insets keep the drawer clear of iPhone/iPad edges. */
         @media only screen and (max-width: 1180px), (hover: none) and (pointer: coarse) {
             .lyrics-genius-layout.has-annotation {
                 grid-template-columns: minmax(0, 1fr);
@@ -834,13 +836,20 @@
             }
 
             .lyrics-genius-annotation-panel {
-                grid-column: 1;
-                grid-row: 2;
-                margin-top: 0;
+                bottom: max(10px, env(safe-area-inset-bottom));
+                box-shadow: -8px 0 24px rgba(0, 0, 0, 0.38);
+                grid-column: auto;
+                grid-row: auto;
+                left: auto;
+                margin: 0;
                 max-height: none;
-                position: static;
-                top: auto;
-                width: 100%;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                position: fixed;
+                right: max(10px, env(safe-area-inset-right));
+                top: max(10px, env(safe-area-inset-top));
+                width: min(88vw, 420px);
+                z-index: 2200;
             }
         }
 
@@ -1316,6 +1325,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260911-rich-annotation-v32"></script>
+    <script src="lyrics.js?v=20260911-mobile-annotation-drawer-v33"></script>
 </body>
 </html>
