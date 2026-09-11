@@ -508,6 +508,53 @@
 
         .lyrics-genius-annotation-body {
             line-height: 1.6;
+            white-space: normal;
+        }
+
+        .lyrics-genius-annotation-body p,
+        .lyrics-genius-annotation-body blockquote,
+        .lyrics-genius-annotation-body ul,
+        .lyrics-genius-annotation-body ol,
+        .lyrics-genius-annotation-body pre,
+        .lyrics-genius-annotation-body figure {
+            margin: 0 0 1em;
+        }
+
+        .lyrics-genius-annotation-body > :last-child {
+            margin-bottom: 0;
+        }
+
+        .lyrics-genius-annotation-body img {
+            border-radius: 4px;
+            display: block;
+            height: auto;
+            margin: 12px 0;
+            max-width: 100%;
+            object-fit: contain;
+        }
+
+        .lyrics-genius-annotation-body figure {
+            max-width: 100%;
+        }
+
+        .lyrics-genius-annotation-body figcaption {
+            color: #cccccc;
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        .lyrics-genius-annotation-body blockquote {
+            border-left: 3px solid #777777;
+            margin-left: 0;
+            padding-left: 12px;
+        }
+
+        .lyrics-genius-annotation-body a {
+            color: #ffff64;
+        }
+
+        .lyrics-genius-annotation-body pre {
+            overflow-x: auto;
             white-space: pre-wrap;
         }
 
@@ -773,16 +820,31 @@
             display: none !important;
         }
 
-        @media only screen and (max-width: 700px) {
+        /* On phones and tablets the annotation is part of document flow after the
+           complete lyric transcription. This avoids a narrow/overlapping sidebar
+           and keeps it reachable at the bottom of the lyrics on iPhone/iPad. */
+        @media only screen and (max-width: 1180px), (hover: none) and (pointer: coarse) {
             .lyrics-genius-layout.has-annotation {
                 grid-template-columns: minmax(0, 1fr);
             }
 
-            .lyrics-genius-annotation-panel {
-                max-height: none;
-                position: static;
+            .lyrics-embed-container {
+                grid-column: 1;
+                grid-row: 1;
             }
 
+            .lyrics-genius-annotation-panel {
+                grid-column: 1;
+                grid-row: 2;
+                margin-top: 0;
+                max-height: none;
+                position: static;
+                top: auto;
+                width: 100%;
+            }
+        }
+
+        @media only screen and (max-width: 700px) {
             .lyrics-page {
                 padding: 14px;
             }
@@ -1115,8 +1177,8 @@
                     </div>
                     <aside id="lyrics-genius-annotation-panel" class="lyrics-genius-annotation-panel" aria-live="polite" hidden>
                         <div class="lyrics-genius-annotation-header">
-                            <h3>Genius Annotation</h3>
-                            <button id="lyrics-genius-annotation-close" class="lyrics-genius-annotation-close" type="button" aria-label="Close Genius annotation">×</button>
+                            <h3>Annotation</h3>
+                            <button id="lyrics-genius-annotation-close" class="lyrics-genius-annotation-close" type="button" aria-label="Close annotation">×</button>
                         </div>
                         <blockquote id="lyrics-genius-annotation-fragment" class="lyrics-genius-annotation-fragment"></blockquote>
                         <div id="lyrics-genius-annotation-content"></div>
@@ -1254,6 +1316,6 @@
         })();
     </script>
 
-    <script src="lyrics.js?v=20260910-genius-embed-capture-v31"></script>
+    <script src="lyrics.js?v=20260911-rich-annotation-v32"></script>
 </body>
 </html>

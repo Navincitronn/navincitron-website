@@ -4414,7 +4414,7 @@
         if (geniusAnnotationContent) {
             geniusAnnotationContent.replaceChildren();
             const loading = document.createElement("p");
-            loading.textContent = "Loading Genius annotation…";
+            loading.textContent = "Loading annotation…";
             geniusAnnotationContent.appendChild(loading);
         }
         if (geniusAnnotationLink) geniusAnnotationLink.hidden = true;
@@ -4441,7 +4441,15 @@
 
             const body = document.createElement("div");
             body.className = "lyrics-genius-annotation-body";
-            body.textContent = String(annotation && annotation.body || "").trim();
+            const richBody = String(annotation && annotation.bodyHtml || "").trim();
+            if (richBody) {
+                // bodyHtml is allowlist-sanitized by app.py. Keeping the markup here
+                // preserves Genius paragraph breaks, explicit <br> elements, emphasis,
+                // links, lists, blockquotes, and embedded images.
+                body.innerHTML = richBody;
+            } else {
+                body.textContent = String(annotation && annotation.body || "").trim();
+            }
             article.appendChild(body);
 
             const authors = Array.isArray(annotation && annotation.authors)
@@ -4596,6 +4604,37 @@
         return null;
     }
 
+
+    function setExactGeniusAnnotationCount(count) {
+        const numeric = Math.max(0, Number(count) || 0);
+        currentGeniusAnnotationCount = numeric;
+        annotationBadge.textContent = `${numeric} Genius annotation${numeric === 1 ? "" : "s"}`;
+        annotationBadge.classList.remove("lyrics-hidden");
+        annotationBadge.removeAttribute("role");
+        annotationBadge.removeAttribute("tabindex");
+        annotationBadge.title = numeric > 0
+            ? "Number of lyric annotations on this Genius song"
+            : "No lyric annotations on this Genius song";
+    }
+
+    async function refreshExactGeniusAnnotationCount(songId) {
+        const id = Number(songId);
+        if (!Number.isFinite(id) || id <= 0) return;
+        try {
+            const referents = await loadGeniusSongReferents(id);
+            if (id !== lastGeniusSongId) return;
+            const exactCount = referents.reduce((total, referent) => {
+                const annotations = Array.isArray(referent && referent.annotations) ? referent.annotations : [];
+                return total + annotations.length;
+            }, 0);
+            setExactGeniusAnnotationCount(exactCount);
+        } catch (_) {
+            // If the referents request fails, retain the metadata-derived count rather
+            // than hiding the badge entirely. Successful loads always replace it with
+            // the non-description lyric-annotation count above.
+        }
+    }
+
     function renderGeniusReferentCollection(referents) {
         if (!geniusAnnotationContent) return;
         geniusAnnotationContent.replaceChildren();
@@ -4739,7 +4778,11 @@
 
         try {
             let referent = geniusReferentCache.get(id);
-            if (!referent) {
+            const cachedHasRichBody = Boolean(
+                referent && Array.isArray(referent.annotations) &&
+                referent.annotations.some((annotation) => String(annotation && annotation.bodyHtml || "").trim())
+            );
+            if (!referent || !cachedHasRichBody) {
                 const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-referent/${encodeURIComponent(id)}`, {
                     method: "GET",
                     credentials: "include",
@@ -5392,6 +5435,13 @@
                     host.innerHTML = String(captured.html || "");
                     embedContainer.replaceChildren(host);
                     geniusNativeLyricsState = "ready";
+                    const renderedReferentIds = new Set(
+                        Array.from(host.querySelectorAll("[data-genius-referent-id]"))
+                            .map((element) => String(element.dataset.geniusReferentId || "").trim())
+                            .filter(Boolean)
+                    );
+                    setExactGeniusAnnotationCount(renderedReferentIds.size);
+                    void refreshExactGeniusAnnotationCount(songId);
                     return;
                 }
             } catch (_) {
@@ -5426,10 +5476,13 @@
             host.innerHTML = String(data.lyricsHtml || "");
             embedContainer.replaceChildren(host);
             geniusNativeLyricsState = "ready";
-
-            // Keep the Genius song's annotationCount badge unchanged.  A song can
-            // contain multiple annotations associated with one lyric referent, so
-            // counting highlighted anchors is not the same measurement.
+            const renderedReferentIds = new Set(
+                Array.from(host.querySelectorAll("[data-genius-referent-id]"))
+                    .map((element) => String(element.dataset.geniusReferentId || "").trim())
+                    .filter(Boolean)
+            );
+            setExactGeniusAnnotationCount(renderedReferentIds.size);
+            void refreshExactGeniusAnnotationCount(songId);
         } catch (error) {
             if (renderToken !== geniusEmbedRenderToken || lastGeniusSongId !== songId) return;
             geniusNativeLyricsState = "error";
@@ -5569,11 +5622,11 @@
 
         const annotationCount = Number(geniusSong.annotationCount || 0);
         currentGeniusAnnotationCount = Number.isFinite(annotationCount) ? annotationCount : 0;
-        annotationBadge.textContent = `${annotationCount} Genius annotation${annotationCount === 1 ? "" : "s"}`;
-        annotationBadge.classList.remove("lyrics-hidden");
-        annotationBadge.removeAttribute("role");
-        annotationBadge.removeAttribute("tabindex");
-        annotationBadge.title = annotationCount > 0 ? "Number of Genius annotations on this song" : "No Genius annotations";
+        // Genius song.annotation_count can include the song-description annotation,
+        // so it can report 1 even when there are zero annotated lyric fragments.
+        // Hide the badge until the non-description referents endpoint gives us the
+        // exact lyric-annotation count for this song.
+        annotationBadge.classList.add("lyrics-hidden");
 
         const geniusDescription = String(geniusSong.description || "").trim();
         if (geniusDescription && geniusDescription !== "?") {
@@ -5585,6 +5638,7 @@
         }
 
         void renderGeniusNativeLyrics(geniusSong);
+        void refreshExactGeniusAnnotationCount(Number(geniusSong.id));
         const playbackLabel = track.isPlaying ? "Now playing" : "Paused on";
         setStatus(`${playbackLabel}: ${track.artist} - ${track.title}`, "success");
     }
