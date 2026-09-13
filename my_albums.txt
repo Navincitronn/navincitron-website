@@ -12712,6 +12712,6 @@ UNFINISHED MASTERPIECE:
 Un Puesto Vacante: 7.2
 Kinkamache: 7.3
 Oyelo Que Te Conviene: 7.2
-Cobarde:
-Random Thoughts:
-Resemblance:
+Cobarde: 7.0
+Random Thoughts: 7.2
+Resemblance: 7.2
