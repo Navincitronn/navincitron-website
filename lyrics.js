@@ -1527,9 +1527,11 @@
     }
 
     function setStatus(message, type = "") {
-        statusElement.textContent = message;
+        const text = String(message || "").trim();
+        statusElement.textContent = text;
         statusElement.classList.toggle("error", type === "error");
         statusElement.classList.toggle("success", type === "success");
+        statusElement.hidden = !text;
     }
 
     function setAuthenticated(authenticated) {
@@ -5694,8 +5696,9 @@
 
         void renderGeniusNativeLyrics(geniusSong);
         void refreshExactGeniusAnnotationCount(Number(geniusSong.id));
-        const playbackLabel = track.isPlaying ? "Now playing" : "Paused on";
-        setStatus(`${playbackLabel}: ${track.artist} - ${track.title}`, "success");
+        // The song card already shows the current track and playback state.
+        // Do not duplicate it in a separate "Now playing" / "Paused on" status bar.
+        setStatus("");
     }
 
     async function fetchCurrentLyrics(force = false) {
