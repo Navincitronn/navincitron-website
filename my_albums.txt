@@ -12721,7 +12721,7 @@ Romance Dance: 2.0
 All That You Dream: 2.2
 Long Distance Love: 2.3
 Day Or Night: 3.0
-One Love Stand:
-Down Below The Borderline:
-Somebody's Leavin':
-Mercenary Territory:
+One Love Stand: 2.7
+Down Below The Borderline: 2.6
+Somebody's Leavin': 2.0
+Mercenary Territory: 2.0
