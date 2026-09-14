@@ -2787,7 +2787,12 @@
             const header = block[0].trim();
             const scoredHeader = header.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)%\s*$/);
             const unscoredHeader = header.match(/^(.+?):\s*$/);
-            const hasTrackLines = block.slice(1).some(line => /^.+?:\s*-?\d+(?:\.\d+)?(?:\s+.*)?$/.test(line.trim()));
+            const hasTrackLines = block.slice(1).some(line => {
+                const trimmed = line.trim();
+                return /^.+?:\s*-?\d+(?:\.\d+)?\s*\**(?:\s+.*)?$/.test(trimmed)
+                    || /^.+?:\s*[-—]\s*$/.test(trimmed)
+                    || /^.+?:\s*$/.test(trimmed);
+            });
             if (!scoredHeader && !(unscoredHeader && hasTrackLines)) continue;
 
             const entry = {
@@ -2802,13 +2807,19 @@
 
             for (const rawTrackLine of block.slice(1)) {
                 const line = rawTrackLine.trim();
-                const trackMatch = line.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)(?:\s+.*)?$/);
+                const trackMatch = line.match(/^(.+?):\s*(-?\d+(?:\.\d+)?)\s*(\**)(?:\s+.*)?$/);
                 if (trackMatch) {
-                    entry.tracks.push({ title: trackMatch[1].trim(), score: Number(trackMatch[2]) });
+                    entry.tracks.push({
+                        title: trackMatch[1].trim(),
+                        score: Number(trackMatch[2]),
+                        scoreSuffix: trackMatch[3] || "",
+                    });
                     continue;
                 }
-                const blankTrackMatch = line.match(/^(.+?):\s*$/);
-                if (blankTrackMatch) entry.tracks.push({ title: blankTrackMatch[1].trim(), score: null });
+                const blankTrackMatch = line.match(/^(.+?):\s*(?:[-—])?\s*$/);
+                if (blankTrackMatch) {
+                    entry.tracks.push({ title: blankTrackMatch[1].trim(), score: null, scoreSuffix: "" });
+                }
             }
             albums.push(entry);
         }
@@ -3097,9 +3108,20 @@
         return `${position}::${title}::${Number(rowIndex)}`;
     }
 
+    function trackHasNumericScore(track) {
+        if (!track || track.score === null || track.score === undefined) return false;
+        const raw = String(track.score).trim();
+        return raw !== "" && Number.isFinite(Number(raw));
+    }
+
     function scoreSavedValueForRow(albumEntry, row) {
         const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row && row.title || "") : null;
-        return matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? String(Number(matchedTrack.score)) : "";
+        return trackHasNumericScore(matchedTrack) ? String(Number(matchedTrack.score)) : "";
+    }
+
+    function scoreSuffixForRow(albumEntry, row) {
+        const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row && row.title || "") : null;
+        return matchedTrack && typeof matchedTrack.scoreSuffix === "string" ? matchedTrack.scoreSuffix : "";
     }
 
     function ensureScoreDraft(context) {
@@ -3151,7 +3173,7 @@
         const element = document.createElement("span");
         element.className = "lyrics-score-value";
         if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) {
-            element.textContent = "—";
+            element.textContent = isTrackScore ? "-" : "—";
             return element;
         }
         const numeric = Number(value);
@@ -3273,7 +3295,7 @@
                 title.textContent = row.title;
                 applyRollingStoneStarToTrackTitleElement(title);
                 const matchedTrack = albumEntry ? findMyAlbumsTrackScore(albumEntry, row.title) : null;
-                const savedValue = matchedTrack && Number.isFinite(Number(matchedTrack.score)) ? matchedTrack.score : null;
+                const savedValue = trackHasNumericScore(matchedTrack) ? matchedTrack.score : null;
                 const rowKey = scoreDraftRowKey(row, row.index);
                 const draftValue = activeDraft && activeDraft.values.has(rowKey) ? activeDraft.values.get(rowKey) : savedValue;
                 const scoreControl = scoreEditMode
@@ -3313,8 +3335,8 @@
     }
 
     function scoreFileNumberText(rawValue) {
-        const raw = String(rawValue || "").trim();
-        if (!raw) return "";
+        const raw = String(rawValue ?? "").trim();
+        if (!raw || raw === "-" || raw === "—") return "-";
         const numeric = Number(raw);
         if (!Number.isFinite(numeric) || numeric < 0 || numeric > 12) {
             throw new Error("Every entered song score must be between 0.0 and 12.0.");
@@ -3372,7 +3394,8 @@
             const rowKey = scoreDraftRowKey(row, index);
             const rawValue = draft && draft.values.has(rowKey) ? draft.values.get(rowKey) : scoreSavedValueForRow(entry, row);
             const value = scoreFileNumberText(rawValue);
-            blockLines.push(`${row.title}: ${value}`.trimEnd());
+            const suffix = value === "-" ? "" : scoreSuffixForRow(entry, row);
+            blockLines.push(`${row.title}: ${value}${suffix}`.trimEnd());
         });
 
         if (entry && Number.isInteger(entry.startLine) && Number.isInteger(entry.endLine)) {
