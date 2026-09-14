@@ -1968,6 +1968,7 @@
         return {
             artist,
             album,
+            track: String(track.title || "").trim(),
             trackKey: String(track.key || ""),
         };
     }
@@ -2104,6 +2105,7 @@
                 body: JSON.stringify({
                     artist: context.artist,
                     album: context.album,
+                    track: context.track || "",
                     url,
                 }),
             });
