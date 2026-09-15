@@ -12732,8 +12732,8 @@ Rhymes: 7.6
 The Love Sermon: 7.1
 There Is Love: 7.5
 Could I Be The One: 7.5
-Love Ritual: -
-I Didn't Know: -
-Oh Me, Oh My (Dreams In My Arms): -
-I Gotta Be More (Take Me Higher): -
-I Wish You Were Here: -
+Love Ritual: 7.4
+I Didn't Know: 7.0
+Oh Me, Oh My (Dreams In My Arms): 7.4
+I Gotta Be More (Take Me Higher): 7.1
+I Wish You Were Here: 7.1
