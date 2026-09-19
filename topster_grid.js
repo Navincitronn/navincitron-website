@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260908-discogs-owned-overrides-v68';
+const TOPSTER_FRONTEND_VERSION = '20260919-greatest-artists-2010-webp-v70';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -1716,7 +1716,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music', 'rolling_stone_greatest_singers_of_all_time_2023', 'rolling_stone_greatest_singers_of_all_time_2008']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music', 'rolling_stone_greatest_singers_of_all_time_2023', 'rolling_stone_greatest_singers_of_all_time_2008', 'rolling_stone_greatest_artists_2010']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -1733,6 +1733,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'rate-your-music-chart') return 'rate_your_music';
     if (kind === 'rolling-stone-greatest-singers-of-all-time-2023-file') return 'rolling_stone_greatest_singers_of_all_time_2023';
     if (kind === 'rolling-stone-greatest-singers-of-all-time-2008-file') return 'rolling_stone_greatest_singers_of_all_time_2008';
+    if (kind === 'rolling-stone-greatest-artists-2010-file') return 'rolling_stone_greatest_artists_2010';
     return 'grid';
 }
 
@@ -1847,6 +1848,7 @@ function isTopsterEditorPage() {
         || fileName === 'rate_your_music_draft.html'
         || fileName === 'rolling_stone_greatest_singers_of_all_time_2023_draft.html'
         || fileName === 'rolling_stone_greatest_singers_of_all_time_2008_draft.html'
+        || fileName === 'rolling_stone_greatest_artists_2010_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -1999,6 +2001,16 @@ function getTopsterDataSourceConfig() {
         };
     }
 
+    if (sourceName === 'rolling-stone-greatest-artists-2010-file' || sourceName === 'rolling_stone_greatest_artists_2010' || sourceName === 'rolling-stone-greatest-artists-2010') {
+        return {
+            kind: 'rolling-stone-greatest-artists-2010-file',
+            label: 'rolling_stone_greatest_artists_2010.txt',
+            readLabel: 'rolling_stone_greatest_artists_2010.txt',
+            fileName: 'rolling_stone_greatest_artists_2010.txt',
+            staticFileOnly: true
+        };
+    }
+
     if (sourceName === 'checklist-file' || sourceName === 'checklist') {
         return {
             kind: 'checklist-file',
@@ -2056,7 +2068,8 @@ function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
         '1001_albums_you_must_hear_before_you_die': '1001_albums_you_must_hear_before_you_die_list.html',
         rate_your_music: 'rate_your_music_list.html',
         rolling_stone_greatest_singers_of_all_time_2023: 'rolling_stone_greatest_singers_of_all_time_2023_list.html',
-        rolling_stone_greatest_singers_of_all_time_2008: 'rolling_stone_greatest_singers_of_all_time_2008_list.html'
+        rolling_stone_greatest_singers_of_all_time_2008: 'rolling_stone_greatest_singers_of_all_time_2008_list.html',
+        rolling_stone_greatest_artists_2010: 'rolling_stone_greatest_artists_2010_list.html'
     };
     return pageNames[sourceKey] || 'album_list.html';
 }
@@ -2075,7 +2088,8 @@ function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
         '1001_albums_you_must_hear_before_you_die': '1001 Albums You Must Hear Before You Die (All Editions)',
         rate_your_music: "RateYourMusic's Top Albums Of All Time",
         rolling_stone_greatest_singers_of_all_time_2023: "Rolling Stone's 200 Greatest Singers of All Time (2023)",
-        rolling_stone_greatest_singers_of_all_time_2008: "Rolling Stone's 200 Greatest Singers of All Time (2008)"
+        rolling_stone_greatest_singers_of_all_time_2008: "Rolling Stone's 200 Greatest Singers of All Time (2008)",
+        rolling_stone_greatest_artists_2010: "Rolling Stone's 100 Greatest Artists (2010)"
     };
     return names[sourceKey] || 'Albums';
 }
@@ -2847,7 +2861,7 @@ async function initTopsterImporter(albumCards) {
             : `Select cover: ${formatEntryName(entry)}`;
         coverPickerResults.innerHTML = '';
         coverPickerStatus.textContent = isRollingStoneSingerTopsterSource()
-            ? 'Searching artist and associated-act image sources...'
+            ? (isRollingStoneGreatestArtistsTopsterSource() ? 'Searching artist image sources...' : 'Searching artist and associated-act image sources...')
             : 'Searching all available cover sources...';
         if (coverPickerLink) coverPickerLink.value = '';
         loadCoverPickerResults();
@@ -4221,7 +4235,13 @@ function isRateYourMusicTopsterSource() {
 function isRollingStoneSingerTopsterSource() {
     const kind = getTopsterDataSourceConfig().kind;
     return kind === 'rolling-stone-greatest-singers-of-all-time-2023-file'
-        || kind === 'rolling-stone-greatest-singers-of-all-time-2008-file';
+        || kind === 'rolling-stone-greatest-singers-of-all-time-2008-file'
+        || kind === 'rolling-stone-greatest-artists-2010-file';
+}
+
+
+function isRollingStoneGreatestArtistsTopsterSource() {
+    return getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-artists-2010-file';
 }
 
 
@@ -4273,6 +4293,7 @@ function getRollingStoneSingerListYear() {
     const kind = getTopsterDataSourceConfig().kind;
     if (kind === 'rolling-stone-greatest-singers-of-all-time-2008-file') return 2008;
     if (kind === 'rolling-stone-greatest-singers-of-all-time-2023-file') return 2023;
+    if (kind === 'rolling-stone-greatest-artists-2010-file') return 2010;
     return null;
 }
 
@@ -4383,9 +4404,13 @@ function rollingStoneSingerImageSlug(name) {
 function getRollingStoneSingerDefaultCover(entry) {
     if (!entry || !entry.title) return null;
     const listYear = Number(entry.singerListYear) || getRollingStoneSingerListYear() || 2023;
-    const extension = listYear === 2008 ? 'webp' : 'png';
+    const greatestArtists2010 = getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-artists-2010-file';
+    const extension = (listYear === 2008 || greatestArtists2010) ? 'webp' : 'png';
+    const imageDirectory = greatestArtists2010
+        ? 'rolling_stone_greatest_artists_2010'
+        : `rolling_stone_greatest_singers_of_all_time_${listYear}`;
     const imageSrc = entry.defaultImageSrc
-        || `rolling_stone_greatest_singers_of_all_time_${listYear}/${rollingStoneSingerImageSlug(entry.title)}.${extension}`;
+        || `${imageDirectory}/${rollingStoneSingerImageSlug(entry.title)}.${extension}`;
     return {
         title: entry.title,
         artist: '',
@@ -5927,6 +5952,31 @@ function parseAlbumText(text) {
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
 
+            // Rolling Stone's 100 Greatest Artists (2010):
+            //   1. The Beatles
+            //   2. Bob Dylan
+            // The source contains artist/act names only. Use the dedicated local
+            // rolling_stone_greatest_artists_2010 image directory.
+            if (getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-artists-2010-file') {
+                const artistName = cleanAlbumTitle(line);
+                if (artistName) {
+                    return {
+                        artist: '',
+                        title: artistName,
+                        dateText: '',
+                        year: null,
+                        acts: [],
+                        actsText: '',
+                        wikipediaHref: getRollingStoneSingerWikipediaUrl(artistName),
+                        defaultImageSrc: `rolling_stone_greatest_artists_2010/${rollingStoneSingerImageSlug(artistName)}.webp`,
+                        singerListYear: 2010,
+                        isSingerEntry: true,
+                        raw: originalLine,
+                        ...checklistFields
+                    };
+                }
+            }
+
             // Rolling Stone singer source (2008): "Name (birth date)".
             if (getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-singers-of-all-time-2008-file') {
                 const singerMatch = line.match(/^(.+?)\s*\((.+)\)\s*$/);
@@ -6717,7 +6767,7 @@ async function resolveRollingStoneSingerImageCandidates(entry, config) {
     const lookupNames = getRollingStoneSingerLookupNames(entry);
     for (let index = 0; index < lookupNames.length; index += 1) {
         const lookupName = lookupNames[index];
-        const relationLabel = index === 0 ? 'Singer' : `Act: ${lookupName}`;
+        const relationLabel = index === 0 ? (isRollingStoneGreatestArtistsTopsterSource() ? 'Artist' : 'Singer') : `Act: ${lookupName}`;
         const tasks = [
             resolveWikipediaArtistImageCandidates(lookupName, relationLabel)
         ];
