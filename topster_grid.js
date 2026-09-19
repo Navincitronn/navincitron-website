@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260919-greatest-artists-2010-webp-v70';
+const TOPSTER_FRONTEND_VERSION = '20260919-greatest-artists-2010-wikipedia-v71';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -4306,6 +4306,10 @@ const ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES = Object.freeze({
     'robertsmith': 'Robert_Smith_(musician)',
     'bobbybluebland': 'Bobby_Bland',
     'prince': 'Prince_(musician)',
+    'nirvana': 'Nirvana_(band)',
+    'queen': 'Queen_(band)',
+    'cream': 'Cream_(band)',
+    'eagles': 'Eagles_(band)',
     'sylvester': 'Sylvester_(singer)',
     'usher': 'Usher_(musician)'
 });
