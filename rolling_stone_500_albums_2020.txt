@@ -409,7 +409,7 @@
 409 | Grateful Dead | Workingman's Dead | 1970
 410 | The Beach Boys | Wild Honey | 1967
 411 | Bob Dylan | Love and Theft | 2001
-412 | Smokey Robinson | Going to a Go Go | 1965
+412 | Smokey Robinson & The Miracles | Going to a Go Go | 1965
 413 | Creedence Clearwater Revival | Cosmo's Factory | 1970
 414 | Chic | Risqué | 1979
 415 | The Meters | Look-Ka Py Py | 1969
