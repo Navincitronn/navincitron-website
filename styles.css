@@ -1762,8 +1762,8 @@ button:hover {
     }
 }
 
-/* Public Topster movie quote layout: poster left, quote right. */
-body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-panel {
+/* Read-only Topster movie quote layout: poster left, quote right. */
+body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-panel {
     align-items: start;
     column-gap: 18px;
     display: grid;
@@ -1774,7 +1774,7 @@ body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-r
 }
 
 
-body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-stage {
+body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-stage {
     align-items: flex-start;
     grid-column: 1;
     grid-row: 1;
@@ -1784,11 +1784,11 @@ body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-r
     width: 132px;
 }
 
-body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-wrap {
+body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-wrap {
     margin: 0;
 }
 
-body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-quote {
+body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-quote {
     align-self: start;
     box-sizing: border-box;
     grid-column: 2;
@@ -1800,15 +1800,15 @@ body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-r
 }
 
 @media (max-width: 760px) {
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-panel {
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-panel {
         column-gap: 12px;
         grid-template-columns: 96px minmax(0, 1fr);
     }
 
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-stage,
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-wrap,
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster,
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-fallback {
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-stage,
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-wrap,
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster,
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-fallback {
         height: 144px;
         min-height: 0;
         width: 96px;
@@ -1816,20 +1816,20 @@ body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-r
 }
 
 @media (max-width: 480px) {
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-panel {
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-panel {
         column-gap: 10px;
         grid-template-columns: 78px minmax(0, 1fr);
     }
 
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-stage,
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-wrap,
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster,
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-poster-fallback {
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-stage,
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-wrap,
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster,
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-poster-fallback {
         height: 117px;
         width: 78px;
     }
 
-    body[data-topster-readonly="true"][data-topster-mode="list"]:not([data-topster-require-admin="true"]) .topster-loading-quote blockquote {
+    body[data-topster-readonly="true"][data-topster-mode="list"] .topster-loading-quote blockquote {
         font-size: 13.5px;
         gap: 6px;
         line-height: 1.4;
