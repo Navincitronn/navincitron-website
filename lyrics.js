@@ -5287,6 +5287,46 @@
         };
     }
 
+    async function geniusReaderConfirmsInstrumentalInBrowser(geniusSong) {
+        const rawUrl = String(geniusSong && geniusSong.url || "").trim();
+        if (!/^https:\/\/(?:www\.)?genius\.com\//i.test(rawUrl)) return false;
+
+        // Render's backend can be denied by genius.com even while the user's browser
+        // can access public web infrastructure.  Jina Reader renders the exact Genius
+        // song URL and exposes the resulting page as text.  This is only a yes/no
+        // instrumental check; it is never used as the lyric transcription.
+        const controller = typeof AbortController === "function" ? new AbortController() : null;
+        const timer = window.setTimeout(() => {
+            try { controller && controller.abort(); } catch (_) {}
+        }, 7000);
+        try {
+            const response = await fetch(`https://r.jina.ai/${rawUrl}`, {
+                method: "GET",
+                cache: "no-store",
+                headers: { Accept: "text/plain, text/markdown, */*" },
+                signal: controller ? controller.signal : undefined,
+            });
+            if (!response.ok) return false;
+            const text = String(await response.text() || "");
+            if (GENIUS_INSTRUMENTAL_PATTERN.test(text)) return true;
+            for (const rawLine of text.split(/\r?\n/)) {
+                const normalized = rawLine
+                    .replace(/[\s*_`>#-]+/g, " ")
+                    .trim()
+                    .toLowerCase()
+                    .replace(/^[\[({.:;!?]+|[\])}.:;!?]+$/g, "");
+                if (["instrumental", "this song is instrumental", "this song is an instrumental"].includes(normalized)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (_) {
+            return false;
+        } finally {
+            window.clearTimeout(timer);
+        }
+    }
+
     function sanitizeCapturedGeniusLyricsDocument(sourceDocument) {
         if (!sourceDocument) return null;
 
@@ -5551,8 +5591,31 @@
                     return;
                 }
             } catch (_) {
-                // Fall through to the backend compositor. This remains useful for
-                // browsers/provider changes where Genius stops emitting srcdoc.
+                // Fall through to the exact-page instrumental check and then the
+                // backend compositor.
+            }
+
+            // For Genius pages whose embed contains no lyric body at all, verify
+            // the exact public page before asking the backend to compose lyrics.
+            // This specifically covers pages such as Nick Drake - Bryter Layter,
+            // where Genius displays "This song is an instrumental" but the song
+            // API metadata can omit the instrumental flag.
+            try {
+                const instrumental = await geniusReaderConfirmsInstrumentalInBrowser(geniusSong);
+                if (renderToken !== geniusEmbedRenderToken || lastGeniusSongId !== songId) return;
+                if (instrumental) {
+                    const host = document.createElement("div");
+                    host.className = "lyrics-genius-native-host";
+                    host.dataset.songId = String(songId);
+                    host.dataset.lyricsSource = "genius_instrumental_page_notice_browser";
+                    host.innerHTML = geniusInstrumentalRenderResult().html;
+                    embedContainer.replaceChildren(host);
+                    geniusNativeLyricsState = "ready";
+                    setExactGeniusAnnotationCount(0);
+                    return;
+                }
+            } catch (_) {
+                // Backend has an independent exact-page instrumental check.
             }
 
             const response = await fetch(`${API_BASE_URL}/api/lyrics/genius-content/${encodeURIComponent(songId)}`, {
