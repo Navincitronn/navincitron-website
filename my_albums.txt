@@ -12793,8 +12793,8 @@ My Little Town: 7.4
 I Do It For Your Love: 7.3
 50 Ways To Leave Your Lover: 7.5
 Night Game: 7.1
-Gone At Last: -
-Some Folks' Lives Roll Easy: -
-Have A Good Time: -
-You're Kind: -
-Silent Eyes: -
+Gone At Last: 7.0
+Some Folks' Lives Roll Easy: 7.1
+Have A Good Time: 7.1
+You're Kind: 7.0
+Silent Eyes: 7.2
