@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="styles.css?v=20260830-discogs-dash-timing-controls-v64">
     <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
 </head>
-<body data-topster-require-admin="true" data-topster-store-source="draft" class="album-list-page" data-topster-mode="list" data-topster-readonly="true" data-topster-autoload="true" data-topster-source="draft-file">
+<body data-topster-require-admin="true" data-topster-store-source="draft" class="album-list-page" data-topster-mode="list" data-topster-readonly="true" data-topster-autoload="true" data-topster-source="draft-file" data-topster-loading-quotes="true">
     <header>
         <div class="header-left">
             <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
@@ -38,11 +38,24 @@
             </div>
             <hr>
 
-            <div class="topster-loading-panel" id="topster-loading-panel" role="status" aria-live="polite">
-                <p class="topster-loading-title">Loading Topster</p>
+            <div class="topster-loading-status-panel" id="topster-loading-status-panel" role="status" aria-live="polite">
+                <p class="topster-loading-title">Loading...</p>
                 <p class="topster-loading-text" id="topster-loading-text">Preparing Topster data...</p>
-                <progress class="topster-loading-progress" id="topster-loading-progress" max="100" value="0">0%</progress>
-                <p class="topster-loading-percent" id="topster-loading-percent">0%</p>
+            </div>
+
+            <div class="topster-loading-panel" id="topster-loading-panel" role="group" aria-live="off">
+                <div class="topster-loading-poster-stage" aria-live="off">
+                    <div class="topster-loading-poster-wrap topster-loading-poster-pending" id="topster-loading-poster-wrap">
+                        <div class="topster-loading-poster-link" id="topster-loading-poster-link" aria-label="Movie poster">
+                            <img class="topster-loading-poster" id="topster-loading-poster" alt="Movie poster" width="132" height="198" loading="eager" decoding="async" referrerpolicy="no-referrer" hidden>
+                            <div class="topster-loading-poster-fallback" id="topster-loading-poster-fallback">Loading Poster...</div>
+                        </div>
+                    </div>
+                </div>
+                <figure class="topster-loading-quote" id="topster-loading-quote">
+                    <blockquote id="topster-loading-quote-body">Loading a quote...</blockquote>
+                    <figcaption id="topster-loading-quote-source"></figcaption>
+                </figure>
             </div>
 
             <div class="topster-import-panel" id="topster-import-panel" hidden>
@@ -101,6 +114,6 @@
         </section>
     </main>
 
-    <script src="topster_grid.js?v=20260908-discogs-owned-overrides-v68"></script>
+    <script src="topster_grid.js?v=20260922-draft-loading-quotes-v69"></script>
 </body>
 </html>

@@ -4414,6 +4414,10 @@
         restorePendingGeniusDocumentWrite();
     }
 
+    function usesMobileGeniusAnnotationDrawer() {
+        return Boolean(window.matchMedia && window.matchMedia("(max-width: 1180px), (hover: none) and (pointer: coarse)").matches);
+    }
+
     function closeGeniusAnnotationPanel(options = {}) {
         const restoreSource = Boolean(options && options.restoreSource);
         const restoreTarget = restoreSource && lastClickedGeniusAnnotationElement && lastClickedGeniusAnnotationElement.isConnected
@@ -5261,8 +5265,41 @@
         }
     }
 
+    const GENIUS_INSTRUMENTAL_PATTERN = /\bthis\s+song\s+is\s+an\s+instrumental\b/i;
+
+    function capturedGeniusMarkupSaysInstrumental(value) {
+        const raw = String(value || "");
+        if (!raw) return false;
+        try {
+            const doc = new DOMParser().parseFromString(raw, "text/html");
+            const text = String(doc && doc.body ? doc.body.textContent || "" : raw);
+            return GENIUS_INSTRUMENTAL_PATTERN.test(text);
+        } catch (_) {
+            return GENIUS_INSTRUMENTAL_PATTERN.test(raw.replace(/<[^>]*>/g, " "));
+        }
+    }
+
+    function geniusInstrumentalRenderResult() {
+        return {
+            html: '<div class="lyrics-genius-verse lyrics-genius-instrumental" data-genius-instrumental="true">This song is an instrumental.</div>',
+            annotationMatchCount: 0,
+            instrumental: true,
+        };
+    }
+
     function sanitizeCapturedGeniusLyricsDocument(sourceDocument) {
         if (!sourceDocument) return null;
+
+        const wholeDocumentText = String(
+            sourceDocument.body && sourceDocument.body.textContent
+                ? sourceDocument.body.textContent
+                : sourceDocument.documentElement && sourceDocument.documentElement.textContent
+                    ? sourceDocument.documentElement.textContent
+                    : ""
+        );
+        if (GENIUS_INSTRUMENTAL_PATTERN.test(wholeDocumentText)) {
+            return geniusInstrumentalRenderResult();
+        }
 
         const sourceRoot =
             sourceDocument.querySelector(".rg_embed_body") ||
@@ -5349,8 +5386,14 @@
         const combined = String(writtenMarkup || "").trim();
         if (combined) candidates.push(combined);
 
+        const capturedHostMarkup = String(captureHost && captureHost.innerHTML || "").trim();
+        if (capturedHostMarkup) candidates.push(capturedHostMarkup);
+
         for (const candidate of candidates) {
             try {
+                if (capturedGeniusMarkupSaysInstrumental(candidate)) {
+                    return geniusInstrumentalRenderResult();
+                }
                 const parsed = new DOMParser().parseFromString(candidate, "text/html");
                 const result = sanitizeCapturedGeniusLyricsDocument(parsed);
                 if (result && result.html) return result;
@@ -5492,6 +5535,12 @@
                     host.innerHTML = String(captured.html || "");
                     embedContainer.replaceChildren(host);
                     geniusNativeLyricsState = "ready";
+
+                    if (captured.instrumental || host.querySelector("[data-genius-instrumental='true']")) {
+                        setExactGeniusAnnotationCount(0);
+                        return;
+                    }
+
                     const renderedReferentIds = new Set(
                         Array.from(host.querySelectorAll("[data-genius-referent-id]"))
                             .map((element) => String(element.dataset.geniusReferentId || "").trim())
@@ -5533,6 +5582,12 @@
             host.innerHTML = String(data.lyricsHtml || "");
             embedContainer.replaceChildren(host);
             geniusNativeLyricsState = "ready";
+
+            if (data.instrumental === true || host.querySelector("[data-genius-instrumental='true']")) {
+                setExactGeniusAnnotationCount(0);
+                return;
+            }
+
             const renderedReferentIds = new Set(
                 Array.from(host.querySelectorAll("[data-genius-referent-id]"))
                     .map((element) => String(element.dataset.geniusReferentId || "").trim())
@@ -5933,6 +5988,18 @@
     if (geniusAnnotationClose) {
         geniusAnnotationClose.addEventListener("click", () => closeGeniusAnnotationPanel({ restoreSource: true }));
     }
+
+    document.addEventListener("click", event => {
+        if (!usesMobileGeniusAnnotationDrawer()) return;
+        if (!geniusAnnotationPanel || geniusAnnotationPanel.hidden) return;
+        const target = event.target instanceof Node ? event.target : null;
+        if (target && geniusAnnotationPanel.contains(target)) return;
+
+        // Clicks on annotated lyrics are stopped by handleNativeGeniusLyricsClick(),
+        // so this only handles genuinely outside taps. Use the same close path as
+        // the X button so the page returns to the highlighted lyric that opened it.
+        closeGeniusAnnotationPanel({ restoreSource: true });
+    });
 
 
     // Chrome and Firefox both make the outer iframe the active element when a

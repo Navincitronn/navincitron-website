@@ -101,9 +101,10 @@ let topsterLoadingQuoteReadyPromise = null;
 function isTopsterPublicReadOnlyListPage() {
     const body = document.body;
     if (!body || !body.dataset) return false;
+    const explicitlyUsesPublicLoadingMedia = body.dataset.topsterLoadingQuotes === 'true';
     return body.dataset.topsterReadonly === 'true'
         && body.dataset.topsterMode === 'list'
-        && body.dataset.topsterRequireAdmin !== 'true';
+        && (body.dataset.topsterRequireAdmin !== 'true' || explicitlyUsesPublicLoadingMedia);
 }
 
 function parseTopsterLoadingQuotes(text) {
