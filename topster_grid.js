@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260927-greatest-guitarists-2023-v72';
+const TOPSTER_FRONTEND_VERSION = '20260928-guitarists-image-wiki-v73';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -4332,6 +4332,42 @@ const ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES = Object.freeze({
     'queen': 'Queen_(band)',
     'cream': 'Cream_(band)',
     'eagles': 'Eagles_(band)',
+    'stvincent': 'St._Vincent_(musician)',
+    'petergreen': 'Peter_Green_(musician)',
+    'richardthompson': 'Richard_Thompson_(musician)',
+    'johnmclaughlin': 'John_McLaughlin_(musician)',
+    'poisonivy': 'Poison_Ivy_(musician)',
+    'catcoore': 'Third_World_(band)',
+    'wata': 'Boris_(band)',
+    'nancywilson': 'Nancy_Wilson_(rock_musician)',
+    'slash': 'Slash_(musician)',
+    'kelleyjohnson': 'Kelly_Johnson_(guitarist)',
+    'joeperry': 'Joe_Perry_(musician)',
+    'jameswilliamson': 'James_Williamson_(musician)',
+    'mikecampbell': 'Mike_Campbell_(musician)',
+    'davidlindley': 'David_Lindley_(musician)',
+    'bombino': 'Bombino_(musician)',
+    'ericjohnson': 'Eric_Johnson_(guitarist)',
+    'thomasmcclary': 'Thomas_McClary_(musician)',
+    'josephspence': 'Joseph_Spence',
+    'stevejones': 'Steve_Jones_(musician)',
+    'davidwilliams': 'David_Williams_(guitarist)',
+    'erinsmith': 'Erin_Smith_(musician)',
+    'rickywilson': 'Ricky_Wilson_(guitarist)',
+    'chalmersalford': 'Chalmers_Alford',
+    'christoneingram': 'Christone_"Kingfish"_Ingram',
+    'garryshider': 'Garry_Shider',
+    'robbykrieger': 'Robby_Krieger',
+    'jameshetfieldandkirkhammett': 'Metallica',
+    'angusyoungandmalcolmyoung': 'AC/DC',
+    'jonnygreenwoodandedobrien': 'Radiohead',
+    'thurstonmooreandleeranaldo': 'Sonic_Youth',
+    'adriansmithanddavemurray': 'Iron_Maiden',
+    'allencollinsandgaryrossington': 'Lynyrd_Skynyrd',
+    'mikemccreadyandstonegossard': 'Pearl_Jam',
+    'brianrobertsonandscottgorham': 'Thin_Lizzy',
+    'fredsonicsmithandwaynekramer': 'MC5',
+    'aarondessnerandbrycedessner': 'The_National_(band)',
     'sylvester': 'Sylvester_(singer)',
     'usher': 'Usher_(musician)'
 });
@@ -4345,7 +4381,8 @@ function getRollingStoneSingerWikipediaUrl(name) {
     const wikiPath = encodeURIComponent(pageTitle.replace(/\s+/g, '_'))
         .replace(/%28/g, '(')
         .replace(/%29/g, ')')
-        .replace(/%27/g, "'");
+        .replace(/%27/g, "'")
+        .replace(/%2F/gi, '/');
     return `https://en.wikipedia.org/wiki/${wikiPath}`;
 }
 
@@ -4427,6 +4464,31 @@ function rollingStoneSingerImageSlug(name) {
         .replace(/^_+|_+$/g, '');
 }
 
+
+// The Rolling Stone guitarist image directory follows a slightly different
+// filename convention from the singer/artist directories: accented letters are
+// preserved and dots inside initials are removed rather than becoming underscores
+// (B.B. King -> bb_king, H.E.R. -> her, K.K. Downing -> kk_downing).
+const ROLLING_STONE_GUITARIST_IMAGE_SLUG_OVERRIDES = Object.freeze({
+    'rokiatraore': 'rokia_traoré'
+});
+
+function rollingStoneGuitaristImageSlug(name) {
+    const cleanName = cleanAlbumTitle(name || '').normalize('NFC');
+    const overrideKey = normalizeAlbumTitle(cleanName);
+    const override = ROLLING_STONE_GUITARIST_IMAGE_SLUG_OVERRIDES[overrideKey];
+    if (override) return override;
+
+    return cleanName
+        .replace(/[’‘']/g, '')
+        .replace(/[“”"]/g, '')
+        .replace(/\./g, '')
+        .replace(/&/g, ' and ')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
 function getRollingStoneSingerDefaultCover(entry) {
     if (!entry || !entry.title) return null;
     const listYear = Number(entry.singerListYear) || getRollingStoneSingerListYear() || 2023;
@@ -4437,7 +4499,9 @@ function getRollingStoneSingerDefaultCover(entry) {
     const imageDirectory = greatestArtists2010
         ? 'rolling_stone_greatest_artists_2010'
         : (greatestGuitarists2023 ? 'rolling_stone_guitarists' : `rolling_stone_greatest_singers_of_all_time_${listYear}`);
-    const slug = rollingStoneSingerImageSlug(entry.title);
+    const slug = greatestGuitarists2023
+        ? rollingStoneGuitaristImageSlug(entry.title)
+        : rollingStoneSingerImageSlug(entry.title);
     const imageSrc = entry.defaultImageSrc
         || `${imageDirectory}/${slug}.${extension}`;
     const fallbackImageSrc = entry.defaultImageFallbackSrc
@@ -5992,7 +6056,7 @@ function parseAlbumText(text) {
             if (getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-guitarists-2023-file') {
                 const guitaristName = cleanAlbumTitle(line);
                 if (guitaristName) {
-                    const imageSlug = rollingStoneSingerImageSlug(guitaristName);
+                    const imageSlug = rollingStoneGuitaristImageSlug(guitaristName);
                     return {
                         artist: '',
                         title: guitaristName,
