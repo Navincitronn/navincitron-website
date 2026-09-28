@@ -20,7 +20,7 @@
 20. Stevie Ray Vaughan
 21. Randy Rhoads
 22. Albert King
-23. James Hetfield and Kirk Hammett
+23. James Hetfield & Kirk Hammett
 24. James Burton
 25. John Frusciante
 26. St. Vincent
@@ -35,12 +35,12 @@
 35. Eric Clapton
 36. Elizabeth Cotten
 37. Pete Townshend
-38. Angus Young and Malcolm Young
+38. Angus Young & Malcolm Young
 39. Chet Atkins
 40. John Fahey
 41. Bo Diddley
 42. Vernon Reid
-43. Jonny Greenwood and Ed O’Brien
+43. Jonny Greenwood & Ed O’Brien
 44. Johnny Ramone
 45. Steve Cropper
 46. Frank Zappa
@@ -54,7 +54,7 @@
 54. Bonnie Raitt
 55. Mick Taylor
 56. Johnny Marr
-57. Thurston Moore and Lee Ranaldo
+57. Thurston Moore & Lee Ranaldo
 58. Alex Lifeson
 59. Robert Fripp
 60. Scotty Moore
@@ -80,7 +80,7 @@
 80. Derek Trucks
 81. Bert Jansch
 82. Wes Montgomery
-83. Adrian Smith and Dave Murray
+83. Adrian Smith & Dave Murray
 84. Muddy Waters
 85. Larry Carlton
 86. Sonny Sharrock
@@ -110,7 +110,7 @@
 110. Lindsey Buckingham
 111. Kelley Johnson
 112. Rowland S. Howard
-113. Allen Collins and Gary Rossington
+113. Allen Collins & Gary Rossington
 114. Robert Quine
 115. Nels Cline
 116. Ana da Silva
@@ -121,7 +121,7 @@
 121. Dick Dale
 122. King Sunny Ade
 123. Steve Howe
-124. Mike McCready and Stone Gossard
+124. Mike McCready & Stone Gossard
 125. Viv Albertine
 126. Kim Thayil
 127. Steve Vai
@@ -157,7 +157,7 @@
 157. Pat Metheny
 158. Johnny Thunders
 159. John Lennon
-160. Kim and Kelley Deal
+160. Kim & Kelley Deal
 161. Tim Henson
 162. Rosinha de Valença
 163. Wah Wah Watson
@@ -188,17 +188,17 @@
 188. Marnie Stern
 189. Jerry Cantrell
 190. Lightnin’ Hopkins
-191. Chalmers Edward ‘Spanky’ Alford
+191. Chalmers Alford
 192. Lita Ford
 193. David Lindley
-194. Brian Robertson and Scott Gorham
+194. Brian Robertson & Scott Gorham
 195. Greg Ginn
 196. James Taylor
 197. Nuno Bettencourt
 198. Jerry Reed
 199. Bombino
-200. Christone ‘Kingfish’ Ingram
-201. Garry ‘Diaper Man’ Shider
+200. Christone Ingram
+201. Garry Shider
 202. Vince Gill
 203. Grant Green
 204. Lynn Taitt
@@ -216,13 +216,13 @@
 216. Steve Hackett
 217. Thomas McClary
 218. Lzzy Hale
-219. Glenn Tipton and K.K. Downing
+219. Glenn Tipton & K.K. Downing
 220. Courtney Barnett
 221. James Blood Ulmer
 222. Molly Tuttle
 223. Joseph Spence
 224. Marv Tarplin
-225. Fred ‘Sonic’ Smith and Wayne Kramer
+225. Fred ‘Sonic’ Smith & Wayne Kramer
 226. El Kempner
 227. Glenn Branca
 228. Steve Jones
@@ -240,11 +240,11 @@
 240. Erin Smith
 241. Keith Urban
 242. Lindsey Jordan
-243. Aaron Dessner and Bryce Dessner
+243. Aaron Dessner & Bryce Dessner
 244. Edilio Paredes
 245. Leslie West
 246. Paul Simon
 247. Ricky Wilson
-248. Robbie Kreiger
+248. Robby Krieger
 249. Brittany Howard
 250. Andy Summers
