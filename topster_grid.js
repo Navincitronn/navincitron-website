@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260928-guitarists-image-wiki-v73';
+const TOPSTER_FRONTEND_VERSION = '20260928-guitarists-2011-wiki-v74';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -1717,7 +1717,7 @@ function getTopsterStoreSourceKey() {
     const explicitSource = String(
         (body && body.dataset && body.dataset.topsterStoreSource) || ''
     ).trim().toLowerCase();
-    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music', 'rolling_stone_greatest_singers_of_all_time_2023', 'rolling_stone_greatest_singers_of_all_time_2008', 'rolling_stone_greatest_artists_2010', 'rolling_stone_greatest_guitarists_2023']);
+    const allowedSources = new Set(['grid', 'ranked', 'draft', 'checklist', 'rolling_stone_500_albums_2003', 'rolling_stone_500_albums_2012', 'rolling_stone_500_albums_2020', 'rolling_stone_500_albums_2023', 'nme_500_albums', '1001_albums_you_must_hear_before_you_die', 'rate_your_music', 'rolling_stone_greatest_singers_of_all_time_2023', 'rolling_stone_greatest_singers_of_all_time_2008', 'rolling_stone_greatest_artists_2010', 'rolling_stone_greatest_guitarists_2023', 'rolling_stone_greatest_guitarists_2011']);
     if (allowedSources.has(explicitSource)) return explicitSource;
 
     // Backward-compatible fallback for older page copies.
@@ -1736,6 +1736,7 @@ function getTopsterStoreSourceKey() {
     if (kind === 'rolling-stone-greatest-singers-of-all-time-2008-file') return 'rolling_stone_greatest_singers_of_all_time_2008';
     if (kind === 'rolling-stone-greatest-artists-2010-file') return 'rolling_stone_greatest_artists_2010';
     if (kind === 'rolling-stone-greatest-guitarists-2023-file') return 'rolling_stone_greatest_guitarists_2023';
+    if (kind === 'rolling-stone-greatest-guitarists-2011-file') return 'rolling_stone_greatest_guitarists_2011';
     return 'grid';
 }
 
@@ -1852,6 +1853,7 @@ function isTopsterEditorPage() {
         || fileName === 'rolling_stone_greatest_singers_of_all_time_2008_draft.html'
         || fileName === 'rolling_stone_greatest_artists_2010_draft.html'
         || fileName === 'rolling_stone_greatest_guitarists_2023_draft.html'
+        || fileName === 'rolling_stone_greatest_guitarists_2011_draft.html'
         || Boolean(body && body.dataset.topsterRequireAdmin === 'true');
 }
 
@@ -2024,6 +2026,16 @@ function getTopsterDataSourceConfig() {
         };
     }
 
+    if (sourceName === 'rolling-stone-greatest-guitarists-2011-file' || sourceName === 'rolling_stone_greatest_guitarists_2011' || sourceName === 'rolling-stone-greatest-guitarists-2011') {
+        return {
+            kind: 'rolling-stone-greatest-guitarists-2011-file',
+            label: 'rolling_stone_greatest_guitarists_2011.txt',
+            readLabel: 'rolling_stone_greatest_guitarists_2011.txt',
+            fileName: 'rolling_stone_greatest_guitarists_2011.txt',
+            staticFileOnly: true
+        };
+    }
+
     if (sourceName === 'checklist-file' || sourceName === 'checklist') {
         return {
             kind: 'checklist-file',
@@ -2083,7 +2095,8 @@ function getTopsterPublicPageName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_greatest_singers_of_all_time_2023: 'rolling_stone_greatest_singers_of_all_time_2023_list.html',
         rolling_stone_greatest_singers_of_all_time_2008: 'rolling_stone_greatest_singers_of_all_time_2008_list.html',
         rolling_stone_greatest_artists_2010: 'rolling_stone_greatest_artists_2010_list.html',
-        rolling_stone_greatest_guitarists_2023: 'rolling_stone_greatest_guitarists_2023_list.html'
+        rolling_stone_greatest_guitarists_2023: 'rolling_stone_greatest_guitarists_2023_list.html',
+        rolling_stone_greatest_guitarists_2011: 'rolling_stone_greatest_guitarists_2011_list.html'
     };
     return pageNames[sourceKey] || 'album_list.html';
 }
@@ -2104,7 +2117,8 @@ function getTopsterSourceDisplayName(sourceKey = getTopsterStoreSourceKey()) {
         rolling_stone_greatest_singers_of_all_time_2023: "Rolling Stone's 200 Greatest Singers of All Time (2023)",
         rolling_stone_greatest_singers_of_all_time_2008: "Rolling Stone's 200 Greatest Singers of All Time (2008)",
         rolling_stone_greatest_artists_2010: "Rolling Stone's 100 Greatest Artists (2010)",
-        rolling_stone_greatest_guitarists_2023: "Rolling Stone's 250 Greatest Guitarists (2023)"
+        rolling_stone_greatest_guitarists_2023: "Rolling Stone's 250 Greatest Guitarists (2023)",
+        rolling_stone_greatest_guitarists_2011: "Rolling Stone's 100 Greatest Guitarists (2011)"
     };
     return names[sourceKey] || 'Albums';
 }
@@ -4252,7 +4266,8 @@ function isRollingStoneSingerTopsterSource() {
     return kind === 'rolling-stone-greatest-singers-of-all-time-2023-file'
         || kind === 'rolling-stone-greatest-singers-of-all-time-2008-file'
         || kind === 'rolling-stone-greatest-artists-2010-file'
-        || kind === 'rolling-stone-greatest-guitarists-2023-file';
+        || kind === 'rolling-stone-greatest-guitarists-2023-file'
+        || kind === 'rolling-stone-greatest-guitarists-2011-file';
 }
 
 
@@ -4262,7 +4277,9 @@ function isRollingStoneGreatestArtistsTopsterSource() {
 
 
 function isRollingStoneGreatestGuitaristsTopsterSource() {
-    return getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-guitarists-2023-file';
+    const kind = getTopsterDataSourceConfig().kind;
+    return kind === 'rolling-stone-greatest-guitarists-2023-file'
+        || kind === 'rolling-stone-greatest-guitarists-2011-file';
 }
 
 
@@ -4316,6 +4333,7 @@ function getRollingStoneSingerListYear() {
     if (kind === 'rolling-stone-greatest-singers-of-all-time-2023-file') return 2023;
     if (kind === 'rolling-stone-greatest-artists-2010-file') return 2010;
     if (kind === 'rolling-stone-greatest-guitarists-2023-file') return 2023;
+    if (kind === 'rolling-stone-greatest-guitarists-2011-file') return 2011;
     return null;
 }
 
@@ -4368,6 +4386,8 @@ const ROLLING_STONE_SINGER_WIKIPEDIA_OVERRIDES = Object.freeze({
     'brianrobertsonandscottgorham': 'Thin_Lizzy',
     'fredsonicsmithandwaynekramer': 'MC5',
     'aarondessnerandbrycedessner': 'The_National_(band)',
+    'kimandkelleydeal': 'The_Breeders',
+    'glenntiptonandkkdowning': 'Judas_Priest',
     'sylvester': 'Sylvester_(singer)',
     'usher': 'Usher_(musician)'
 });
@@ -4470,7 +4490,8 @@ function rollingStoneSingerImageSlug(name) {
 // preserved and dots inside initials are removed rather than becoming underscores
 // (B.B. King -> bb_king, H.E.R. -> her, K.K. Downing -> kk_downing).
 const ROLLING_STONE_GUITARIST_IMAGE_SLUG_OVERRIDES = Object.freeze({
-    'rokiatraore': 'rokia_traoré'
+    'rokiatraore': 'rokia_traoré',
+    'edwardvanhalen': 'eddie_van_halen'
 });
 
 function rollingStoneGuitaristImageSlug(name) {
@@ -4494,18 +4515,18 @@ function getRollingStoneSingerDefaultCover(entry) {
     const listYear = Number(entry.singerListYear) || getRollingStoneSingerListYear() || 2023;
     const kind = getTopsterDataSourceConfig().kind;
     const greatestArtists2010 = kind === 'rolling-stone-greatest-artists-2010-file';
-    const greatestGuitarists2023 = kind === 'rolling-stone-greatest-guitarists-2023-file';
+    const greatestGuitarists = isRollingStoneGreatestGuitaristsTopsterSource();
     const extension = (listYear === 2008 || greatestArtists2010) ? 'webp' : 'png';
     const imageDirectory = greatestArtists2010
         ? 'rolling_stone_greatest_artists_2010'
-        : (greatestGuitarists2023 ? 'rolling_stone_guitarists' : `rolling_stone_greatest_singers_of_all_time_${listYear}`);
-    const slug = greatestGuitarists2023
+        : (greatestGuitarists ? 'rolling_stone_guitarists' : `rolling_stone_greatest_singers_of_all_time_${listYear}`);
+    const slug = greatestGuitarists
         ? rollingStoneGuitaristImageSlug(entry.title)
         : rollingStoneSingerImageSlug(entry.title);
     const imageSrc = entry.defaultImageSrc
         || `${imageDirectory}/${slug}.${extension}`;
     const fallbackImageSrc = entry.defaultImageFallbackSrc
-        || (greatestGuitarists2023 ? `${imageDirectory}/${slug}.jpg` : '');
+        || (greatestGuitarists ? `${imageDirectory}/${slug}.jpg` : '');
     return {
         title: entry.title,
         artist: '',
@@ -6048,12 +6069,10 @@ function parseAlbumText(text) {
                 checklistOverlayLabel: checklistMetadata.checklistOverlayLabel
             };
 
-            // Rolling Stone's 250 Greatest Guitarists (2023):
-            //   1. Jimi Hendrix
-            //   2. Chuck Berry
+            // Rolling Stone's Greatest Guitarists (2011 / 2023):
             // The source contains guitarist/act names only. Local images live in
             // rolling_stone_guitarists and may use either .png or .jpg.
-            if (getTopsterDataSourceConfig().kind === 'rolling-stone-greatest-guitarists-2023-file') {
+            if (isRollingStoneGreatestGuitaristsTopsterSource()) {
                 const guitaristName = cleanAlbumTitle(line);
                 if (guitaristName) {
                     const imageSlug = rollingStoneGuitaristImageSlug(guitaristName);
@@ -6067,7 +6086,7 @@ function parseAlbumText(text) {
                         wikipediaHref: getRollingStoneSingerWikipediaUrl(guitaristName),
                         defaultImageSrc: `rolling_stone_guitarists/${imageSlug}.png`,
                         defaultImageFallbackSrc: `rolling_stone_guitarists/${imageSlug}.jpg`,
-                        singerListYear: 2023,
+                        singerListYear: getRollingStoneSingerListYear() || 2023,
                         isSingerEntry: true,
                         raw: originalLine,
                         ...checklistFields
