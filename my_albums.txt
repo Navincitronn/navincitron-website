@@ -12841,7 +12841,7 @@ Danger Bird: 7.7
 Pardon My Heart: 7.6
 Lookin' For A Love: 7.6
 Barstool Blues: 7.6
-Stupid Girl: -
-Drive Back: -
-Cortez The Killer: -
-Through My Sails: -
+Stupid Girl: 8.1
+Drive Back: 8.3
+Cortez The Killer: 11.3
+Through My Sails: 7.6
