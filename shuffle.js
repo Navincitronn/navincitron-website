@@ -726,8 +726,36 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function collapseInitialismTokens(value) {
+        const tokens = String(value || "").split(" ").filter(Boolean);
+        const result = [];
+        let initialism = [];
+
+        const flushInitialism = () => {
+            if (initialism.length >= 3) {
+                result.push(initialism.join(""));
+            } else {
+                result.push(...initialism);
+            }
+            initialism = [];
+        };
+
+        for (const token of tokens) {
+            if (/^[a-z0-9]$/.test(token)) {
+                initialism.push(token);
+                continue;
+            }
+
+            flushInitialism();
+            result.push(token);
+        }
+
+        flushInitialism();
+        return result.join(" ");
+    }
+
     function normalizeText(value) {
-        return String(value || "")
+        const normalized = String(value || "")
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
             .toLowerCase()
@@ -740,6 +768,8 @@ document.addEventListener("DOMContentLoaded", () => {
             .replace(/[^a-z0-9]+/g, " ")
             .replace(/\s+/g, " ")
             .trim();
+
+        return collapseInitialismTokens(normalized);
     }
 
     function cleanTaggedTitle(value) {
