@@ -12859,9 +12859,9 @@ Ay Este Azul: 7.7
 Zamba De Lozano: 7.7
 Regreso A La Tonada: 7.7
 Chacarera De Un Triste: 7.5
-Cuando Estoy Triste: -
-Algarrobo Algarrobal: -
-Marron: -
-Juanito Se Salva De La Inundación: -
-Subo / Bello Jilguero: -
-Se Equivocó La Paloma: -
+Cuando Estoy Triste: 7.7
+Algarrobo Algarrobal: 7.6
+Marron: 8.0
+Juanito Se Salva De La Inundación: 7.8
+Subo / Bello Jilguero: 7.6
+Se Equivocó La Paloma: 7.6
