@@ -12871,7 +12871,7 @@ Crazy Feeling: 7.3
 Charley's Girl: 7.5
 She's My Best Friend: 7.2
 Kicks: 7.1
-A Gift: -
-Ooohhh Baby: -
-Nobody's Business: -
-Coney Island Baby: -
+A Gift: 7.1
+Ooohhh Baby: 6.9
+Nobody's Business: 7.0
+Coney Island Baby: 7.2
