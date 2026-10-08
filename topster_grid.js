@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20260928-guitarists-2011-wiki-v74';
+const TOPSTER_FRONTEND_VERSION = '20261007-public-find-single-entry-v75';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -7347,6 +7347,19 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         mobileInfo.className = `topster-mobile-tile-info ${getTopsterMobileInfoLengthClass(label)}`;
         mobileInfo.textContent = label;
         mobileInfo.setAttribute('aria-hidden', 'true');
+
+        // Public list pages already expose the artist/title once in the sidebar.
+        // Keep the tap-to-reveal cover label visually available, but make that
+        // duplicate DOM text inert so browser Find-in-page (Ctrl+F / Cmd+F)
+        // indexes only the sidebar copy. `inert` does not hide the overlay.
+        const body = document.body;
+        if (body && body.dataset
+            && body.dataset.topsterReadonly === 'true'
+            && body.dataset.topsterMode === 'list'
+            && body.dataset.topsterRequireAdmin !== 'true') {
+            mobileInfo.setAttribute('inert', '');
+        }
+
         tile.appendChild(mobileInfo);
     }
 
