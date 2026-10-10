@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ramones (Instrumentals)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="https://i.ibb.co/5hVscL2/navlogo.png" type="image/png">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="https://i.ibb.co/5hVscL2/navlogo.png" alt="navlogo" class="logo" border="0" />
+            <div class="brand">
+                <h1>NAVINCITRON</h1>
+                <br>
+                <p>proper music isolation</p>
+            </div>
+        </div>
+        <nav class="topnav">
+            <a href="/index.html">Home</a>
+            <a href="/about.html">About</a>
+            <a href="/contact.html">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="instrumentals">
+            <h2 class="center">Ramones - Ramones (1976)</h2>
+            <div class="thumbnail-wrapper" id="thumbnail-wrapper">
+                <img src="https://storage.googleapis.com/navincitron-website-bucket/thumbnails/ramones.png" alt="Ramones" class="albumss-thumbnail" id="thumbnail">
+                <img src="/play.png" alt="Play" class="play-pause-icon" id="play-icon">
+                <img src="/pause.png" alt="Pause" class="play-pause-icon" id="pause-icon">
+            </div>
+            <div class="audio-player">
+                <audio id="audio-player" controls>
+                    <source src="https://storage.googleapis.com/navincitron-website-bucket/instrumentals/Ramones (Instrumentals).mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="track-list">
+                    <h3>SIDE A</h3>
+                    <p><span onclick="setTime(0)">Blitzkrieg Bop - 00:00</span></p>
+                    <p><span onclick="setTime(135)">Beat On The Brat - 02:15</span></p>
+                    <p><span onclick="setTime(288)">Judy Is A Punk - 04:48</span></p>
+                    <p><span onclick="setTime(383)">I Wanna Be Your Boyfriend - 06:23</span></p>
+                    <p><span onclick="setTime(529)">Chain Saw - 08:49</span></p>
+                    <p><span onclick="setTime(648)">Now I Wanna Sniff Some Glue - 10:48</span></p>
+                    <p><span onclick="setTime(746)">I Don't Wanna Go Down To The Basement - 12:26</span></p>
+                    <br>
+                    <h3>SIDE B</h3>
+                    <p><span onclick="setTime(915)">Loudmouth - 15:16</span></p>
+                    <p><span onclick="setTime(1053)">Havana Affair - 17:33</span></p>
+                    <p><span onclick="setTime(1173)">Listen To My Heart - 19:33</span></p>
+                    <p><span onclick="setTime(1293)">53rd & 3rd - 21:33</span></p>
+                    <p><span onclick="setTime(1436)">Let's Dance - 23:56</span></p>
+                    <p><span onclick="setTime(1551)">I Don't Wanna Walk Around With You - 25:51</span></p>
+                    <p><span onclick="setTime(1654)">Today Your Love, Tomorrow The World - 27:34</span></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/script.js"></script>
+</body>
+</html>
