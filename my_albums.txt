@@ -12902,8 +12902,8 @@ You're My Best Friend: 8.5
 '39: 8.4
 Sweet Lady: 8.0
 Seaside Rendezvous: 7.9
-The Prophet's Song: -
-Love Of My Life: -
-Good Company: -
-Bohemian Rhapsody: -
-God Save The Queen: -
+The Prophet's Song: 9.0
+Love Of My Life: 8.4
+Good Company: 8.0
+Bohemian Rhapsody: 11.9
+God Save The Queen: 8.1
