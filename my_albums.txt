@@ -12914,8 +12914,8 @@ The Jungle Line: 8.2
 Edith And The Kingpin: 8.0
 Dont Interrupt The Sorrow: 8.1
 Shades Of Scarlet Conquering: 8.3
-The Hissing Of Summer Lawns: -
-The Boho Dance: -
-Harry's House / Centerpiece: -
+The Hissing Of Summer Lawns: 8.4
+The Boho Dance: 8.5
+Harry's House / Centerpiece: 8.2
 Sweet Bird: -
 Shadows And Light: -
