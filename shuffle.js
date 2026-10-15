@@ -62,12 +62,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const API_BASE_URL = "https://api.navincitron.com";
     const SONGGUESSER_CLIP_SECONDS = 30;
+    // Intentionally not stored in localStorage/sessionStorage: refreshing this
+    // page creates a fresh no-repeat Songguesser history.
+    const songguesserPageSessionId = window.crypto && typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : `sg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
     let spotifyAuthenticated = false;
     let songguesserCurrent = null;
     let songguesserCorrect = { artist: false, album: false, song: false };
     let songguesserAcceptingGuesses = false;
     let songguesserWrongGuesses = 0;
     let songguesserRoundResults = [];
+    // Lives only as long as this page remains loaded; does not survive refresh.
+    const songguesserSeenSongKeys = new Set();
+
+    function songguesserSeenSongKey(artist, song) {
+        const norm = (value, removeThe = false) => {
+            let text = String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            if (removeThe) text = text.replace(/^the\s+/, "");
+            return text.replace(/[^a-z0-9]/g, "");
+        };
+        const artistKey = norm(artist, true);
+        const songKey = norm(song);
+        return artistKey && songKey ? `song::${artistKey}::${songKey}` : "";
+    }
     let songguesserTimerInterval = null;
     let songguesserNextTimeout = null;
     let samplerPaused = false;
@@ -726,7 +744,7 @@ document.addEventListener("DOMContentLoaded", () => {
         let initialism = [];
 
         const flushInitialism = () => {
-            if (initialism.length >= 3) {
+            if (initialism.length >= 2) {
                 result.push(initialism.join(""));
             } else {
                 result.push(...initialism);
@@ -834,14 +852,20 @@ document.addEventListener("DOMContentLoaded", () => {
         return token;
     }
 
-    function tokenMatches(expectedToken, guessToken) {
+    function tokenMatches(expectedToken, guessToken, allowArtistPrefix = false) {
         if (expectedToken === guessToken) return true;
-        return singularizeToken(expectedToken) === singularizeToken(guessToken);
+        if (singularizeToken(expectedToken) === singularizeToken(guessToken)) return true;
+        // Allow recognisable shortened artist names: "radio" -> "Radiohead".
+        // Never use prefix matching for album or song titles.
+        return allowArtistPrefix
+            && guessToken.length >= 5
+            && guessToken.length >= Math.ceil(expectedToken.length * 0.5)
+            && expectedToken.startsWith(guessToken);
     }
 
-    function tokenSetHasApproximate(tokenSet, expectedToken) {
+    function tokenSetHasApproximate(tokenSet, expectedToken, allowArtistPrefix = false) {
         for (const guessToken of tokenSet) {
-            if (tokenMatches(expectedToken, guessToken)) {
+            if (tokenMatches(expectedToken, guessToken, allowArtistPrefix)) {
                 return true;
             }
         }
@@ -889,14 +913,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const groups = artistAliasTokenGroups(expectedRaw);
 
         for (const group of groups) {
-            if (group.every((token) => tokenSetHasApproximate(guessTokens, token))) {
+            if (group.every((token) => tokenSetHasApproximate(guessTokens, token, true))) {
                 return true;
             }
         }
 
         const expectedTokens = significantTokens(expectedRaw);
 
-        return expectedTokens.some((token) => token.length >= 4 && tokenSetHasApproximate(guessTokens, token));
+        return expectedTokens.some((token) => token.length >= 4 && tokenSetHasApproximate(guessTokens, token, true));
     }
 
     function answerMatches(expectedRaw, guessRaw, kind) {
@@ -1222,6 +1246,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleSongguesserCurrent(current) {
         songguesserCurrent = current;
+        // The user has now heard/been presented this track, regardless of
+        // whether they identify it correctly or choose Skip.
+        const playingAnswer = current && current.answer ? current.answer : {};
+        const playingKey = songguesserSeenSongKey(playingAnswer.artist, playingAnswer.song);
+        if (playingKey) songguesserSeenSongKeys.add(playingKey);
         songguesserPaused = Boolean(current && current.paused);
         songguesserCorrect = { artist: false, album: false, song: false };
         songguesserWrongGuesses = 0;
@@ -1266,6 +1295,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = new FormData();
         formData.append("sourceMode", sourceMode);
         formData.append("playlistLink", playlistLinkInput ? playlistLinkInput.value.trim() : "");
+        formData.append("pageSessionId", songguesserPageSessionId);
+        formData.append("previousTracks", JSON.stringify(Array.from(songguesserSeenSongKeys)));
         formData.append("hintReleaseYear", hintReleaseYearInput && hintReleaseYearInput.checked ? "true" : "false");
         formData.append("hintReleaseDecade", hintReleaseDecadeInput && hintReleaseDecadeInput.checked ? "true" : "false");
         formData.append("hintArtist", hintArtistInput && hintArtistInput.checked ? "true" : "false");
