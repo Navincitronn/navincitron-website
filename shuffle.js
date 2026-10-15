@@ -41,7 +41,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const coverPickerStatus = document.getElementById("shuffle-cover-picker-status");
     const coverPickerResults = document.getElementById("shuffle-cover-picker-results");
     const spotifyLoginButton = document.getElementById("spotify-login");
-    const spotifyAuthStatus = document.getElementById("spotify-auth-status");
     const fileSourceOptions = document.getElementById("file-source-options");
     const playlistSourceOptions = document.getElementById("playlist-source-options");
     const songguesserPanel = document.getElementById("songguesser-panel");
@@ -153,13 +152,9 @@ document.addEventListener("DOMContentLoaded", () => {
     function setAuthStatus(authenticated, detailText = "") {
         spotifyAuthenticated = authenticated;
 
-        if (!spotifyAuthStatus) return;
-
-        spotifyAuthStatus.classList.toggle("connected", authenticated);
-        spotifyAuthStatus.classList.toggle("disconnected", !authenticated);
-
+        // Authentication is shown on the Login with Spotify button itself;
+        // no secondary "Spotify: connected" line is displayed below controls.
         if (authenticated) {
-            spotifyAuthStatus.textContent = detailText || "Spotify: connected";
             if (spotifyLoginButton) {
                 spotifyLoginButton.textContent = "Spotify Connected";
                 spotifyLoginButton.title = "Click to reconnect or switch Spotify account.";
@@ -167,7 +162,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 spotifyLoginButton.classList.remove("spotify-login-disconnected");
             }
         } else {
-            spotifyAuthStatus.textContent = detailText || "Spotify: not connected. Press Login with Spotify before starting.";
             if (spotifyLoginButton) {
                 spotifyLoginButton.textContent = "Login with Spotify";
                 spotifyLoginButton.title = "Connect Spotify before starting the sampler.";
