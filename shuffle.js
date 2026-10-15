@@ -1120,7 +1120,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function startSongguesserTimer(endsAtSeconds) {
-        beginSongguesserCountdown(Number(endsAtSeconds) * 1000, () => revealSongguesserAnswer("Time's up", 7));
+        beginSongguesserCountdown(Number(endsAtSeconds) * 1000, () => revealSongguesserAnswer("", 7));
     }
 
     function startSongguesserNextCountdown(delaySeconds) {
@@ -1210,7 +1210,9 @@ document.addEventListener("DOMContentLoaded", () => {
             album: answer.album,
         });
 
-        setStatus(songguesserPaused ? `${reason}. Paused.` : `${reason}. Next song in ${delaySeconds} seconds.`);
+        // The answer reveal and countdown remain, but omit chatter such as
+        // "Time's up", "Three wrong guesses", and "Next song in 7 seconds".
+        setStatus(songguesserPaused ? "paused" : "Songguesser running");
         if (songguesserGuessInput) songguesserGuessInput.disabled = true;
         if (songguesserSkipButton) songguesserSkipButton.disabled = true;
 
@@ -1379,12 +1381,12 @@ document.addEventListener("DOMContentLoaded", () => {
         updateSongguesserAnswerDisplay(false);
 
         if (songguesserAllRequiredVariablesSatisfied()) {
-            revealSongguesserAnswer("Correct", 5);
+            revealSongguesserAnswer("", 5);
             return;
         }
 
         if (songguesserWrongGuesses >= 3) {
-            revealSongguesserAnswer("Three wrong guesses", 7);
+            revealSongguesserAnswer("", 7);
         }
     }
 
@@ -1584,7 +1586,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (songguesserSkipButton) {
         songguesserSkipButton.addEventListener("click", () => {
-            revealSongguesserAnswer("Skipped", 7);
+            revealSongguesserAnswer("", 7);
         });
     }
 
