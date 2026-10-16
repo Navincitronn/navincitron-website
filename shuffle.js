@@ -157,7 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (startButton) {
-            startButton.textContent = guessing ? "Start Songguesser" : "Start Sampler";
+            startButton.textContent = "Start";
         }
     }
 
@@ -1503,7 +1503,9 @@ document.addEventListener("DOMContentLoaded", () => {
         clearSongguesserTimers();
 
         try {
-            const endpoint = songguesserEnabled() ? "/api/songguesser/stop" : "/api/stop";
+            // Always stop the real backend process, irrespective of a checkbox
+            // that the user may have changed since starting playback.
+            const endpoint = "/api/stop";
             const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: "POST",
                 credentials: "include",
