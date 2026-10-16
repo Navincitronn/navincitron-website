@@ -26,6 +26,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const playSamplerButton = document.getElementById("play-sampler");
     const nextTrackButton = document.getElementById("next-track");
     const samplerStatus = document.getElementById("sampler-status");
+    const spotifyDeviceSelect = document.getElementById("spotify-device-select");
+    const spotifyDeviceRefresh = document.getElementById("spotify-device-refresh");
+    const spotifyDeviceChoose = document.getElementById("spotify-device-choose");
+    const spotifyDeviceMessage = document.getElementById("spotify-device-message");
     const samplerLog = document.getElementById("sampler-log");
     const samplerLogWrap = document.getElementById("shuffle-log-wrap");
     const coverImage = document.getElementById("current-cover-image");
@@ -212,6 +216,77 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             setAuthStatus(false, `Spotify: login check unavailable: ${error}`);
             return false;
+        }
+    }
+
+    function setSpotifyDeviceMessage(message) {
+        if (spotifyDeviceMessage) spotifyDeviceMessage.textContent = message;
+    }
+
+    async function refreshSpotifyDevices() {
+        if (!spotifyDeviceSelect) return;
+        if (!spotifyAuthenticated) {
+            spotifyDeviceSelect.disabled = true;
+            if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = true;
+            setSpotifyDeviceMessage("Log in with Spotify to list available playback devices.");
+            return;
+        }
+        if (spotifyDeviceRefresh) spotifyDeviceRefresh.disabled = true;
+        setSpotifyDeviceMessage("Finding Spotify playback devices...");
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/spotify/devices`, { credentials: "include", cache: "no-store" });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Could not list devices.");
+            spotifyDeviceSelect.replaceChildren();
+            const auto = document.createElement("option");
+            auto.value = "";
+            auto.textContent = "Automatic (Spotify active device)";
+            spotifyDeviceSelect.appendChild(auto);
+            for (const device of data.devices || []) {
+                const option = document.createElement("option");
+                option.value = String(device.id);
+                option.textContent = `${device.name} (${device.type || "Spotify"})${device.isActive ? " — active" : ""}${device.isRestricted ? " — restricted" : ""}`;
+                option.disabled = Boolean(device.isRestricted);
+                spotifyDeviceSelect.appendChild(option);
+            }
+            const selected = String(data.selectedDeviceId || "");
+            spotifyDeviceSelect.value = Array.from(spotifyDeviceSelect.options).some(option => option.value === selected) ? selected : "";
+            spotifyDeviceSelect.disabled = false;
+            if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = false;
+            if ((data.devices || []).length === 0) {
+                setSpotifyDeviceMessage("No devices detected. Open the Spotify app on your intended device, then refresh.");
+            } else {
+                const matched = (data.devices || []).find(device => device.id === selected);
+                setSpotifyDeviceMessage(`Account: ${data.accountName || "Spotify"}. ${matched ? `Selected: ${matched.name}.` : "Automatic device selection."} Choose a device and press Use Device.`);
+            }
+        } catch (error) {
+            spotifyDeviceSelect.disabled = true;
+            if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = true;
+            setSpotifyDeviceMessage(String(error.message || error));
+        } finally {
+            if (spotifyDeviceRefresh) spotifyDeviceRefresh.disabled = false;
+        }
+    }
+
+    async function chooseSpotifyDevice() {
+        if (!spotifyDeviceSelect || spotifyDeviceSelect.disabled) return;
+        const selected = spotifyDeviceSelect.value;
+        if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = true;
+        setSpotifyDeviceMessage("Saving playback device selection...");
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/spotify/device`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceId: selected }),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Could not select device.");
+            setSpotifyDeviceMessage(`Playback target: ${data.name}. Start the Sampler or Songguesser to play on this device.`);
+        } catch (error) {
+            setSpotifyDeviceMessage(String(error.message || error));
+        } finally {
+            if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = false;
         }
     }
 
@@ -1534,6 +1609,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    if (spotifyDeviceRefresh) {
+        spotifyDeviceRefresh.addEventListener("click", refreshSpotifyDevices);
+    }
+    if (spotifyDeviceChoose) {
+        spotifyDeviceChoose.addEventListener("click", chooseSpotifyDevice);
+    }
+
     if (spotifyLoginButton) {
         spotifyLoginButton.addEventListener("click", () => {
             window.location.href = `${API_BASE_URL}/login`;
@@ -1624,7 +1706,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     updateSourceModeVisibility();
-    refreshAuthStatus();
+    refreshAuthStatus().then(authenticated => {
+        if (authenticated) refreshSpotifyDevices();
+    });
     pollStatus();
     setInterval(pollStatus, 1000);
     setInterval(refreshAuthStatus, 15000);

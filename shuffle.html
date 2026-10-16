@@ -91,6 +91,27 @@
             background-color: #ff8000;
         }
 
+        .spotify-device-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .spotify-device-controls select {
+            flex: 1 1 220px;
+            min-width: 0;
+            padding: 9px;
+            background: #242424;
+            color: #fff;
+            border: 1px solid #777;
+            border-radius: 5px;
+        }
+
+        .spotify-device-row .source-help {
+            margin-top: 6px;
+        }
+
         .spotify-login-connected {
             background-color: #00e054;
         }
@@ -472,6 +493,18 @@
                     </div>
                 </div>
 
+                <div class="shuffle-form-row spotify-device-row" id="spotify-device-row">
+                    <label for="spotify-device-select">Spotify playback device</label>
+                    <div class="spotify-device-controls">
+                        <select id="spotify-device-select" aria-label="Spotify playback device" disabled>
+                            <option value="">Automatic (Spotify active device)</option>
+                        </select>
+                        <button id="spotify-device-refresh" type="button" class="secondary-button">Refresh Devices</button>
+                        <button id="spotify-device-choose" type="button" class="secondary-button" disabled>Use Device</button>
+                    </div>
+                    <p id="spotify-device-message" class="source-help" role="status">Log in with Spotify to list available playback devices.</p>
+                </div>
+
                 <div class="shuffle-buttons">
                     <button id="spotify-login" type="button">Login with Spotify</button>
                     <button id="start-sampler" type="button">Start</button>
@@ -547,6 +580,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261016-songguesser-stop-year-playback-fix"></script>
+    <script src="shuffle.js?v=20261016-device-picker-v1"></script>
 </body>
 </html>
