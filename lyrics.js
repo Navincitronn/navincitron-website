@@ -1265,6 +1265,20 @@
     // "Exclude releases that I have".
     const LYRICS_DISCOGS_SPOTIFY_OWNERSHIP_ALIASES = Object.freeze([
         {
+            // The 1975 live Bootleg Series Vol. 5 Spotify release corresponds to
+            // the owned Rolling Thunder Revue LP, not other Dylan compilations
+            // containing the same song titles (notably More Blood, More Tracks).
+            sourceArtists: ['Bob Dylan'],
+            sourceTitles: [
+                'The Bootleg Series, Vol 5 - Bob Dylan Live 1975: The Rolling Thunder Revue',
+                'The Bootleg Series Vol. 5: Bob Dylan Live 1975 - The Rolling Thunder Revue',
+                'The Bootleg Series Vol. 5: Bob Dylan Live 1975, The Rolling Thunder Revue',
+            ],
+            targets: [
+                { artist: 'Bob Dylan', title: 'Rolling Thunder Revue' },
+            ],
+        },
+        {
             sourceArtists: ['Carl Perkins'],
             sourceTitles: ['The Dance Album'],
             targets: [
@@ -2251,8 +2265,15 @@
         if (!options.force && vinylSideEndPauseArm !== arm) return;
         // Never let a heavily throttled background-tab timer pause an unrelated
         // song long after the intended vinyl side boundary.
-        if (arm.expectedEndAt && Date.now() - arm.expectedEndAt > 5000) {
-            if (vinylSideEndPauseArm === arm) clearVinylSideEndPause();
+        if (!options.force && arm.expectedEndAt && Date.now() - arm.expectedEndAt > 5000) {
+            // A background tab may resume after the track has already advanced.
+            // Do not clear the arm here: the next fresh Spotify snapshot must
+            // decide whether this was a real side transition. If confirmed,
+            // displayTrack() invokes the forced pause for the following side.
+            if (vinylSideEndPauseArm === arm) {
+                vinylSideEndPauseTimer = null;
+                void fetchCurrentLyrics(false);
+            }
             return;
         }
         if (!playbackClock.isPlaying) return;
@@ -2314,10 +2335,12 @@
         const remainingMs = Math.max(0, durationMs - estimatedPlaybackProgress());
         arm.expectedEndAt = Date.now() + remainingMs;
 
-        // Request the pause just after Spotify's reported track end. This avoids
-        // clipping the final audible fraction of the side-ending song. If Spotify
-        // has already advanced, the following side is paused almost immediately.
-        const delayMs = Math.max(0, remainingMs + 100);
+        // Issue the request slightly BEFORE Spotify starts the following track.
+        // The previous +100ms scheduling guaranteed that the next side could
+        // start playing while the HTTP pause request was still in flight. A small
+        // lead time also absorbs typical round-trip latency, at the cost of at
+        // most the final fraction of a second of the ending track.
+        const delayMs = Math.max(0, remainingMs - 350);
         vinylSideEndPauseTimer = window.setTimeout(() => pauseSpotifyAtVinylSideEnd(arm), delayMs);
     }
 
@@ -2882,7 +2905,11 @@
                 if (lastDiscogsTracklistPayload && lastDiscogsTracklistPayload.release) {
                     const release = lastDiscogsTracklistPayload.release;
                     const rows = flattenLyricsDiscogsTracklist(release.tracklist || []);
-                    if (rows.length) renderLyricsScoreCard(release, lastDiscogsTracklistPayload.collectionAlbum || {}, rows, -1);
+                    if (rows.length) renderLyricsScoreCard(release, {
+                        ...(lastDiscogsTracklistPayload.collectionAlbum || {}),
+                        sourceAlbum: lastDiscogsTracklistPayload.sourceAlbum || currentDisplayedTrack && currentDisplayedTrack.album || "",
+                        sourceArtist: lastDiscogsTracklistPayload.sourceArtist || currentDisplayedTrack && currentDisplayedTrack.artist || "",
+                    }, rows, -1);
                 }
                 return myAlbumsScoreEntries;
             })
@@ -2926,28 +2953,95 @@
         let common = 0;
         leftTokens.forEach(token => { if (rightTokens.has(token)) common += 1; });
         const containment = common / Math.max(1, Math.min(leftTokens.size, rightTokens.size));
-        if (containment === 1 && Math.min(leftTokens.size, rightTokens.size) >= 2) return 0.84;
-        if (containment >= 0.75) return 0.72;
+        const coverage = common / Math.max(leftTokens.size, rightTokens.size);
+        // Two shared artist-name tokens are not an album identity: e.g. the
+        // score-file heading "BOB DYLAN" must not match "Bob Dylan - Rolling
+        // Thunder Revue" merely because those words appear in the release title.
+        if (containment === 1 && Math.min(leftTokens.size, rightTokens.size) >= 2 && coverage >= 0.60) return 0.84;
+        if (containment >= 0.75 && coverage >= 0.60) return 0.72;
         return 0;
     }
 
-    function myAlbumsTrackCoverageScore(albumEntry, discogsRows) {
-        if (!albumEntry || !Array.isArray(albumEntry.tracks) || !albumEntry.tracks.length || !discogsRows.length) return 0;
-        let matched = 0;
-        for (const row of discogsRows) {
-            const best = albumEntry.tracks.reduce((value, track) => Math.max(value, lyricsDiscogsTrackMatchScore(row.title, track.title)), 0);
-            if (best >= 0.72) matched += 1;
+    function myAlbumsTrackOverlap(albumEntry, discogsRows) {
+        // Use unique one-to-one lyric-title matches; repeated Discogs track names
+        // must not inflate coverage enough to make an unrelated release eligible.
+        const tracks = Array.isArray(albumEntry && albumEntry.tracks) ? albumEntry.tracks : [];
+        const rows = Array.isArray(discogsRows) ? discogsRows : [];
+        if (!tracks.length || !rows.length) {
+            return { matched: 0, savedCoverage: 0, releaseCoverage: 0, compatible: false };
         }
-        return matched / Math.max(1, Math.min(discogsRows.length, albumEntry.tracks.length));
+        const candidates = [];
+        rows.forEach((row, rowIndex) => tracks.forEach((track, trackIndex) => {
+            const score = lyricsDiscogsTrackMatchScore(row && row.title || "", track && track.title || "");
+            if (score >= 0.86) candidates.push({ rowIndex, trackIndex, score });
+        }));
+        candidates.sort((a, b) => b.score - a.score);
+        const usedRows = new Set();
+        const usedTracks = new Set();
+        for (const item of candidates) {
+            if (usedRows.has(item.rowIndex) || usedTracks.has(item.trackIndex)) continue;
+            usedRows.add(item.rowIndex);
+            usedTracks.add(item.trackIndex);
+        }
+        const matched = usedRows.size;
+        const savedCoverage = matched / tracks.length;
+        const releaseCoverage = matched / rows.length;
+        const compatible = matched > 0 && (
+            // For a normal album both tracklists must substantively describe the
+            // same release, not merely share an artist or one famous song.
+            Math.min(rows.length, tracks.length) >= 4
+                ? matched >= 3 && savedCoverage >= 0.60 && releaseCoverage >= 0.40
+                : savedCoverage >= 0.60 && releaseCoverage >= 0.60
+        );
+        return { matched, savedCoverage, releaseCoverage, compatible };
+    }
+
+    function myAlbumsTrackCoverageScore(albumEntry, discogsRows) {
+        const coverage = myAlbumsTrackOverlap(albumEntry, discogsRows);
+        return Math.min(coverage.savedCoverage, coverage.releaseCoverage);
+    }
+
+    function scoreSourceAlbumTitle(release, collectionAlbum) {
+        // The Discogs COLLECTION title can describe a master/artist rather than
+        // the specific Spotify album. The source album supplied in the API result
+        // is a better identity and is stable even during Vinyl Mode auto-save.
+        return String(
+            collectionAlbum && collectionAlbum.sourceAlbum
+            || currentDisplayedTrack && currentDisplayedTrack.album
+            || ""
+        ).trim();
+    }
+
+    function scoreContextWantedTitles(release, collectionAlbum) {
+        const releaseTitle = String(release && release.title || "").trim();
+        const spotifyTitle = scoreSourceAlbumTitle(release, collectionAlbum);
+        const titles = [releaseTitle, spotifyTitle];
+        // Only trust the less-specific collection title when neither real album
+        // identity is available; it must not override a different release title.
+        if (!releaseTitle && !spotifyTitle) titles.push(collectionAlbum && collectionAlbum.title);
+        return titles.map(value => String(value || "").trim()).filter(Boolean);
+    }
+
+    function scoreEntryIsDifferentArtistAlbum(albumEntry, release, collectionAlbum) {
+        const titleKey = normalizeAlbumTitle(albumEntry && albumEntry.title || "");
+        const sourceAlbumKey = normalizeAlbumTitle(scoreSourceAlbumTitle(release, collectionAlbum));
+        const creditedArtists = [
+            ...(Array.isArray(release && release.artists) ? release.artists : []),
+            ...(Array.isArray(collectionAlbum && collectionAlbum.artists) ? collectionAlbum.artists : []),
+            collectionAlbum && collectionAlbum.sourceArtist,
+            currentDisplayedTrack && currentDisplayedTrack.artist,
+            currentDisplayedTrack && currentDisplayedTrack.albumArtist,
+        ].map(value => normalizeAlbumTitle(String(value || "").replace(/\s*\(\d+\)\s*$/, ""))).filter(Boolean);
+        // E.g. "BOB DYLAN" is a self-titled album, not a generic container
+        // for all records by Bob Dylan. Treat it as that album ONLY if Spotify
+        // itself is playing an album titled "Bob Dylan".
+        return Boolean(titleKey && titleKey !== sourceAlbumKey && creditedArtists.includes(titleKey));
     }
 
     function myAlbumsAlbumMatchCacheKey(release, collectionAlbum, discogsRows) {
         const releaseKey = Number(release && release.releaseId) || 0;
-        const titles = [
-            release && release.title,
-            collectionAlbum && collectionAlbum.title,
-            currentDisplayedTrack && currentDisplayedTrack.album,
-        ].map(value => normalizeAlbumTitle(value || "")).join("::");
+        const titles = scoreContextWantedTitles(release, collectionAlbum)
+            .map(value => normalizeAlbumTitle(value || "")).join("::");
         const tracks = (discogsRows || []).map(row => lyricsDiscogsNormalizeTrackText(row && row.title || "")).join("|");
         return `${releaseKey}::${titles}::${tracks}`;
     }
@@ -2957,11 +3051,7 @@
         const cacheKey = myAlbumsAlbumMatchCacheKey(release, collectionAlbum, discogsRows);
         if (myAlbumsAlbumMatchCache.has(cacheKey)) return myAlbumsAlbumMatchCache.get(cacheKey);
 
-        const wantedTitles = [
-            release && release.title,
-            collectionAlbum && collectionAlbum.title,
-            currentDisplayedTrack && currentDisplayedTrack.album,
-        ].map(value => String(value || "").trim()).filter(Boolean);
+        const wantedTitles = scoreContextWantedTitles(release, collectionAlbum);
 
         const candidateSet = new Set();
         wantedTitles.forEach(title => {
@@ -2996,9 +3086,12 @@
             return {
                 entry,
                 titleScore,
+                overlap: myAlbumsTrackOverlap(entry, discogsRows),
                 trackCoverage: myAlbumsTrackCoverageScore(entry, discogsRows),
             };
-        }).filter(item => item.titleScore > 0);
+        }).filter(item => item.titleScore > 0
+            && !scoreEntryIsDifferentArtistAlbum(item.entry, release, collectionAlbum)
+            && item.overlap.compatible);
 
         // Album title identity is authoritative for Score-file mutation. Track overlap
         // may disambiguate two plausible title matches, but it must never make a
@@ -3063,19 +3156,15 @@
         return bestScore >= 0.55 ? bestTrack : null;
     }
 
-    function scoreContextWantedTitles(release, collectionAlbum) {
-        return [
-            release && release.title,
-            collectionAlbum && collectionAlbum.title,
-            currentDisplayedTrack && currentDisplayedTrack.album,
-        ].map(value => String(value || "").trim()).filter(Boolean);
-    }
-
-    function scoreEntryTitleBelongsToContext(albumEntry, release, collectionAlbum) {
-        if (!albumEntry) return false;
-        return scoreContextWantedTitles(release, collectionAlbum).some(title =>
-            myAlbumsAlbumTitleScore(albumEntry.title, title) > 0
+    function scoreEntryTitleBelongsToContext(albumEntry, release, collectionAlbum, discogsRows) {
+        if (!albumEntry || scoreEntryIsDifferentArtistAlbum(albumEntry, release, collectionAlbum)) return false;
+        const titleAgrees = scoreContextWantedTitles(release, collectionAlbum).some(title =>
+            myAlbumsAlbumTitleScore(albumEntry.title, title) >= 0.60
         );
+        // Never replace or delete a score block based on the title alone. The
+        // old behavior overwrote the 1962 self-titled "BOB DYLAN" tracklist
+        // with the completely different Rolling Thunder Revue tracklist.
+        return titleAgrees && myAlbumsTrackOverlap(albumEntry, discogsRows).compatible;
     }
 
     function scoreDraftAlbumKey(release, collectionAlbum, albumEntry = null) {
@@ -3382,7 +3471,7 @@
         // Last line of defense against destructive cross-album replacement: even if
         // a stale/malformed cached context contains an entry, only replace that block
         // when its album title is actually compatible with the current release.
-        const entry = scoreEntryTitleBelongsToContext(candidateEntry, release, collectionAlbum)
+        const entry = scoreEntryTitleBelongsToContext(candidateEntry, release, collectionAlbum, context && context.discogsRows || [])
             ? candidateEntry
             : null;
         const rows = context && Array.isArray(context.discogsRows) ? context.discogsRows : [];
@@ -3415,7 +3504,7 @@
         const collectionAlbum = context && context.collectionAlbum || {};
         if (
             !entry
-            || !scoreEntryTitleBelongsToContext(entry, release, collectionAlbum)
+            || !scoreEntryTitleBelongsToContext(entry, release, collectionAlbum, context && context.discogsRows || [])
             || !Number.isInteger(entry.startLine)
             || !Number.isInteger(entry.endLine)
         ) {
@@ -3993,7 +4082,11 @@
         });
         if (currentRowScore < 0.55) currentRowIndex = -1;
 
-        const collectionAlbum = payload.collectionAlbum || {};
+        const collectionAlbum = {
+            ...(payload.collectionAlbum || {}),
+            sourceAlbum: String(payload.sourceAlbum || currentDisplayedTrack && currentDisplayedTrack.album || "").trim(),
+            sourceArtist: String(payload.sourceArtist || currentDisplayedTrack && currentDisplayedTrack.artist || "").trim(),
+        };
         const releaseArtists = Array.isArray(release.artists) && release.artists.length
             ? release.artists.join(", ")
             : (Array.isArray(collectionAlbum.artists) ? collectionAlbum.artists.join(", ") : "");
