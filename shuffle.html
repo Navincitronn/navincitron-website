@@ -232,6 +232,52 @@
             margin-bottom: 4px;
         }
 
+        .songguesser-tracklist {
+            margin-top: 12px;
+            padding: 14px;
+            background-color: #333;
+            border-radius: 8px;
+        }
+
+        .songguesser-tracklist h3 {
+            font-size: 16px;
+            margin: 0 0 10px;
+        }
+
+        .songguesser-tracklist-rows {
+            max-height: 330px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .songguesser-tracklist-row {
+            display: flex;
+            gap: 9px;
+            align-items: baseline;
+            border: 2px solid transparent;
+            border-radius: 5px;
+            padding: 5px 7px;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .songguesser-tracklist-row.is-correct-song {
+            border-color: #00e054;
+        }
+
+        .songguesser-tracklist-number {
+            color: #ccc;
+            min-width: 2ch;
+            flex-shrink: 0;
+            text-align: right;
+        }
+
+        .songguesser-tracklist-artist {
+            color: #bbb;
+        }
+
         .songguesser-correct {
             color: #00e054;
             font-weight: bold;
@@ -566,6 +612,10 @@
                     <div id="songguesser-release-year-line" class="songguesser-answer-line" hidden><strong>Release Year</strong><span id="songguesser-release-year">???</span></div>
                     <div id="songguesser-release-decade-line" class="songguesser-answer-line" hidden><strong>Release Decade</strong><span id="songguesser-release-decade">???</span></div>
                 </div>
+                <section id="songguesser-tracklist" class="songguesser-tracklist" aria-label="Album tracklist" hidden>
+                    <h3 id="songguesser-tracklist-heading">Tracklist</h3>
+                    <div id="songguesser-tracklist-rows" class="songguesser-tracklist-rows"></div>
+                </section>
 
                 <div id="songguesser-summary" class="songguesser-summary" hidden>
                     <h3>Songguesser Results</h3>
@@ -580,6 +630,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261019-grid-year-and-hyphens"></script>
+    <script src="shuffle.js?v=20261019-songguesser-album-tracklists"></script>
 </body>
 </html>

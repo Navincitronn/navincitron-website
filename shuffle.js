@@ -61,6 +61,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const songguesserReleaseDecadeLine = document.getElementById("songguesser-release-decade-line");
     const songguesserReleaseYear = document.getElementById("songguesser-release-year");
     const songguesserReleaseDecade = document.getElementById("songguesser-release-decade");
+    const songguesserTracklist = document.getElementById("songguesser-tracklist");
+    const songguesserTracklistHeading = document.getElementById("songguesser-tracklist-heading");
+    const songguesserTracklistRows = document.getElementById("songguesser-tracklist-rows");
     const songguesserSummary = document.getElementById("songguesser-summary");
     const songguesserSummaryList = document.getElementById("songguesser-summary-list");
 
@@ -1048,6 +1051,37 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function renderSongguesserTracklist() {
+        if (!songguesserTracklist || !songguesserTracklistRows) return;
+        // Album hints must not reveal the tracklist; only a correctly entered
+        // album guess unlocks it. Never show the upcoming song's list early.
+        if (!songguesserCurrent || !songguesserCorrect.album) {
+            songguesserTracklist.hidden = true;
+            songguesserTracklistRows.innerHTML = "";
+            return;
+        }
+        const tracklist = songguesserCurrent.tracklist || {};
+        const rows = Array.isArray(tracklist.rows) ? tracklist.rows : [];
+        songguesserTracklist.hidden = false;
+        songguesserTracklistHeading.textContent = tracklist.scope === "album_in_playlist"
+            ? "Album songs in playlist" : tracklist.kind === "playlist"
+                ? "Playlist tracklist" : "Album tracklist";
+        if (!tracklist.available || !rows.length) {
+            songguesserTracklistRows.textContent = "Spotify did not provide this tracklist.";
+            return;
+        }
+        songguesserTracklistRows.innerHTML = rows.map((item) => {
+            const number = escapeSongguesserText(item.position);
+            const name = escapeSongguesserText(item.name || "Unknown track");
+            const artist = escapeSongguesserText(item.artist || "");
+            const highlight = songguesserCorrect.song && item.current;
+            return `<div class="songguesser-tracklist-row${highlight ? " is-correct-song" : ""}">
+                <span class="songguesser-tracklist-number">${number}.</span>
+                <span>${name}${artist && artist !== "Unknown artist" ? `<span class="songguesser-tracklist-artist"> - ${artist}</span>` : ""}</span>
+            </div>`;
+        }).join("");
+    }
+
     function updateSongguesserAnswerDisplay(revealed = false) {
         const answer = songguesserCurrent ? songguesserCurrent.answer : {};
         const hints = songguesserCurrent ? (songguesserCurrent.hints || {}) : {};
@@ -1098,6 +1132,7 @@ document.addEventListener("DOMContentLoaded", () => {
             hints.releaseDecade ? hints.releaseDecade : "???",
             hints.releaseDecade ? "songguesser-answer-hint" : ""
         );
+        renderSongguesserTracklist();
     }
 
 
