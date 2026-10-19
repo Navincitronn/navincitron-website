@@ -2814,30 +2814,6 @@ Keep Your Hands to Yourself (She's Mine): 5.4
 What Do You Say: 5.0
 
 BOB DYLAN: 50.54%
-<<<<<<< HEAD
-Tonight I'll Be Staying Here With You: 7.6
-It Ain't Me, Babe: 8.2
-A Hard Rain's A-Gonna Fall: 7.4
-The Lonesome Death Of Hattie Carroll: 7.5
-Romance In Durango: 7.6
-Isis: 7.7
-Mr. Tambourine Man: 7.3
-Simple Twist Of Fate: 7.4
-Blowin' In The Wind: 7.5
-Mama, You Been On My Mind: 7.5
-I Shall Be Released: 7.5
-It's All Over Now, Baby Blue: 7.2
-Love Minus Zero/No Limit: 7.6
-Tangled Up In Blue: -
-The Water Is Wide: -
-It Takes A Lot To Laugh, It Takes A Train To Cry: -
-Oh, Sister: -
-Hurricane: -
-One More Cup Of Coffee (Valley Below): -
-Sara: -
-Just Like A Woman: -
-Knockin' On Heaven's Door: -
-=======
 You're No Good: 4.5
 Talkin' New York: 5.0
 In My Time of Dyin': 5.1
@@ -2851,7 +2827,6 @@ House of the Risin' Sun: 5.7
 Freight Train Blues: 4.0
 Song to Woody: 6.0 
 See That My Grave Is Kept Clean: 4.8
->>>>>>> 619123d (Updated)
 
 MODERN SOUNDS IN COUNTRY & WESTERN MUSIC: 78.55%
 Bye Bye, Love: 7.2
@@ -12950,3 +12925,29 @@ KÖLN, January 24, 1975 Part I: 6.5
 KÖLN, January 24, 1975 Part II A: 6.6
 KÖLN, January 24, 1975 Part II B: 6.3
 KÖLN, January 24, 1975 Part II C: 6.1
+
+
+THE BOOTLEG SERIES VOLUME 5 (THE ROLLING THUNDER REVUE):
+Tonight I'll Be Staying Here With You: 7.6
+It Ain't Me, Babe: 8.2
+A Hard Rain's A-Gonna Fall: 7.4
+The Lonesome Death Of Hattie Carroll: 7.5
+Romance In Durango: 7.6
+Isis: 7.7
+Mr. Tambourine Man: 7.3
+Simple Twist Of Fate: 7.4
+Blowin' In The Wind: 7.5
+Mama, You Been On My Mind: 7.5
+I Shall Be Released: 7.5
+It's All Over Now, Baby Blue: 7.2
+Love Minus Zero/No Limit: 7.6
+Tangled Up In Blue: -
+The Water Is Wide: -
+It Takes A Lot To Laugh, It Takes A Train To Cry: -
+Oh, Sister: -
+Hurricane: -
+One More Cup Of Coffee (Valley Below): -
+Sara: -
+Just Like A Woman: -
+Knockin' On Heaven's Door: -
+
