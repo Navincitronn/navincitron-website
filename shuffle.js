@@ -62,6 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const songguesserReleaseYear = document.getElementById("songguesser-release-year");
     const songguesserReleaseDecade = document.getElementById("songguesser-release-decade");
     const songguesserTracklist = document.getElementById("songguesser-tracklist");
+    const songguesserTracklistIndicator = document.getElementById("songguesser-tracklist-indicator");
     const songguesserTracklistHeading = document.getElementById("songguesser-tracklist-heading");
     const songguesserTracklistRows = document.getElementById("songguesser-tracklist-rows");
     const songguesserSummary = document.getElementById("songguesser-summary");
@@ -1053,23 +1054,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderSongguesserTracklist() {
         if (!songguesserTracklist || !songguesserTracklistRows) return;
-        // Album hints must not reveal the tracklist; only a correctly entered
-        // album guess unlocks it. Never show the upcoming song's list early.
+        // Do not unlock the tracklist merely because the album is shown as a
+        // hint. An explicit correct album entry unlocks it, even if the album
+        // was also hinted (the hinted variable still earns no points).
         if (!songguesserCurrent || !songguesserCorrect.album) {
             songguesserTracklist.hidden = true;
-            songguesserTracklistRows.innerHTML = "";
+            songguesserTracklistRows.replaceChildren();
+            if (songguesserTracklistIndicator) songguesserTracklistIndicator.hidden = true;
             return;
         }
+        const openingForFirstTime = songguesserTracklist.hidden;
         const tracklist = songguesserCurrent.tracklist || {};
         const rows = Array.isArray(tracklist.rows) ? tracklist.rows : [];
         songguesserTracklist.hidden = false;
+        if (songguesserTracklistIndicator) songguesserTracklistIndicator.hidden = false;
         songguesserTracklistHeading.textContent = tracklist.scope === "album_in_playlist"
             ? "Album songs in playlist" : tracklist.kind === "playlist"
                 ? "Playlist tracklist" : "Album tracklist";
         if (!tracklist.available || !rows.length) {
-            songguesserTracklistRows.textContent = "Spotify did not provide this tracklist.";
-            return;
-        }
+            songguesserTracklistRows.textContent = tracklist.kind === "playlist"
+                ? "Spotify did not expose this playlist's track information to the backend."
+                : "Spotify did not provide the album's tracklist.";
+        } else {
         songguesserTracklistRows.innerHTML = rows.map((item) => {
             const number = escapeSongguesserText(item.position);
             const name = escapeSongguesserText(item.name || "Unknown track");
@@ -1080,6 +1086,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span>${name}${artist && artist !== "Unknown artist" ? `<span class="songguesser-tracklist-artist"> - ${artist}</span>` : ""}</span>
             </div>`;
         }).join("");
+        }
+        // The list sits beneath the result fields. Bring it into view once
+        // when an album answer is accepted; never scroll on routine updates.
+        if (openingForFirstTime && typeof songguesserTracklist.scrollIntoView === "function") {
+            songguesserTracklist.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
     }
 
     function updateSongguesserAnswerDisplay(revealed = false) {
@@ -1271,7 +1283,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Result scoring counts only variables the user actually guessed.
         // Hinted/disclosed variables do not inflate the 0-3 correct count.
         return Number(Boolean(songguesserCorrect.artist))
-            + Number(Boolean(songguesserCorrect.album))
+            + Number(Boolean(songguesserCorrect.album && !songguesserHintSatisfies("album")))
             + Number(Boolean(songguesserCorrect.song));
     }
 
@@ -1490,20 +1502,25 @@ document.addEventListener("DOMContentLoaded", () => {
         const guess = songguesserGuessInput ? songguesserGuessInput.value : "";
         const answer = songguesserCurrent.answer || {};
         let newlyCorrect = 0;
+        let hintedAlbumExplicitlyEntered = false;
 
-        // Artist/Album hints are already disclosed answers. Do not require the
-        // user to type them, and do not count them as user-guessed variables.
+        // Hinted fields are already disclosed, so they require no input and
+        // do not earn points. However, explicitly entering a correct album
+        // should still unlock the requested tracklist.
         if (!songguesserHintSatisfies("artist")
             && !songguesserCorrect.artist
             && answerMatches(answer.artist, guess, "artist")) {
             songguesserCorrect.artist = true;
             newlyCorrect += 1;
         }
-        if (!songguesserHintSatisfies("album")
-            && !songguesserCorrect.album
+        if (!songguesserCorrect.album
             && answerMatches(answer.album, guess, "album")) {
             songguesserCorrect.album = true;
-            newlyCorrect += 1;
+            if (songguesserHintSatisfies("album")) {
+                hintedAlbumExplicitlyEntered = true;
+            } else {
+                newlyCorrect += 1;
+            }
         }
         if (!songguesserCorrect.song && answerMatches(answer.song, guess, "song")) {
             songguesserCorrect.song = true;
@@ -1515,9 +1532,9 @@ document.addEventListener("DOMContentLoaded", () => {
             songguesserGuessInput.focus();
         }
 
-        if (newlyCorrect > 0) {
+        if (newlyCorrect > 0 || hintedAlbumExplicitlyEntered) {
             songguesserWrongGuesses = 0;
-            for (let i = 0; i < newlyCorrect; i += 1) {
+            for (let i = 0; i < newlyCorrect + Number(hintedAlbumExplicitlyEntered); i += 1) {
                 playFeedbackSound("correct.mp3");
             }
         } else {

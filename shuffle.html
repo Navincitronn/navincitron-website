@@ -232,6 +232,18 @@
             margin-bottom: 4px;
         }
 
+        .songguesser-tracklist[hidden],
+        .songguesser-tracklist-indicator[hidden] {
+            display: none !important;
+        }
+
+        .songguesser-tracklist-indicator {
+            display: block;
+            color: #00e054;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
         .songguesser-tracklist {
             margin-top: 12px;
             padding: 14px;
@@ -607,7 +619,7 @@
                 </div>
                 <div class="songguesser-result-grid">
                     <div class="songguesser-answer-line"><strong>Artist</strong><span id="songguesser-artist">???</span></div>
-                    <div class="songguesser-answer-line"><strong>Album</strong><span id="songguesser-album">???</span></div>
+                    <div class="songguesser-answer-line"><strong>Album</strong><span id="songguesser-album">???</span><span id="songguesser-tracklist-indicator" class="songguesser-tracklist-indicator" hidden>Tracklist displayed below</span></div>
                     <div class="songguesser-answer-line"><strong>Song</strong><span id="songguesser-song">???</span></div>
                     <div id="songguesser-release-year-line" class="songguesser-answer-line" hidden><strong>Release Year</strong><span id="songguesser-release-year">???</span></div>
                     <div id="songguesser-release-decade-line" class="songguesser-answer-line" hidden><strong>Release Decade</strong><span id="songguesser-release-decade">???</span></div>
@@ -630,6 +642,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261019-songguesser-album-tracklists"></script>
+    <script src="shuffle.js?v=20261019-songguesser-tracklist-reveal-v2"></script>
 </body>
 </html>
