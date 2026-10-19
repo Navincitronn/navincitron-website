@@ -947,7 +947,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return false;
     }
 
-    function significantTokens(value) {
+    function significantTokens(value, isArtist = false) {
         const stopwords = new Set([
             "the", "a", "an", "and", "of", "to", "in", "on", "for",
             "with", "feat", "featuring", "by", "you", "your", "i", "we",
@@ -956,7 +956,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         return normalizeText(value)
             .split(" ")
-            .filter((token) => token && token.length > 1 && !stopwords.has(token));
+            // In artist names, "Have" is identifying (Have A Nice Life),
+            // rather than the generic verb we ignore in track/album matching.
+            .filter((token) => token && token.length > 1
+                && (!stopwords.has(token) || (isArtist && token === "have")));
     }
 
     function artistAliasTokenGroups(value) {
@@ -970,10 +973,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const pieces = normalized
             .split(/\b(?:and|with|feat|featuring)\b/g)
-            .map((piece) => significantTokens(piece))
+            .map((piece) => significantTokens(piece, true))
             .filter((tokens) => tokens.length > 0);
 
-        const allTokens = significantTokens(normalized);
+        const allTokens = significantTokens(normalized, true);
         if (allTokens.length) {
             pieces.push(allTokens);
         }
@@ -982,7 +985,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function artistMatches(expectedRaw, guessRaw) {
-        const guessTokens = new Set(significantTokens(guessRaw));
+        const guessTokens = new Set(significantTokens(guessRaw, true));
         if (!guessTokens.size) return false;
 
         const groups = artistAliasTokenGroups(expectedRaw);
@@ -993,9 +996,12 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        const expectedTokens = significantTokens(expectedRaw);
+        const expectedTokens = significantTokens(expectedRaw, true);
 
-        return expectedTokens.some((token) => token.length >= 4 && tokenSetHasApproximate(guessTokens, token, true));
+        // Accept a recognizable artist-name word, including three-letter
+        // words such as "Joy" for Joy Division. Generic 1-2 letter fragments
+        // and stopwords are not sufficient artist guesses.
+        return expectedTokens.some((token) => token.length >= 3 && tokenSetHasApproximate(guessTokens, token, true));
     }
 
     function answerMatches(expectedRaw, guessRaw, kind) {
