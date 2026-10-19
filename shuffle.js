@@ -62,7 +62,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const songguesserReleaseYear = document.getElementById("songguesser-release-year");
     const songguesserReleaseDecade = document.getElementById("songguesser-release-decade");
     const songguesserTracklist = document.getElementById("songguesser-tracklist");
-    const songguesserTracklistIndicator = document.getElementById("songguesser-tracklist-indicator");
     const songguesserTracklistHeading = document.getElementById("songguesser-tracklist-heading");
     const songguesserTracklistRows = document.getElementById("songguesser-tracklist-rows");
     const songguesserSummary = document.getElementById("songguesser-summary");
@@ -1052,38 +1051,39 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function hideSongguesserTracklist() {
+        if (songguesserTracklist) songguesserTracklist.hidden = true;
+        if (songguesserTracklistRows) songguesserTracklistRows.replaceChildren();
+    }
+
     function renderSongguesserTracklist() {
         if (!songguesserTracklist || !songguesserTracklistRows) return;
         // Do not unlock the tracklist merely because the album is shown as a
         // hint. An explicit correct album entry unlocks it, even if the album
         // was also hinted (the hinted variable still earns no points).
         if (!songguesserCurrent || !songguesserCorrect.album) {
-            songguesserTracklist.hidden = true;
-            songguesserTracklistRows.replaceChildren();
-            if (songguesserTracklistIndicator) songguesserTracklistIndicator.hidden = true;
+            hideSongguesserTracklist();
             return;
         }
         const openingForFirstTime = songguesserTracklist.hidden;
         const tracklist = songguesserCurrent.tracklist || {};
         const rows = Array.isArray(tracklist.rows) ? tracklist.rows : [];
         songguesserTracklist.hidden = false;
-        if (songguesserTracklistIndicator) songguesserTracklistIndicator.hidden = false;
-        songguesserTracklistHeading.textContent = tracklist.scope === "album_in_playlist"
-            ? "Album songs in playlist" : tracklist.kind === "playlist"
-                ? "Playlist tracklist" : "Album tracklist";
+        if (songguesserTracklistHeading) songguesserTracklistHeading.textContent = "Tracklist";
         if (!tracklist.available || !rows.length) {
             songguesserTracklistRows.textContent = tracklist.kind === "playlist"
                 ? "Spotify did not expose this playlist's track information to the backend."
                 : "Spotify did not provide the album's tracklist.";
         } else {
-        songguesserTracklistRows.innerHTML = rows.map((item) => {
-            const number = escapeSongguesserText(item.position);
+        songguesserTracklistRows.innerHTML = rows.map((item, index) => {
+            // Number the displayed album subset rather than retaining the
+            // original playlist positions (which may not be consecutive).
+            const number = index + 1;
             const name = escapeSongguesserText(item.name || "Unknown track");
-            const artist = escapeSongguesserText(item.artist || "");
             const highlight = songguesserCorrect.song && item.current;
             return `<div class="songguesser-tracklist-row${highlight ? " is-correct-song" : ""}">
                 <span class="songguesser-tracklist-number">${number}.</span>
-                <span>${name}${artist && artist !== "Unknown artist" ? `<span class="songguesser-tracklist-artist"> - ${artist}</span>` : ""}</span>
+                <span>${name}</span>
             </div>`;
         }).join("");
         }
@@ -1437,6 +1437,7 @@ document.addEventListener("DOMContentLoaded", () => {
         startButton.disabled = true;
         setStatus("starting Songguesser");
         clearSongguesserTimers();
+        hideSongguesserTracklist();
         renderSongguesserSummary([]);
 
         try {
@@ -1454,6 +1455,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (data.complete) {
+                songguesserAcceptingGuesses = false;
+                hideSongguesserTracklist();
                 setStatus(data.message || "Songguesser complete");
                 renderSongguesserSummary(mergeSongguesserSummary(data.summary || []));
                 return;
@@ -1483,6 +1486,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (data.complete) {
                 songguesserAcceptingGuesses = false;
+                hideSongguesserTracklist();
                 setStatus(data.message || "Songguesser complete");
                 if (songguesserTimer) songguesserTimer.textContent = "0";
                 if (songguesserProgress) songguesserProgress.textContent = "Songguesser complete";
@@ -1655,6 +1659,7 @@ document.addEventListener("DOMContentLoaded", () => {
             songguesserPaused = false;
             samplerPaused = false;
             songguesserCurrent = null;
+            hideSongguesserTracklist();
             closeShuffleCoverPicker();
             updateCover(null);
             setStatus("idle");
