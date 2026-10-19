@@ -652,11 +652,11 @@
         add(clean);
         add(clean.replace(/\s*\([^)]*\)\s*/g, ' '));
         add(clean.replace(/\s*["“][^"”]+["”]\s*/g, ' '));
-        clean.split(/\s+[—–-]\s+|:\s+/).forEach(add);
+        clean.split(/\s+[\u2014–-]\s+|:\s+/).forEach(add);
         clean.split(/\s+=\s+/).forEach(add);
         add(clean.replace(/\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/gi, ' '));
         add(clean.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
-        add(clean.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\b/g, ' '));
+        add(clean.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–\u2014]\s*(?:18|19|20)\d{2})?\b/g, ' '));
         add(clean.replace(/\s+\b(?:with|featuring|feat\.?|by)\b\s+.+$/i, ''));
         add(clean.replace(/,\s*volume\s+.+$/i, ''));
         add(clean.replace(/\s+-\s+.+$/i, ''));
@@ -713,7 +713,7 @@
     function discogsOwnedTokenSet(value) {
         return new Set(tokenizeTitle(discogsOwnedNormalizeRomanVolumes(value || '')
             .replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' ')
-            .replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\b/g, ' '))
+            .replace(/\b(?:18|19|20)\d{2}(?:\s*[-–\u2014]\s*(?:18|19|20)\d{2})?\b/g, ' '))
             .map(discogsOwnedCanonicalToken)
             .filter(Boolean));
     }
@@ -1062,14 +1062,14 @@
 
             // Live/archival suffixes are frequently appended to the base album title.
             enqueue(current.replace(/\s+\blive\s+at\b.+$/i, ''));
-            enqueue(current.replace(/\s+[—–-]\s+(?:the\s+)?(?:found\s+)?(?:['’]?\d{2,4}\s+)?masters\b.*$/i, ''));
+            enqueue(current.replace(/\s+[\u2014–-]\s+(?:the\s+)?(?:found\s+)?(?:['’]?\d{2,4}\s+)?masters\b.*$/i, ''));
 
             // Explicit volume labels may be omitted by one source. Bare sequel numerals
             // are still protected later by discogsOwnedFuzzyTitleMatchIsSafe().
-            enqueue(current.replace(/\s*(?:[-–—,:]\s*)?\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i, ''));
+            enqueue(current.replace(/\s*(?:[-–\u2014,:]\s*)?\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i, ''));
 
             // Archive date annotations are often absent from list titles.
-            enqueue(current.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\s*$/i, ''));
+            enqueue(current.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–\u2014]\s*(?:18|19|20)\d{2})?\s*$/i, ''));
 
             // Edition words can appear anywhere and combine with other metadata removals.
             enqueue(current.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
@@ -1079,14 +1079,14 @@
 
             // Compilation descriptors appended after a separator are safe to discard
             // when the artist already matches (e.g. Chronicle - The 20 Greatest Hits).
-            enqueue(current.replace(/\s+[—–-]\s+(?:the\s+)?(?:\d+\s+)?(?:greatest|golden)\s+hits\b.*$/i, ''));
-            enqueue(current.replace(/\s+[—–-]\s+\b(?:original soundtrack|original movie soundtrack|soundtrack|a tribute to)\b.*$/i, ''));
+            enqueue(current.replace(/\s+[\u2014–-]\s+(?:the\s+)?(?:\d+\s+)?(?:greatest|golden)\s+hits\b.*$/i, ''));
+            enqueue(current.replace(/\s+[\u2014–-]\s+\b(?:original soundtrack|original movie soundtrack|soundtrack|a tribute to)\b.*$/i, ''));
 
             // The same artist name is often redundantly prepended to a Discogs title,
             // including possessive forms such as "The Drifters' Golden Hits".
             artistPrefixCandidates.forEach(candidate => {
                 const escaped = escapeRegExp(candidate);
-                const prefixPattern = new RegExp(`^${escaped}(?:['’](?:s)?)?(?:\\s*[-–—:]\\s*|\\s+)`, 'i');
+                const prefixPattern = new RegExp(`^${escaped}(?:['’](?:s)?)?(?:\\s*[-–\u2014:]\\s*|\\s+)`, 'i');
                 enqueue(current.replace(prefixPattern, ''));
             });
 
@@ -1102,7 +1102,7 @@
             // The >=10-character threshold deliberately keeps "Star Wars" from matching
             // "Star Wars: The Empire Strikes Back" while allowing Deaf Dumb Blind and
             // Roforofo Fight to match their expanded Discogs titles.
-            current.split(/\s+[—–-]\s+|:\s+/).forEach(part => {
+            current.split(/\s+[\u2014–-]\s+|:\s+/).forEach(part => {
                 const partClean = cleanAlbumTitle(part);
                 const partNormalized = normalizeAlbumTitle(partClean);
                 if (partNormalized.length >= 10 && tokenizeTitle(partClean).length >= 2) enqueue(partClean);
@@ -2530,7 +2530,7 @@
         const text = String(value || "")
             .normalize("NFKD")
             .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[–—−]/g, "-");
+            .replace(/[–\u2014−]/g, "-");
         const match = text.match(/\b(?:parts?|pts?\.?)\s*(\d+)\s*-\s*(\d+)\b/i);
         return match ? `${Number(match[1])}-${Number(match[2])}` : "";
     }
@@ -2815,7 +2815,7 @@
             const hasTrackLines = block.slice(1).some(line => {
                 const trimmed = line.trim();
                 return /^.+?:\s*-?\d+(?:\.\d+)?\s*\**(?:\s+.*)?$/.test(trimmed)
-                    || /^.+?:\s*[-—]\s*$/.test(trimmed)
+                    || /^.+?:\s*[-\u2014]\s*$/.test(trimmed)
                     || /^.+?:\s*$/.test(trimmed);
             });
             if (!scoredHeader && !(unscoredHeader && hasTrackLines)) continue;
@@ -2841,7 +2841,7 @@
                     });
                     continue;
                 }
-                const blankTrackMatch = line.match(/^(.+?):\s*(?:[-—])?\s*$/);
+                const blankTrackMatch = line.match(/^(.+?):\s*(?:[-\u2014])?\s*$/);
                 if (blankTrackMatch) {
                     entry.tracks.push({ title: blankTrackMatch[1].trim(), score: null, scoreSuffix: "" });
                 }
@@ -3264,7 +3264,7 @@
         const element = document.createElement("span");
         element.className = "lyrics-score-value";
         if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) {
-            element.textContent = isTrackScore ? "-" : "—";
+            element.textContent = "-";
             return element;
         }
         const numeric = Number(value);
@@ -3375,7 +3375,7 @@
                 trackRow.className = "lyrics-discogs-track lyrics-score-track";
                 const position = document.createElement("span");
                 position.className = "lyrics-discogs-track-position";
-                position.textContent = row.position || "—";
+                position.textContent = row.position || "-";
                 const title = document.createElement("span");
                 title.className = "lyrics-discogs-track-title";
                 const rollingStoneArtists = Array.isArray(row.artists) && row.artists.length
@@ -3427,7 +3427,7 @@
 
     function scoreFileNumberText(rawValue) {
         const raw = String(rawValue ?? "").trim();
-        if (!raw || raw === "-" || raw === "—") return "-";
+        if (!raw || raw === "-" || raw === "\u2014") return "-";
         const numeric = Number(raw);
         if (!Number.isFinite(numeric) || numeric < 0 || numeric > 12) {
             throw new Error("Every entered song score must be between 0.0 and 12.0.");
@@ -4202,7 +4202,7 @@
 
                 const position = document.createElement("span");
                 position.className = "lyrics-discogs-track-position";
-                position.textContent = row.position || "—";
+                position.textContent = row.position || "-";
                 const title = document.createElement("span");
                 title.className = "lyrics-discogs-track-title";
                 const rollingStoneArtists = Array.isArray(row.artists) && row.artists.length

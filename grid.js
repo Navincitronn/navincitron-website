@@ -604,10 +604,10 @@ function discogsOwnedTitleVariants(title, artist = '') {
     add(clean);
     add(clean.replace(/\s*\([^)]*\)\s*/g, ' '));
     add(clean.replace(/\s*["“][^"”]+["”]\s*/g, ' '));
-    clean.split(/\s+[—–-]\s+|:\s+/).forEach(add);
+    clean.split(/\s+[\u2014–-]\s+|:\s+/).forEach(add);
     add(clean.replace(/\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/gi, ' '));
     add(clean.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
-    add(clean.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\b/g, ' '));
+    add(clean.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–\u2014]\s*(?:18|19|20)\d{2})?\b/g, ' '));
     add(clean.replace(/\s+\b(?:with|featuring|feat\.?|by)\b\s+.+$/i, ''));
     add(clean.replace(/,\s*volume\s+.+$/i, ''));
     add(clean.replace(/\s+-\s+.+$/i, ''));
@@ -649,7 +649,7 @@ function discogsOwnedCanonicalToken(token) {
 function discogsOwnedTokenSet(value) {
     return new Set(tokenizeTitle(discogsOwnedNormalizeRomanVolumes(value || '')
         .replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' ')
-        .replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\b/g, ' '))
+        .replace(/\b(?:18|19|20)\d{2}(?:\s*[-–\u2014]\s*(?:18|19|20)\d{2})?\b/g, ' '))
         .map(discogsOwnedCanonicalToken)
         .filter(Boolean));
 }
@@ -905,13 +905,13 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
         // Explicit Vol./Volume markers are metadata, unlike a bare sequel
         // numeral such as Pretenders II.
         const withoutVolume = cleanAlbumTitle(text.replace(
-            /\s*(?:[-–—,:]\s*)?\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i,
+            /\s*(?:[-–\u2014,:]\s*)?\bvolume\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i,
             ''
         ));
         add(withoutVolume);
 
         // Remove trailing year ranges and similar archival date annotations.
-        add(text.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–—]\s*(?:18|19|20)\d{2})?\s*$/g, '').trim());
+        add(text.replace(/\b(?:18|19|20)\d{2}(?:\s*[-–\u2014]\s*(?:18|19|20)\d{2})?\s*$/g, '').trim());
 
         // Edition/format wording often appears as append-only metadata.
         add(text.replace(/\b(?:complete|expanded|deluxe|remastered|remaster|edition)\b/gi, ' '));
@@ -920,7 +920,7 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
         add(text.replace(/\s+\b(?:with|featuring|feat\.?|by)\b\s+.+$/i, ''));
 
         // Live/tribute/in-concert descriptors are often append-only variants.
-        add(text.replace(/\s+[-–—:]?\s*\b(?:live at|live from|in concert|a tribute to|original soundtrack recording|motion picture soundtrack)\b.+$/i, ''));
+        add(text.replace(/\s+[-–\u2014:]?\s*\b(?:live at|live from|in concert|a tribute to|original soundtrack recording|motion picture soundtrack)\b.+$/i, ''));
 
         // Combined-title releases sometimes surface either constituent title.
         text.split(/\s*\/\s*/).forEach(part => {
@@ -929,7 +929,7 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
         });
 
         // Some Discogs titles append a descriptive subtitle after a separator.
-        const segments = text.split(/\s+[—–-]\s+|:\s+/).map(part => cleanAlbumTitle(part)).filter(Boolean);
+        const segments = text.split(/\s+[\u2014–-]\s+|:\s+/).map(part => cleanAlbumTitle(part)).filter(Boolean);
         if (segments.length >= 2) {
             const descriptorPattern = /\b(?:tribute|soundtrack|original|complete|unbelievable|concert|live|club|moneygoround|part|rare|unreleased|golden greats)\b/i;
             segments.forEach(segment => {
@@ -944,7 +944,7 @@ function discogsOwnedSafeTitleVariants(title, artist = '') {
     const artistText = normalizeDiscogsArtistForMatch(artist || '');
     if (artistText) {
         const escapedArtist = artistText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const artistPrefix = new RegExp(`^(?:the\s+)?${escapedArtist}(?:\s*[-–—:]\s*|\s+)`, 'i');
+        const artistPrefix = new RegExp(`^(?:the\s+)?${escapedArtist}(?:\s*[-–\u2014:]\s*|\s+)`, 'i');
         if (artistPrefix.test(clean)) addCoreForms(clean.replace(artistPrefix, ''));
     }
 
@@ -3755,7 +3755,7 @@ function parseRateYourMusicTwoDigitHistoricalYear(raw) {
 }
 
 function parseRateYourMusicHistoricalDateYear(raw) {
-    const text = decodeURIComponent(String(raw || '')).replace(/[–—]/g, '-');
+    const text = decodeURIComponent(String(raw || '')).replace(/[–\u2014]/g, '-');
 
     // Date-like forms used in release titles/slugs: 98.12.28, 98_12_28, 98-12-28.
     // The year is interpreted using the same rolling-century rule as apostrophe years.
@@ -5639,7 +5639,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
         placeholder.classList.add('topster-tile-retryable');
         placeholder.setAttribute('role', 'button');
         placeholder.setAttribute('tabindex', '0');
-        placeholder.setAttribute('title', `${label} — click to retry album cover`);
+        placeholder.setAttribute('title', `${label} - click to retry album cover`);
         placeholder.setAttribute('aria-label', `${label}. Album cover did not load. Click to retry.`);
         placeholder.addEventListener('click', event => {
             event.preventDefault();
@@ -5671,7 +5671,7 @@ function createTopsterTile(entry, displayIndex, onSelectCover, coverOverlayMode 
     };
 
     if (typeof onSelectCover === 'function') {
-        tile.title = `${label} — click to choose a cover`;
+        tile.title = `${label} - click to choose a cover`;
         tile.classList.add('topster-tile-selectable');
         tile.setAttribute('role', 'button');
         tile.setAttribute('tabindex', '0');

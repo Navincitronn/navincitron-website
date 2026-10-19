@@ -370,7 +370,7 @@
         tile.classList.add('lastfm-listen-clickable');
         tile.tabIndex = 0;
         tile.setAttribute('role', 'button');
-        tile.setAttribute('aria-label', `${placeholderText(item)} — ${formatListens(item.playcount)}. Click to show listens.`);
+        tile.setAttribute('aria-label', `${placeholderText(item)} - ${formatListens(item.playcount)}. Click to show listens.`);
 
         let hideTimer = 0;
         const reveal = () => {
@@ -501,7 +501,7 @@
         hideCoverContextMenu();
         coverPickerItem = item;
         coverPickerIndex = index;
-        if (coverPickerTitle) coverPickerTitle.textContent = `Select cover — ${placeholderText(item)}`;
+        if (coverPickerTitle) coverPickerTitle.textContent = `Select cover - ${placeholderText(item)}`;
         if (coverPickerLink) coverPickerLink.value = '';
         if (coverPickerResults) coverPickerResults.innerHTML = '';
         coverPicker.hidden = false;

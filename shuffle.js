@@ -245,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
             for (const device of data.devices || []) {
                 const option = document.createElement("option");
                 option.value = String(device.id);
-                option.textContent = `${device.name} (${device.type || "Spotify"})${device.isActive ? " — active" : ""}${device.isRestricted ? " — restricted" : ""}`;
+                option.textContent = `${device.name} (${device.type || "Spotify"})${device.isActive ? " - active" : ""}${device.isRestricted ? " - restricted" : ""}`;
                 option.disabled = Boolean(device.isRestricted);
                 spotifyDeviceSelect.appendChild(option);
             }
