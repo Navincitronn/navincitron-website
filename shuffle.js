@@ -243,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
             spotifyDeviceSelect.replaceChildren();
             const auto = document.createElement("option");
             auto.value = "";
-            auto.textContent = "Automatic (Spotify active device)";
+            auto.textContent = "Automatic (available Spotify device)";
             spotifyDeviceSelect.appendChild(auto);
             for (const device of data.devices || []) {
                 const option = document.createElement("option");
@@ -1056,7 +1056,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (songguesserTracklistRows) songguesserTracklistRows.replaceChildren();
     }
 
-    function renderSongguesserTracklist() {
+    function renderSongguesserTracklist(revealed = false) {
         if (!songguesserTracklist || !songguesserTracklistRows) return;
         // Do not unlock the tracklist merely because the album is shown as a
         // hint. An explicit correct album entry unlocks it, even if the album
@@ -1080,8 +1080,12 @@ document.addEventListener("DOMContentLoaded", () => {
             // original playlist positions (which may not be consecutive).
             const number = index + 1;
             const name = escapeSongguesserText(item.name || "Unknown track");
-            const highlight = songguesserCorrect.song && item.current;
-            return `<div class="songguesser-tracklist-row${highlight ? " is-correct-song" : ""}">
+            // Successful guesses use the Connected green. A missed song is
+            // revealed in Stop orange once the round has ended, provided the
+            // album was guessed and the tracklist was already unlocked.
+            const correct = Boolean(songguesserCorrect.song && item.current);
+            const missed = Boolean(revealed && !songguesserCorrect.song && item.current);
+            return `<div class="songguesser-tracklist-row${correct ? " is-correct-song" : missed ? " is-missed-song" : ""}">
                 <span class="songguesser-tracklist-number">${number}.</span>
                 <span>${name}</span>
             </div>`;
@@ -1144,7 +1148,7 @@ document.addEventListener("DOMContentLoaded", () => {
             hints.releaseDecade ? hints.releaseDecade : "???",
             hints.releaseDecade ? "songguesser-answer-hint" : ""
         );
-        renderSongguesserTracklist();
+        renderSongguesserTracklist(revealed);
     }
 
 

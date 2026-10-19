@@ -269,6 +269,10 @@
             border-color: #00e054;
         }
 
+        .songguesser-tracklist-row.is-missed-song {
+            border-color: #ff8000;
+        }
+
         .songguesser-tracklist-number {
             color: #ccc;
             min-width: 2ch;
@@ -541,7 +545,7 @@
                     <label for="spotify-device-select">Spotify playback device</label>
                     <div class="spotify-device-controls">
                         <select id="spotify-device-select" aria-label="Spotify playback device" disabled>
-                            <option value="">Automatic (Spotify active device)</option>
+                            <option value="">Automatic (available Spotify device)</option>
                         </select>
                         <button id="spotify-device-refresh" type="button" class="secondary-button">Refresh Devices</button>
                         <button id="spotify-device-choose" type="button" class="secondary-button" disabled>Use Device</button>
@@ -628,6 +632,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261019-songguesser-tracklist-layout-v3"></script>
+    <script src="shuffle.js?v=20261019-songguesser-missed-artist-device-v4"></script>
 </body>
 </html>
