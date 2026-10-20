@@ -234,6 +234,38 @@
             display: none;
         }
 
+        .songguesser-pixelation-control {
+            grid-column: 1 / -1;
+            background: #363636;
+            border-radius: 6px;
+            padding: 9px 12px;
+        }
+
+        .songguesser-pixelation-control[hidden],
+        .songguesser-retry-actions[hidden] {
+            display: none !important;
+        }
+
+        .songguesser-pixelation-control label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .songguesser-pixelation-control input[type="range"] {
+            width: 100%;
+            accent-color: #00e054;
+        }
+
+        .songguesser-retry-actions {
+            display: flex;
+            justify-content: center;
+            margin-top: 12px;
+        }
+
+        .songguesser-retry-actions button {
+            margin-top: 0;
+        }
+
         .songguesser-timer {
             font-size: 28px;
             font-weight: bold;
@@ -560,6 +592,10 @@
                                 <span>Album cover</span>
                                 <input type="checkbox" id="hint-album-cover">
                             </label>
+                            <div class="songguesser-pixelation-control" id="songguesser-pixelation-control" hidden>
+                                <label for="songguesser-pixelation">Pixelation: <output id="songguesser-pixelation-value" for="songguesser-pixelation">5</output></label>
+                                <input type="range" id="songguesser-pixelation" min="1" max="10" step="1" value="5" aria-label="Album cover pixelation strength">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -589,6 +625,9 @@
                 </div>
 
                 <p id="sampler-status" class="sampler-status">Status: idle</p>
+                <div id="songguesser-retry-actions" class="songguesser-retry-actions" hidden>
+                    <button id="songguesser-retry-button" type="button" class="secondary-button">Retry Round</button>
+                </div>
             </div>
 
             <div class="shuffle-cover-wrap">
@@ -654,6 +693,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261020-songguesser-cover-hint-v1"></script>
+    <script src="shuffle.js?v=20261020-songguesser-cover-retry-v2"></script>
 </body>
 </html>
