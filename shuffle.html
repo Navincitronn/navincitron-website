@@ -95,38 +95,34 @@
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            align-items: center;
+            align-items: stretch;
+        }
+
+        .spotify-device-controls select,
+        .spotify-device-controls button {
+            min-height: 42px;
+            margin-top: 0;
+            box-sizing: border-box;
         }
 
         .spotify-device-controls select {
             flex: 1 1 220px;
             min-width: 0;
-            padding: 0 9px;
+            padding: 9px;
             background: #242424;
             color: #fff;
             border: 1px solid #777;
             border-radius: 5px;
         }
 
-        .spotify-device-controls select,
-        .spotify-device-controls button {
-            box-sizing: border-box;
-            height: 42px;
-            margin: 0;
-            line-height: 1.2;
-            vertical-align: middle;
-        }
-
         .spotify-device-controls button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 0 14px;
-            white-space: nowrap;
         }
 
         .spotify-device-row .source-help {
-            margin-top: 6px;
+            display: none;
         }
 
         .spotify-login-connected {
@@ -205,23 +201,6 @@
             width: 300px;
         }
 
-        .shuffle-cover-image.songguesser-pixel-source {
-            opacity: 0;
-        }
-
-        .songguesser-pixelated-cover {
-            position: absolute;
-            inset: 0;
-            height: 100%;
-            width: 100%;
-            image-rendering: pixelated;
-            pointer-events: none;
-        }
-
-        .songguesser-pixelated-cover[hidden] {
-            display: none;
-        }
-
         .empty-cover {
             display: none;
         }
@@ -242,6 +221,12 @@
 
         .songguesser-placeholder .shuffle-cover-image {
             display: none;
+        }
+
+        .shuffle-cover-image.songguesser-pixelated {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            filter: saturate(0.96);
         }
 
         .songguesser-placeholder.cover-frame-empty::after {
@@ -582,12 +567,12 @@
                 <div class="shuffle-form-row spotify-device-row" id="spotify-device-row">
                     <div class="spotify-device-controls">
                         <select id="spotify-device-select" aria-label="Spotify playback device" disabled>
-                            <option value="">Automatic (available Spotify device)</option>
+                            <option value="">Automatic (Spotify active device)</option>
                         </select>
                         <button id="spotify-device-refresh" type="button" class="secondary-button">Refresh Devices</button>
                         <button id="spotify-device-choose" type="button" class="secondary-button" disabled>Use Device</button>
                     </div>
-                    <p id="spotify-device-message" class="source-help" role="status" hidden></p>
+                    <p id="spotify-device-message" class="source-help" role="status" hidden aria-hidden="true"></p>
                 </div>
 
                 <div class="shuffle-buttons">
@@ -611,7 +596,6 @@
                 <div id="current-cover-frame" class="shuffle-cover-frame cover-frame-empty">
                     <span id="songguesser-question-mark" class="songguesser-question-mark">?</span>
                     <img id="current-cover-image" class="shuffle-cover-image empty-cover" alt="No album cover available">
-                    <canvas id="songguesser-pixelated-cover" class="songguesser-pixelated-cover" width="300" height="300" aria-label="Pixelated album cover hint" role="img" hidden></canvas>
                 </div>
             </div>
 
@@ -670,6 +654,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261020-pixelated-album-device-v1"></script>
+    <script src="shuffle.js?v=20261020-songguesser-cover-hint-v1"></script>
 </body>
 </html>

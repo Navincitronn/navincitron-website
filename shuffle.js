@@ -35,7 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const samplerLogWrap = document.getElementById("shuffle-log-wrap");
     const coverImage = document.getElementById("current-cover-image");
     const coverFrame = document.getElementById("current-cover-frame");
-    const songguesserPixelCanvas = document.getElementById("songguesser-pixelated-cover");
     const currentTrackTitle = document.getElementById("current-track-title");
     const coverPicker = document.getElementById("shuffle-cover-picker");
     const coverPickerTitle = document.getElementById("shuffle-cover-picker-title");
@@ -99,7 +98,6 @@ document.addEventListener("DOMContentLoaded", () => {
     let songguesserNextTimeout = null;
     let samplerPaused = false;
     let songguesserPaused = false;
-    let songguesserCoverPixelated = false;
     let currentCoverIdentity = null;
     let currentDefaultCoverUrl = "";
     let currentManualCoverOverride = null;
@@ -108,6 +106,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let songguesserCountdownDeadlineMs = 0;
     let songguesserCountdownRemainingMs = 0;
     let songguesserCountdownAction = null;
+    let songguesserPixelatedSourceUrl = "";
+    let songguesserPixelatedDataUrl = "";
+    let songguesserCoverToken = 0;
     const SHUFFLE_LASTFM_API_KEY = "7c87436dbff96020ebb6e3a75cb0f396";
 
     function selectedClipMode() {
@@ -227,8 +228,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function setSpotifyDeviceMessage(message) {
         if (!spotifyDeviceMessage) return;
-        spotifyDeviceMessage.textContent = message || "";
-        spotifyDeviceMessage.hidden = !message;
+        spotifyDeviceMessage.textContent = String(message || "");
+        spotifyDeviceMessage.hidden = true;
     }
 
     async function refreshSpotifyDevices() {
@@ -262,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
             spotifyDeviceSelect.disabled = false;
             if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = false;
             if ((data.devices || []).length === 0) {
-                setSpotifyDeviceMessage("No devices detected. Open the Spotify app on your intended device, then refresh.");
+                setSpotifyDeviceMessage("");
             } else {
                 setSpotifyDeviceMessage("");
             }
@@ -341,74 +342,121 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function setSongguesserCoverPixelated(enabled) {
-        songguesserCoverPixelated = Boolean(enabled);
-        if (coverImage) coverImage.classList.toggle("songguesser-pixel-source", songguesserCoverPixelated);
-        if (songguesserPixelCanvas) songguesserPixelCanvas.hidden = true;
-        if (songguesserCoverPixelated) paintSongguesserPixelatedCover();
-    }
-
-    function paintSongguesserPixelatedCover() {
-        if (!songguesserCoverPixelated || !coverImage || !coverFrame || !songguesserPixelCanvas) return;
-        if (!coverImage.complete || !coverImage.naturalWidth || !coverImage.naturalHeight) return;
-
-        const reduced = document.createElement("canvas");
-        reduced.width = 12;
-        reduced.height = 12;
-        const smallContext = reduced.getContext("2d");
-        const bigContext = songguesserPixelCanvas.getContext("2d");
-        if (!smallContext || !bigContext) return;
-        try {
-            smallContext.drawImage(coverImage, 0, 0, 12, 12);
-            bigContext.clearRect(0, 0, songguesserPixelCanvas.width, songguesserPixelCanvas.height);
-            bigContext.imageSmoothingEnabled = false;
-            bigContext.drawImage(reduced, 0, 0, songguesserPixelCanvas.width, songguesserPixelCanvas.height);
-            songguesserPixelCanvas.hidden = false;
-            coverImage.classList.remove("empty-cover");
-            coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
-        } catch (error) {
-            songguesserPixelCanvas.hidden = true;
-            coverFrame.classList.add("cover-frame-empty", "songguesser-placeholder");
-        }
-    }
-
-    if (coverImage) {
-        coverImage.addEventListener("load", paintSongguesserPixelatedCover);
-        coverImage.addEventListener("error", () => {
-            if (!songguesserCoverPixelated || !coverFrame) return;
-            if (songguesserPixelCanvas) songguesserPixelCanvas.hidden = true;
-            coverFrame.classList.add("cover-frame-empty", "songguesser-placeholder");
-        });
-    }
-
-    function showSongguesserCoverHint(current) {
-        const hintUrl = current && current.hints && current.hints.coverUrl;
-        if (!hintUrl || !isValidShuffleImageUrl(hintUrl) || !coverImage) return;
-        setSongguesserCoverPixelated(true);
-        coverImage.src = hintUrl;
-        paintSongguesserPixelatedCover();
-    }
-
-    function unpixelateSongguesserCover() {
-        if (!songguesserCurrent || !songguesserCoverPixelated) return;
-        const url = (songguesserCurrent.hints || {}).coverUrl;
-        if (!url || !coverImage || !coverFrame) return;
-        setSongguesserCoverPixelated(false);
-        coverImage.classList.remove("empty-cover");
-        coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
-        currentTrackTitle.textContent = "Songguesser";
-    }
-
     function setCoverPlaceholder() {
-        setSongguesserCoverPixelated(false);
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
         coverImage.removeAttribute("src");
+        coverImage.classList.remove("songguesser-pixelated");
         coverImage.classList.add("empty-cover");
         coverFrame.classList.add("cover-frame-empty", "songguesser-placeholder");
         currentTrackTitle.textContent = "Songguesser";
         currentCoverIdentity = null;
         currentDefaultCoverUrl = "";
         currentManualCoverOverride = null;
+        songguesserPixelatedSourceUrl = "";
+        songguesserPixelatedDataUrl = "";
+        songguesserCoverToken += 1;
+        setShuffleCoverPickerAvailability();
+    }
+
+    async function createPixelatedCoverDataUrl(url) {
+        const source = String(url || "").trim();
+        if (!source) return "";
+
+        return new Promise((resolve) => {
+            const image = new Image();
+            image.crossOrigin = "anonymous";
+            image.decoding = "async";
+            image.onload = () => {
+                try {
+                    const size = Math.max(18, Math.min(30, Math.round(Math.min(image.naturalWidth || 300, image.naturalHeight || 300) / 14)));
+                    const tinyCanvas = document.createElement("canvas");
+                    tinyCanvas.width = size;
+                    tinyCanvas.height = size;
+                    const tinyContext = tinyCanvas.getContext("2d", { alpha: true });
+                    if (!tinyContext) {
+                        resolve(source);
+                        return;
+                    }
+                    tinyContext.imageSmoothingEnabled = true;
+                    tinyContext.drawImage(image, 0, 0, size, size);
+
+                    const displayCanvas = document.createElement("canvas");
+                    displayCanvas.width = 300;
+                    displayCanvas.height = 300;
+                    const displayContext = displayCanvas.getContext("2d", { alpha: true });
+                    if (!displayContext) {
+                        resolve(source);
+                        return;
+                    }
+                    displayContext.imageSmoothingEnabled = false;
+                    displayContext.drawImage(tinyCanvas, 0, 0, size, size, 0, 0, displayCanvas.width, displayCanvas.height);
+                    resolve(displayCanvas.toDataURL("image/png"));
+                } catch (error) {
+                    resolve(source);
+                }
+            };
+            image.onerror = () => resolve(source);
+            image.src = source;
+        });
+    }
+
+    function currentSongguesserHintCoverUrl() {
+        if (!songguesserCurrent) return "";
+        const hints = songguesserCurrent.hints || {};
+        return String(hints.albumCover || "").trim();
+    }
+
+    function currentSongguesserFullCoverUrl() {
+        if (!songguesserCurrent || !songguesserCurrent.answer) return "";
+        const answer = songguesserCurrent.answer || {};
+        return String(answer.coverUrl || answer.defaultCoverUrl || currentSongguesserHintCoverUrl() || "").trim();
+    }
+
+    async function applySongguesserCoverState(revealed = false) {
+        if (!coverImage || !coverFrame || !currentTrackTitle) return;
+
+        const answer = songguesserCurrent ? (songguesserCurrent.answer || {}) : {};
+        const hintCoverUrl = currentSongguesserHintCoverUrl();
+        const fullCoverUrl = currentSongguesserFullCoverUrl();
+        const shouldShowPixelatedHint = Boolean(hintCoverUrl && !revealed && !songguesserCorrect.album);
+        const solvedDisplayUrl = hintCoverUrl || fullCoverUrl;
+        const revealedDisplayUrl = fullCoverUrl || hintCoverUrl;
+        const displayUrl = revealed
+            ? revealedDisplayUrl
+            : (songguesserCorrect.album ? solvedDisplayUrl : hintCoverUrl);
+
+        if (!displayUrl) {
+            setCoverPlaceholder();
+            return;
+        }
+
+        currentTrackTitle.textContent = "Songguesser";
+        currentCoverIdentity = {
+            artist: answer.artist || "Unknown Artist",
+            album: answer.album || "Unknown album",
+            track: answer.song || "Unknown Song",
+            year: answer.releaseYear || null,
+        };
+        currentDefaultCoverUrl = fullCoverUrl || displayUrl;
+        currentManualCoverOverride = answer.manualCoverOverride || null;
+
+        coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
+        coverImage.classList.remove("empty-cover");
+
+        if (shouldShowPixelatedHint) {
+            const token = ++songguesserCoverToken;
+            if (songguesserPixelatedSourceUrl !== hintCoverUrl || !songguesserPixelatedDataUrl) {
+                songguesserPixelatedDataUrl = await createPixelatedCoverDataUrl(hintCoverUrl);
+                if (token !== songguesserCoverToken) return;
+                songguesserPixelatedSourceUrl = hintCoverUrl;
+            }
+            coverImage.src = songguesserPixelatedDataUrl || hintCoverUrl;
+            coverImage.classList.add("songguesser-pixelated");
+        } else {
+            coverImage.src = displayUrl;
+            coverImage.classList.remove("songguesser-pixelated");
+        }
+
         setShuffleCoverPickerAvailability();
     }
 
@@ -815,11 +863,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateCover(coverArt) {
-        setSongguesserCoverPixelated(false);
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
 
         if (!coverArt) {
             coverImage.removeAttribute("src");
+            coverImage.classList.remove("songguesser-pixelated");
             coverImage.classList.add("empty-cover");
             coverFrame.classList.add("cover-frame-empty");
             coverFrame.classList.remove("songguesser-placeholder");
@@ -841,13 +889,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (coverArt.url) {
             coverImage.src = coverArt.url;
-            coverImage.classList.remove("empty-cover");
+            coverImage.classList.remove("empty-cover", "songguesser-pixelated");
             coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
         } else {
             // Keep the now-playing artist/album identity even when Spotify has no
             // usable image URL. The empty frame remains selectable so the user can
             // manually assign a persistent cover.
             coverImage.removeAttribute("src");
+            coverImage.classList.remove("songguesser-pixelated");
             coverImage.classList.add("empty-cover");
             coverFrame.classList.add("cover-frame-empty");
             coverFrame.classList.remove("songguesser-placeholder");
@@ -1144,12 +1193,9 @@ document.addEventListener("DOMContentLoaded", () => {
             // original playlist positions (which may not be consecutive).
             const number = index + 1;
             const name = escapeSongguesserText(item.name || "Unknown track");
-            // Successful guesses use the Connected green. A missed song is
-            // revealed in Stop orange once the round has ended, provided the
-            // album was guessed and the tracklist was already unlocked.
-            const correct = Boolean(songguesserCorrect.song && item.current);
-            const missed = Boolean(revealed && !songguesserCorrect.song && item.current);
-            return `<div class="songguesser-tracklist-row${correct ? " is-correct-song" : missed ? " is-missed-song" : ""}">
+            const highlightCorrect = songguesserCorrect.song && item.current;
+            const highlightMissed = !songguesserCorrect.song && revealed && item.current;
+            return `<div class="songguesser-tracklist-row${highlightCorrect ? " is-correct-song" : ""}${highlightMissed ? " is-missed-song" : ""}">
                 <span class="songguesser-tracklist-number">${number}.</span>
                 <span>${name}</span>
             </div>`;
@@ -1213,6 +1259,7 @@ document.addEventListener("DOMContentLoaded", () => {
             hints.releaseDecade ? "songguesser-answer-hint" : ""
         );
         renderSongguesserTracklist(revealed);
+        void applySongguesserCoverState(revealed);
     }
 
 
@@ -1421,18 +1468,14 @@ document.addEventListener("DOMContentLoaded", () => {
         recordSongguesserRoundResult();
 
         const answer = songguesserCurrent.answer || {};
-        if (songguesserCoverPixelated && !songguesserCorrect.album) {
-            currentTrackTitle.textContent = `${answer.artist} - ${answer.song}`;
-        } else {
-            updateCover({
-                url: (songguesserCurrent.hints || {}).coverUrl || answer.coverUrl,
-                defaultUrl: answer.defaultCoverUrl || answer.coverUrl,
-                manualCoverOverride: answer.manualCoverOverride || null,
-                artist: answer.artist,
-                track: answer.song,
-                album: answer.album,
-            });
-        }
+        updateCover({
+            url: answer.coverUrl,
+            defaultUrl: answer.defaultCoverUrl || answer.coverUrl,
+            manualCoverOverride: answer.manualCoverOverride || null,
+            artist: answer.artist,
+            track: answer.song,
+            album: answer.album,
+        });
 
         // The answer reveal and countdown remain, but omit chatter such as
         // "Time's up", "Three wrong guesses", and "Next song in 7 seconds".
@@ -1467,7 +1510,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (songguesserProgress) songguesserProgress.textContent = `Song ${current.progress} / ${current.total}`;
 
         setCoverPlaceholder();
-        showSongguesserCoverHint(current);
         showSongguesserHints(current);
         updateSongguesserAnswerDisplay(false);
         setStatus(songguesserPaused ? "paused" : "Songguesser running");
@@ -1621,7 +1663,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         updateSongguesserAnswerDisplay(false);
-        if (songguesserCorrect.album) unpixelateSongguesserCover();
 
         if (songguesserAllRequiredVariablesSatisfied()) {
             revealSongguesserAnswer("", 5);
