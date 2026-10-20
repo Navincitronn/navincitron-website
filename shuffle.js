@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const hintReleaseDecadeInput = document.getElementById("hint-release-decade");
     const hintArtistInput = document.getElementById("hint-artist");
     const hintAlbumInput = document.getElementById("hint-album");
+    const hintAlbumCoverInput = document.getElementById("hint-album-cover");
     const startButton = document.getElementById("start-sampler");
     const stopButton = document.getElementById("stop-sampler");
     const samplerTransportControls = document.getElementById("sampler-transport-controls");
@@ -34,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const samplerLogWrap = document.getElementById("shuffle-log-wrap");
     const coverImage = document.getElementById("current-cover-image");
     const coverFrame = document.getElementById("current-cover-frame");
+    const songguesserPixelCanvas = document.getElementById("songguesser-pixelated-cover");
     const currentTrackTitle = document.getElementById("current-track-title");
     const coverPicker = document.getElementById("shuffle-cover-picker");
     const coverPickerTitle = document.getElementById("shuffle-cover-picker-title");
@@ -97,6 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let songguesserNextTimeout = null;
     let samplerPaused = false;
     let songguesserPaused = false;
+    let songguesserCoverPixelated = false;
     let currentCoverIdentity = null;
     let currentDefaultCoverUrl = "";
     let currentManualCoverOverride = null;
@@ -223,7 +226,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function setSpotifyDeviceMessage(message) {
-        if (spotifyDeviceMessage) spotifyDeviceMessage.textContent = message;
+        if (!spotifyDeviceMessage) return;
+        spotifyDeviceMessage.textContent = message || "";
+        spotifyDeviceMessage.hidden = !message;
     }
 
     async function refreshSpotifyDevices() {
@@ -231,11 +236,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!spotifyAuthenticated) {
             spotifyDeviceSelect.disabled = true;
             if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = true;
-            setSpotifyDeviceMessage("Log in with Spotify to list available playback devices.");
+            setSpotifyDeviceMessage("");
             return;
         }
         if (spotifyDeviceRefresh) spotifyDeviceRefresh.disabled = true;
-        setSpotifyDeviceMessage("Finding Spotify playback devices...");
+        setSpotifyDeviceMessage("");
         try {
             const response = await fetch(`${API_BASE_URL}/api/spotify/devices`, { credentials: "include", cache: "no-store" });
             const data = await response.json();
@@ -259,8 +264,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if ((data.devices || []).length === 0) {
                 setSpotifyDeviceMessage("No devices detected. Open the Spotify app on your intended device, then refresh.");
             } else {
-                const matched = (data.devices || []).find(device => device.id === selected);
-                setSpotifyDeviceMessage(`Account: ${data.accountName || "Spotify"}. ${matched ? `Selected: ${matched.name}.` : "Automatic device selection."} Choose a device and press Use Device.`);
+                setSpotifyDeviceMessage("");
             }
         } catch (error) {
             spotifyDeviceSelect.disabled = true;
@@ -275,7 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!spotifyDeviceSelect || spotifyDeviceSelect.disabled) return;
         const selected = spotifyDeviceSelect.value;
         if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = true;
-        setSpotifyDeviceMessage("Saving playback device selection...");
+        setSpotifyDeviceMessage("");
         try {
             const response = await fetch(`${API_BASE_URL}/api/spotify/device`, {
                 method: "POST",
@@ -285,7 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             const data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.error || "Could not select device.");
-            setSpotifyDeviceMessage(`Playback target: ${data.name}. Start the Sampler or Songguesser to play on this device.`);
+            setSpotifyDeviceMessage("");
         } catch (error) {
             setSpotifyDeviceMessage(String(error.message || error));
         } finally {
@@ -337,7 +341,66 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function setSongguesserCoverPixelated(enabled) {
+        songguesserCoverPixelated = Boolean(enabled);
+        if (coverImage) coverImage.classList.toggle("songguesser-pixel-source", songguesserCoverPixelated);
+        if (songguesserPixelCanvas) songguesserPixelCanvas.hidden = true;
+        if (songguesserCoverPixelated) paintSongguesserPixelatedCover();
+    }
+
+    function paintSongguesserPixelatedCover() {
+        if (!songguesserCoverPixelated || !coverImage || !coverFrame || !songguesserPixelCanvas) return;
+        if (!coverImage.complete || !coverImage.naturalWidth || !coverImage.naturalHeight) return;
+
+        const reduced = document.createElement("canvas");
+        reduced.width = 12;
+        reduced.height = 12;
+        const smallContext = reduced.getContext("2d");
+        const bigContext = songguesserPixelCanvas.getContext("2d");
+        if (!smallContext || !bigContext) return;
+        try {
+            smallContext.drawImage(coverImage, 0, 0, 12, 12);
+            bigContext.clearRect(0, 0, songguesserPixelCanvas.width, songguesserPixelCanvas.height);
+            bigContext.imageSmoothingEnabled = false;
+            bigContext.drawImage(reduced, 0, 0, songguesserPixelCanvas.width, songguesserPixelCanvas.height);
+            songguesserPixelCanvas.hidden = false;
+            coverImage.classList.remove("empty-cover");
+            coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
+        } catch (error) {
+            songguesserPixelCanvas.hidden = true;
+            coverFrame.classList.add("cover-frame-empty", "songguesser-placeholder");
+        }
+    }
+
+    if (coverImage) {
+        coverImage.addEventListener("load", paintSongguesserPixelatedCover);
+        coverImage.addEventListener("error", () => {
+            if (!songguesserCoverPixelated || !coverFrame) return;
+            if (songguesserPixelCanvas) songguesserPixelCanvas.hidden = true;
+            coverFrame.classList.add("cover-frame-empty", "songguesser-placeholder");
+        });
+    }
+
+    function showSongguesserCoverHint(current) {
+        const hintUrl = current && current.hints && current.hints.coverUrl;
+        if (!hintUrl || !isValidShuffleImageUrl(hintUrl) || !coverImage) return;
+        setSongguesserCoverPixelated(true);
+        coverImage.src = hintUrl;
+        paintSongguesserPixelatedCover();
+    }
+
+    function unpixelateSongguesserCover() {
+        if (!songguesserCurrent || !songguesserCoverPixelated) return;
+        const url = (songguesserCurrent.hints || {}).coverUrl;
+        if (!url || !coverImage || !coverFrame) return;
+        setSongguesserCoverPixelated(false);
+        coverImage.classList.remove("empty-cover");
+        coverFrame.classList.remove("cover-frame-empty", "songguesser-placeholder");
+        currentTrackTitle.textContent = "Songguesser";
+    }
+
     function setCoverPlaceholder() {
+        setSongguesserCoverPixelated(false);
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
         coverImage.removeAttribute("src");
         coverImage.classList.add("empty-cover");
@@ -752,6 +815,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateCover(coverArt) {
+        setSongguesserCoverPixelated(false);
         if (!coverImage || !coverFrame || !currentTrackTitle) return;
 
         if (!coverArt) {
@@ -1357,14 +1421,18 @@ document.addEventListener("DOMContentLoaded", () => {
         recordSongguesserRoundResult();
 
         const answer = songguesserCurrent.answer || {};
-        updateCover({
-            url: answer.coverUrl,
-            defaultUrl: answer.defaultCoverUrl || answer.coverUrl,
-            manualCoverOverride: answer.manualCoverOverride || null,
-            artist: answer.artist,
-            track: answer.song,
-            album: answer.album,
-        });
+        if (songguesserCoverPixelated && !songguesserCorrect.album) {
+            currentTrackTitle.textContent = `${answer.artist} - ${answer.song}`;
+        } else {
+            updateCover({
+                url: (songguesserCurrent.hints || {}).coverUrl || answer.coverUrl,
+                defaultUrl: answer.defaultCoverUrl || answer.coverUrl,
+                manualCoverOverride: answer.manualCoverOverride || null,
+                artist: answer.artist,
+                track: answer.song,
+                album: answer.album,
+            });
+        }
 
         // The answer reveal and countdown remain, but omit chatter such as
         // "Time's up", "Three wrong guesses", and "Next song in 7 seconds".
@@ -1399,6 +1467,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (songguesserProgress) songguesserProgress.textContent = `Song ${current.progress} / ${current.total}`;
 
         setCoverPlaceholder();
+        showSongguesserCoverHint(current);
         showSongguesserHints(current);
         updateSongguesserAnswerDisplay(false);
         setStatus(songguesserPaused ? "paused" : "Songguesser running");
@@ -1433,6 +1502,7 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("hintReleaseDecade", hintReleaseDecadeInput && hintReleaseDecadeInput.checked ? "true" : "false");
         formData.append("hintArtist", hintArtistInput && hintArtistInput.checked ? "true" : "false");
         formData.append("hintAlbum", hintAlbumInput && hintAlbumInput.checked ? "true" : "false");
+        formData.append("hintAlbumCover", hintAlbumCoverInput && hintAlbumCoverInput.checked ? "true" : "false");
 
         if (sourceMode === "file") {
             formData.append("albumsFile", albumsFileInput.files[0]);
@@ -1551,6 +1621,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         updateSongguesserAnswerDisplay(false);
+        if (songguesserCorrect.album) unpixelateSongguesserCover();
 
         if (songguesserAllRequiredVariablesSatisfied()) {
             revealSongguesserAnswer("", 5);
