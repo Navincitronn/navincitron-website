@@ -251,6 +251,10 @@ document.addEventListener("DOMContentLoaded", () => {
             // Stop or a new game may have invalidated this in-flight retry.
             if (!songguesserRetryRound || songguesserRetryRound.progress !== pending.progress) return;
             if (!response.ok || !data.ok) {
+                if (data.keepRoundOpen) {
+                    setStatus("Spotify could not replay the clip. You can still guess this round.");
+                    return;
+                }
                 if (!showSongguesserRetry(data)) {
                     setStatus(data.error || "unable to retry this round");
                 }
@@ -345,7 +349,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 spotifyDeviceSelect.appendChild(option);
             }
             const selected = String(data.selectedDeviceId || "");
-            spotifyDeviceSelect.value = Array.from(spotifyDeviceSelect.options).some(option => option.value === selected) ? selected : "";
+            if (selected && !Array.from(spotifyDeviceSelect.options).some(option => option.value === selected)) {
+                // Keep the user's manually selected iPhone visible while
+                // Spotify's device-list endpoint temporarily omits it.
+                const unavailable = document.createElement("option");
+                unavailable.value = selected;
+                unavailable.textContent = "Previously selected device (temporarily unavailable)";
+                spotifyDeviceSelect.appendChild(unavailable);
+            }
+            spotifyDeviceSelect.value = selected;
             spotifyDeviceSelect.disabled = false;
             if (spotifyDeviceChoose) spotifyDeviceChoose.disabled = false;
             if ((data.devices || []).length === 0) {
@@ -1306,6 +1318,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function playFeedbackSound(filename) {
+        // iOS can grant Safari exclusive audio focus, pausing Spotify's player
+        // on the same iPhone. Avoid creating an HTMLAudioElement on iOS;
+        // visual answer feedback still works and music keeps playing.
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent || "")
+            || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        if (isIOS) return;
         try {
             const audio = new Audio(filename);
             audio.currentTime = 0;
@@ -1675,6 +1693,15 @@ document.addEventListener("DOMContentLoaded", () => {
         startSongguesserTimer(current.endsAt);
         if (songguesserPaused) pauseSongguesserCountdown();
         updateTransportControls(true, { paused: songguesserPaused });
+        if (current.playbackUncertain) {
+            songguesserRetryRound = { progress: current.progress, total: current.total };
+            if (songguesserRetryButton) {
+                songguesserRetryButton.textContent = `Retry Round ${current.progress} / ${current.total}`;
+                songguesserRetryButton.disabled = false;
+            }
+            if (songguesserRetryActions) songguesserRetryActions.hidden = false;
+            setStatus("Songguesser running (Spotify playback status unconfirmed)");
+        }
     }
 
     async function startSongguesser() {
