@@ -30,6 +30,11 @@
             margin-bottom: 14px;
         }
 
+        /* Display:flex otherwise overrides the browser's hidden attribute. */
+        #start-index-row[hidden], #shuffle-log-wrap[hidden] {
+            display: none !important;
+        }
+
         .shuffle-form-row input[type="number"],
         .shuffle-form-row input[type="text"],
         .shuffle-form-row input[type="url"],
@@ -693,6 +698,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261020-songguesser-cover-retry-v2"></script>
+    <script src="shuffle.js?v=20261021-songguesser-unicode-year-debug-v1"></script>
 </body>
 </html>

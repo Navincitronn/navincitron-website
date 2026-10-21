@@ -115,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let songguesserPixelatedDataUrl = "";
     let songguesserPixelatedCacheKey = "";
     let songguesserRetryRound = null;
+    let songguesserDebuggerVisible = false;
     let songguesserCoverToken = 0;
     const SHUFFLE_LASTFM_API_KEY = "7c87436dbff96020ebb6e3a75cb0f396";
 
@@ -155,13 +156,16 @@ document.addEventListener("DOMContentLoaded", () => {
         if (startIndexRow) {
             startIndexRow.hidden = guessing;
         }
+        if (startIndexInput) {
+            startIndexInput.disabled = guessing;
+        }
 
         if (singleLinkRandomOrderRow) {
             singleLinkRandomOrderRow.hidden = guessing;
         }
 
         if (samplerLogWrap) {
-            samplerLogWrap.hidden = guessing;
+            samplerLogWrap.hidden = guessing && !songguesserDebuggerVisible;
         }
 
         if (samplerTransportControls) {
@@ -226,7 +230,7 @@ document.addEventListener("DOMContentLoaded", () => {
             songguesserRetryButton.disabled = false;
         }
         if (songguesserRetryActions) songguesserRetryActions.hidden = false;
-        setStatus(`Spotify could not start Round ${progress} / ${total}. Use Retry Round to try the same song again.`);
+        setStatus(`Spotify could not start Round ${progress} / ${total}.`);
         updateTransportControls(false, { paused: false });
         return true;
     }
@@ -1033,8 +1037,36 @@ document.addEventListener("DOMContentLoaded", () => {
         setShuffleCoverPickerAvailability();
     }
 
+    async function loadSongguesserDebugger() {
+        if (!songguesserDebuggerVisible || !songguesserEnabled()) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/status`, {
+                credentials: "include", cache: "no-store",
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            setLog(Array.isArray(data.log) ? data.log : []);
+        } catch (error) {
+            setLog([`Debugger unavailable: ${String(error.message || error)}`]);
+        }
+    }
+
+    function toggleSongguesserDebugger() {
+        songguesserDebuggerVisible = !songguesserDebuggerVisible;
+        updateSourceModeVisibility();
+        if (songguesserDebuggerVisible) {
+            void loadSongguesserDebugger();
+            if (samplerLogWrap && typeof samplerLogWrap.scrollIntoView === "function") {
+                samplerLogWrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    }
+
     async function pollStatus() {
-        if (songguesserEnabled()) return;
+        if (songguesserEnabled()) {
+            if (songguesserDebuggerVisible) await loadSongguesserDebugger();
+            return;
+        }
 
         try {
             const response = await fetch(`${API_BASE_URL}/api/status`, {
@@ -1306,16 +1338,15 @@ document.addEventListener("DOMContentLoaded", () => {
             hideSongguesserTracklist();
             return;
         }
-        const openingForFirstTime = songguesserTracklist.hidden;
         const tracklist = songguesserCurrent.tracklist || {};
         const rows = Array.isArray(tracklist.rows) ? tracklist.rows : [];
+        if (!tracklist.available || !rows.length) {
+            hideSongguesserTracklist();
+            return;
+        }
+        const openingForFirstTime = songguesserTracklist.hidden;
         songguesserTracklist.hidden = false;
         if (songguesserTracklistHeading) songguesserTracklistHeading.textContent = "Tracklist";
-        if (!tracklist.available || !rows.length) {
-            songguesserTracklistRows.textContent = tracklist.kind === "playlist"
-                ? "Spotify did not expose this playlist's track information to the backend."
-                : "Spotify did not provide the album's tracklist.";
-        } else {
         songguesserTracklistRows.innerHTML = rows.map((item, index) => {
             // Number the displayed album subset rather than retaining the
             // original playlist positions (which may not be consecutive).
@@ -1328,7 +1359,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span>${name}</span>
             </div>`;
         }).join("");
-        }
         // The list sits beneath the result fields. Bring it into view once
         // when an album answer is accepted; never scroll on routine updates.
         if (openingForFirstTime && typeof songguesserTracklist.scrollIntoView === "function") {
@@ -1747,9 +1777,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function submitSongguesserGuess() {
+        const guess = songguesserGuessInput ? songguesserGuessInput.value : "";
+        // The diagnostic command is not a guess and never consumes an attempt.
+        if (String(guess).trim().toLowerCase() === "ipconfig" && songguesserEnabled()) {
+            if (songguesserGuessInput) songguesserGuessInput.value = "";
+            toggleSongguesserDebugger();
+            return;
+        }
         if (!songguesserAcceptingGuesses || !songguesserCurrent) return;
 
-        const guess = songguesserGuessInput ? songguesserGuessInput.value : "";
         const answer = songguesserCurrent.answer || {};
         let newlyCorrect = 0;
         let hintedAlbumExplicitlyEntered = false;
