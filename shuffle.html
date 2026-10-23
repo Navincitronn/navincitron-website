@@ -189,8 +189,27 @@
             width: 300px;
         }
 
+        .shuffle-cover-context-menu[hidden] {
+            display: none !important;
+        }
+
+        .shuffle-cover-context-menu {
+            position: fixed;
+            z-index: 10050;
+            background: #222;
+            border: 1px solid #666;
+            border-radius: 6px;
+            padding: 4px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+        }
+
+        .shuffle-cover-context-menu button {
+            margin: 0;
+            white-space: nowrap;
+        }
+
         .shuffle-cover-frame.editable {
-            cursor: pointer;
+            cursor: context-menu;
             outline: 2px solid transparent;
             outline-offset: 3px;
         }
@@ -504,6 +523,10 @@
                     <div id="file-source-options" class="source-options">
                         <label for="albums-file">Album / playlist text file</label>
                         <input type="file" id="albums-file" accept=".txt,text/plain">
+                        <label id="random-start-row" class="checkbox-row" for="random-start">
+                            <span>Random start position</span>
+                            <input type="checkbox" id="random-start" checked>
+                        </label>
                         <div id="start-index-row" class="shuffle-form-row">
                             <label for="start-index">Start at uploaded text-file line index</label>
                             <input type="number" id="start-index" min="1" value="1">
@@ -523,9 +546,6 @@
                             <span>Randomize song order</span>
                             <input type="checkbox" id="single-link-random-order" checked>
                         </label>
-                        <p class="source-help">
-                            Plays one clip from each playable song in the selected album or playlist. Each song is used once; when every possible song has been played, the sampler stops.
-                        </p>
                     </div>
                 </div>
 
@@ -553,11 +573,6 @@
                                 <input type="number" id="clip-max-seconds" min="1" value="25">
                             </div>
                         </div>
-                    </div>
-
-                    <div class="shuffle-form-row checkbox-row">
-                        <label for="random-start">Random start position</label>
-                        <input type="checkbox" id="random-start" checked>
                     </div>
 
                     <details class="shuffle-advanced">
@@ -629,7 +644,7 @@
                     <button id="next-track" type="button" class="secondary-button">Next Track</button>
                 </div>
 
-                <p id="sampler-status" class="sampler-status">Status: idle</p>
+                <p id="sampler-status" class="sampler-status" hidden aria-hidden="true">Status: idle</p>
                 <div id="songguesser-retry-actions" class="songguesser-retry-actions" hidden>
                     <button id="songguesser-retry-button" type="button" class="secondary-button">Retry Round</button>
                 </div>
@@ -641,6 +656,10 @@
                     <span id="songguesser-question-mark" class="songguesser-question-mark">?</span>
                     <img id="current-cover-image" class="shuffle-cover-image empty-cover" alt="No album cover available">
                 </div>
+            </div>
+
+            <div id="shuffle-cover-context-menu" class="shuffle-cover-context-menu" role="menu" hidden>
+                <button id="shuffle-change-cover" type="button" role="menuitem">Change Cover</button>
             </div>
 
             <div class="topster-cover-picker" id="shuffle-cover-picker" hidden aria-modal="true" role="dialog" aria-labelledby="shuffle-cover-picker-title">
@@ -698,6 +717,6 @@
     </main>
 
     <footer></footer>
-    <script src="shuffle.js?v=20261021-iphone-connect-grace-v2"></script>
+    <script src="shuffle.js?v=20261023-context-tracklist-v1"></script>
 </body>
 </html>

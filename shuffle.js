@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const clipMinSecondsInput = document.getElementById("clip-min-seconds");
     const clipMaxSecondsInput = document.getElementById("clip-max-seconds");
     const randomStartInput = document.getElementById("random-start");
+    const randomStartRow = document.getElementById("random-start-row");
     const assumedDurationInput = document.getElementById("assumed-duration-seconds");
     const localSeekDelayInput = document.getElementById("local-seek-delay-seconds");
     const songguesserEnabledInput = document.getElementById("songguesser-enabled");
@@ -40,6 +41,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const samplerLogWrap = document.getElementById("shuffle-log-wrap");
     const coverImage = document.getElementById("current-cover-image");
     const coverFrame = document.getElementById("current-cover-frame");
+    const coverContextMenu = document.getElementById("shuffle-cover-context-menu");
+    const changeCoverCommand = document.getElementById("shuffle-change-cover");
     const currentTrackTitle = document.getElementById("current-track-title");
     const coverPicker = document.getElementById("shuffle-cover-picker");
     const coverPickerTitle = document.getElementById("shuffle-cover-picker-title");
@@ -163,16 +166,15 @@ document.addEventListener("DOMContentLoaded", () => {
         if (singleLinkRandomOrderRow) {
             singleLinkRandomOrderRow.hidden = guessing;
         }
+        if (randomStartRow) randomStartRow.hidden = mode !== "file" || guessing;
+        if (randomStartInput) randomStartInput.disabled = mode !== "file" || guessing;
 
         if (samplerLogWrap) {
             samplerLogWrap.hidden = guessing && !songguesserDebuggerVisible;
         }
 
-        if (samplerTransportControls) {
-            // Keep Pause/Play available in Songguesser so artwork can be edited
-            // only after playback has deliberately been paused.
-            samplerTransportControls.hidden = false;
-        }
+        if (samplerTransportControls) samplerTransportControls.hidden = guessing;
+        hideShuffleCoverContextMenu();
 
         if (songguesserPanel && !guessing) {
             songguesserPanel.hidden = true;
@@ -422,11 +424,13 @@ document.addEventListener("DOMContentLoaded", () => {
     function setShuffleCoverPickerAvailability() {
         if (!coverFrame) return;
         if (!canEditShuffleCover()) {
+            hideShuffleCoverContextMenu();
             coverFrame.classList.remove("editable");
             coverFrame.removeAttribute("role");
             coverFrame.removeAttribute("tabindex");
             coverFrame.removeAttribute("aria-label");
             coverFrame.removeAttribute("title");
+            coverFrame.removeAttribute("aria-haspopup");
             closeShuffleCoverPicker();
             return;
         }
@@ -447,12 +451,15 @@ document.addEventListener("DOMContentLoaded", () => {
             coverFrame.setAttribute("role", "button");
             coverFrame.setAttribute("tabindex", "0");
             coverFrame.setAttribute("aria-label", "Change album artwork");
-            coverFrame.title = "Click to change this album artwork.";
+            coverFrame.title = "Right-click for cover options.";
+            coverFrame.setAttribute("aria-haspopup", "menu");
         } else {
             coverFrame.removeAttribute("role");
             coverFrame.removeAttribute("tabindex");
             coverFrame.removeAttribute("aria-label");
             coverFrame.removeAttribute("title");
+            coverFrame.removeAttribute("aria-haspopup");
+            hideShuffleCoverContextMenu();
         }
     }
 
@@ -853,7 +860,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function hideShuffleCoverContextMenu() {
+        if (coverContextMenu) coverContextMenu.hidden = true;
+    }
+
+    function openShuffleCoverContextMenu(clientX, clientY) {
+        if (!coverContextMenu || !canEditShuffleCover() || !coverFrame || !coverFrame.classList.contains("editable")) return;
+        coverContextMenu.hidden = false;
+        coverContextMenu.style.left = "0px";
+        coverContextMenu.style.top = "0px";
+        const rect = coverContextMenu.getBoundingClientRect();
+        const x = Math.max(4, Math.min(Number(clientX) || 0, window.innerWidth - rect.width - 4));
+        const y = Math.max(4, Math.min(Number(clientY) || 0, window.innerHeight - rect.height - 4));
+        coverContextMenu.style.left = `${Math.round(x)}px`;
+        coverContextMenu.style.top = `${Math.round(y)}px`;
+    }
+
     function openShuffleCoverPicker() {
+        hideShuffleCoverContextMenu();
         if (!coverPicker || !canEditShuffleCover()) return;
         const entry = shuffleCoverSearchIdentity();
         if (!entry.title || /^unknown album$/i.test(entry.title) || !entry.artist || /^unknown artist$/i.test(entry.artist)) return;
@@ -1903,7 +1927,9 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("clipSeconds", clipSecondsInput.value || "15");
         formData.append("clipMinSeconds", clipMinSecondsInput.value || "18");
         formData.append("clipMaxSeconds", clipMaxSecondsInput.value || "25");
-        formData.append("randomStart", randomStartInput.checked ? "true" : "false");
+        // The file-list clip offset is independent of single-link song order.
+        // Single-link playback starts each selected track at position 0.
+        formData.append("randomStart", sourceMode === "file" && randomStartInput.checked ? "true" : "false");
         formData.append("assumedDurationSeconds", assumedDurationInput.value || "180");
         formData.append("localSeekDelaySeconds", localSeekDelayInput.value || "0");
 
@@ -2071,11 +2097,19 @@ document.addEventListener("DOMContentLoaded", () => {
         coverPicker.addEventListener("click", event => {
             if (event.target === coverPicker) closeShuffleCoverPicker();
         });
-        coverFrame.addEventListener("click", openShuffleCoverPicker);
+        coverFrame.addEventListener("contextmenu", event => {
+            if (!canEditShuffleCover() || !coverFrame.classList.contains("editable")) return;
+            event.preventDefault();
+            openShuffleCoverContextMenu(event.clientX, event.clientY);
+        });
+        // Keyboard users can open the equivalent context menu without a mouse.
         coverFrame.addEventListener("keydown", event => {
-            if (event.key === "Enter" || event.key === " ") {
+            if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                if (!canEditShuffleCover() || !coverFrame.classList.contains("editable")) return;
                 event.preventDefault();
-                openShuffleCoverPicker();
+                const rect = coverFrame.getBoundingClientRect();
+                openShuffleCoverContextMenu(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                if (changeCoverCommand) changeCoverCommand.focus();
             }
         });
     }
@@ -2094,6 +2128,22 @@ document.addEventListener("DOMContentLoaded", () => {
             revealSongguesserAnswer("", 7);
         });
     }
+
+    if (changeCoverCommand) changeCoverCommand.addEventListener("click", () => {
+        if (!canEditShuffleCover() || !coverFrame || !coverFrame.classList.contains("editable")) return;
+        hideShuffleCoverContextMenu();
+        openShuffleCoverPicker();
+    });
+    document.addEventListener("pointerdown", event => {
+        if (coverContextMenu && !coverContextMenu.hidden && !coverContextMenu.contains(event.target)) {
+            hideShuffleCoverContextMenu();
+        }
+    });
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") hideShuffleCoverContextMenu();
+    });
+    window.addEventListener("resize", hideShuffleCoverContextMenu);
+    window.addEventListener("scroll", hideShuffleCoverContextMenu, true);
 
     updateSourceModeVisibility();
     refreshAuthStatus().then(authenticated => {
