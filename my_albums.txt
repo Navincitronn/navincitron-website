@@ -12959,9 +12959,9 @@ I Shot The Sheriff: 7.6
 Get Up, Stand Up: 7.6
 
 LOS JAIVAS:
-Pregón Para Iluminarse: 7.8
+Pregón Para Iluminarse: 7.9
 Guajira Cosmica: 7.7
 La Conquistada: 7.8
 Un Mar De Gente: 7.4
-Un Día De Tus Días: 7.7
-Tarka Y Ocarina: -
+Un Día De Tus Días: 7.8
+Tarka Y Ocarina: 7.8
