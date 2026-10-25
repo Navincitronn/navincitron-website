@@ -12965,3 +12965,7 @@ La Conquistada: 7.8
 Un Mar De Gente: 7.4
 Un Día De Tus Días: 7.8
 Tarka Y Ocarina: 7.8
+
+EXPENSIVE SHIT:
+Expensive Shit: 8.7
+Water No Get Enemy: 8.5
