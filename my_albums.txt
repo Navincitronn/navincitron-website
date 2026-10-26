@@ -12976,8 +12976,8 @@ Slavery Days: 7.3
 The Invasion: 7.0
 Live Good: 6.5
 Give Me: 6.8
-Old Marcus Garvey: -
-Tradition: -
-Jordan River: -
-Red, Gold And Green: -
-Resting Place: -
+Old Marcus Garvey: 7.1
+Tradition: 6.8
+Jordan River: 6.9
+Red, Gold And Green: 6.9
+Resting Place: 6.7
