@@ -12989,10 +12989,10 @@ Gloria (Version): 11.6
 Redondo Beach: 8.8
 Birdland: 8.0
 Free Money: 9.2
-Kimberly: -
-Break It Up: -
-Land:: -
-Horses: -
-Land, Of A Thousand Dances: -
-La Mer (De): -
-Elegie: -
+Kimberly: 9.4
+Break It Up: 9.0
+Land:: 8.7
+Horses: 8.7
+Land, Of A Thousand Dances: 8.7
+La Mer (De): 8.7
+Elegie: 8.1
