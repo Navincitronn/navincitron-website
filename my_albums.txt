@@ -12995,4 +12995,4 @@ Land:: 8.7
 Horses: 8.7
 Land, Of A Thousand Dances: 8.7
 La Mer (De): 8.7
-Elegie: 8.1
+Elegie: 8.2
