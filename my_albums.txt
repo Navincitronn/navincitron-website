@@ -12981,3 +12981,18 @@ Tradition: 6.8
 Jordan River: 6.9
 Red, Gold And Green: 6.9
 Resting Place: 6.7
+
+HORSES:
+Gloria:: 11.6
+In Excelsis Deo: 11.6
+Gloria (Version): 11.6
+Redondo Beach: 8.8
+Birdland: 8.0
+Free Money: 9.2
+Kimberly: -
+Break It Up: -
+Land:: -
+Horses: -
+Land, Of A Thousand Dances: -
+La Mer (De): -
+Elegie: -
