@@ -13001,7 +13001,7 @@ MOTHERSHIP CONNECTION:
 P. Funk (Wants To Get Funked Up): 7.9
 Mothership Connection (Star Child): 8.1
 Unfunky UFO: 8.0
-Supergroovalisticprosifunkstication: -
-Handcuffs: -
-Give Up The Funk (Tear The Roof Off The Sucker): -
+Supergroovalisticprosifunkstication: 8.0
+Handcuffs: 8.1
+Give Up The Funk (Tear The Roof Off The Sucker): 8.3
 Night Of The Thumpasorus Peoples: -
