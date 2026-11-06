@@ -12763,7 +12763,7 @@ Intro To Big Joe And Phantom 309: 7.3
 Big Joe And Phantom 309: 7.3
 Spare Parts II And Closing: 7.6
 
-SIREN:
+SIREN: 72.27%
 Love Is The Drug: 8.0
 End Of The Line: 7.1
 Sentimental Fool: 7.2
@@ -12774,7 +12774,7 @@ Both Ends Burning: 7.2
 Nightingale: 7.2
 Just Another High: 7.4
 
-THE WHO BY NUMBERS:
+THE WHO BY NUMBERS: 71.84%
 Slip Kid: 7.2
 However Much I Booze: 7.3
 Squeeze Box: 7.0
@@ -12786,7 +12786,7 @@ Blue Red And Grey: 7.1
 How Many Friends: 7.6
 In A Hand Or A Face: 7.1
 
-STILL CRAZY AFTER ALL THESE YEARS:
+STILL CRAZY AFTER ALL THESE YEARS: 71.29%
 Still Crazy After All These Years: 7.3
 My Little Town: 7.4
 I Do It For Your Love: 7.3
@@ -12798,21 +12798,21 @@ Have A Good Time: 7.1
 You're Kind: 7.0
 Silent Eyes: 7.2
 
-BORN TO BE WITH YOU:
+BORN TO BE WITH YOU: 71.88%
 Born To Be With You: 7.0
 Make The Woman Love Me: 7.3
 Your Own Back Yard: 7.2
 (He's Got) The Whole World In His Hands: 6.9
-Only You Know: 7.7
-New York City Song: 7.5
+Only You Know: 7.8
+New York City Song: 7.7
 In And Out Of The Shadows: 7.4
 Good Lovin' Man: 7.1
 
-OMMADAWN:
+OMMADAWN: 74.22%
 Ommadawn (Part One): 7.8
 Ommadawn (Part Two): 7.6
 
-OLD NO. 1:
+OLD NO. 1: 63.56%
 Rita Ballou: 6.4
 L.A. Freeway: 6.6
 She Ain't Goin' Nowhere: 6.4
@@ -12824,7 +12824,7 @@ Like A Coat From The Cold: 6.7
 Instant Coffee Blues: 6.4
 Let Him Roll: 6.4
 
-POUR DOWN LIKE SILVER:
+POUR DOWN LIKE SILVER: 72.07%
 Streets Of Paradise: 7.0
 For Shame Of Doing Wrong: 7.3
 The Poor Boy Is Taken Away: 7.4
@@ -12834,7 +12834,7 @@ Beat The Retreat: 6.9
 Hard Luck Stories: 7.8
 Dimming Of The Day / Dargai: 7.5
 
-ZUMA:
+ZUMA: 79.79%
 Don't Cry No Tears: 7.9
 Danger Bird: 7.7
 Pardon My Heart: 7.6
@@ -12845,13 +12845,13 @@ Drive Back: 8.3
 Cortez The Killer: 11.3
 Through My Sails: 7.6
 
-AGHARTA:
+AGHARTA: 78.75%
 Prelude (Part 1): 7.9
 Prelude (Part 2) / Maiysha: 8.3
 Interlude: 7.6
 Theme From Jack Johnson: 7.7
 
-A QUE FLOREZCA MI PUEBLO:
+A QUE FLOREZCA MI PUEBLO: %77.25
 A Que Floresca Mi Pueblo: 8.1
 Cuanto Trabajo: 7.7
 Ay Este Azul: 7.7
