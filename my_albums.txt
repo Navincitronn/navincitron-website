@@ -13012,7 +13012,7 @@ Isis: 8.4
 Mozambique: 8.1
 One More Cup Of Coffee: 8.3
 Oh, Sister: 8.5
-Joey: -
-Romance In Durango: -
-Black Diamond Bay: -
-Sara: -
+Joey: 8.0
+Romance In Durango: 8.2
+Black Diamond Bay: 8.3
+Sara: 8.0
