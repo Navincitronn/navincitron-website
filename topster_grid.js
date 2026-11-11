@@ -1,5 +1,5 @@
 const TOPSTER_CACHE_KEY = 'navincitron-grid-cover-cache-v2';
-const TOPSTER_FRONTEND_VERSION = '20261007-public-find-single-entry-v75';
+const TOPSTER_FRONTEND_VERSION = '20261111-public-desktop-render-performance-v76';
 
 const TOPSTER_LOADING_LOCAL_POSTER_ALIASES = Object.freeze({
     fallen_angel: 'fallen_angels'
@@ -3111,12 +3111,20 @@ async function initTopsterImporter(albumCards) {
         const settingsStartedAt = Number(options.settingsStartedAt) || 0;
 
         importedEntries = parsed.map((entry, index) => {
-            const cachedCover = prelookupOnly ? null : (isRateYourMusicTopsterSource() ? getPreferredRateYourMusicCover(entry) : getPreferredCachedCover(entry));
+            let cachedCover = prelookupOnly ? null : (isRateYourMusicTopsterSource() ? getPreferredRateYourMusicCover(entry) : getPreferredCachedCover(entry));
+            // Resolve public-only cover state before the first DOM build. The
+            // second public render previously recreated every tile and sidebar
+            // row even though no external cover lookup is permitted here.
+            if (topsterReadOnly && !cachedCover && !isRateYourMusicTopsterSource()) {
+                cachedCover = getExactCachedCoverForEntry(entry);
+            }
             return {
                 ...entry,
                 originalIndex: index + 1,
                 cover: cachedCover,
-                status: cachedCover ? 'found' : 'pending'
+                status: topsterReadOnly
+                    ? (cachedCover && cachedCover.imageSrc ? 'found' : 'missing')
+                    : (cachedCover ? 'found' : 'pending')
             };
         });
 
@@ -3143,7 +3151,9 @@ async function initTopsterImporter(albumCards) {
             importedEntries.forEach(entry => {
                 entry.status = entry.cover && entry.cover.imageSrc ? 'found' : 'missing';
             });
-            renderTopster(importedEntries, selectedStart, { scroll: false });
+            // The public page already rendered the final published-cover state
+            // above. Keep the editor's second render unchanged.
+            if (!topsterReadOnly) renderTopster(importedEntries, selectedStart, { scroll: false });
             saveCurrentTopster();
             if (stopButton) stopButton.disabled = true;
             buildButton.disabled = false;
@@ -3163,7 +3173,7 @@ async function initTopsterImporter(albumCards) {
         } else {
             status.textContent = `${actionText} ${importedEntries.length} album line${importedEntries.length === 1 ? '' : 's'} from ${topsterSourceLabel}. Loading cached covers and looking up any missing covers...`;
         }
-        resolveVisibleRange(selectedStart, settingsStartedAt);
+        resolveVisibleRange(selectedStart, settingsStartedAt, { publishedAlreadyRendered: topsterReadOnly });
     }
 
     function loadSavedTopster() {
@@ -3354,7 +3364,7 @@ async function initTopsterImporter(albumCards) {
         completeTopsterLoading(completionText);
     }
 
-    async function resolveVisibleRange(startIndex = 0, settingsStartedAt = 0) {
+    async function resolveVisibleRange(startIndex = 0, settingsStartedAt = 0, options = {}) {
         if (!importedEntries.length) return;
 
         // Public Topster pages are render-only consumers of the published shared
@@ -3367,7 +3377,11 @@ async function initTopsterImporter(albumCards) {
                 if (published && published.imageSrc) entry.cover = published;
                 entry.status = entry.cover && entry.cover.imageSrc ? 'found' : 'missing';
             });
-            renderTopster(importedEntries, startIndex, { scroll: false });
+            // The initial public build now paints the final cache/missing state.
+            // A different caller can still request an explicit refresh.
+            if (!options.publishedAlreadyRendered) {
+                renderTopster(importedEntries, startIndex, { scroll: false });
+            }
             const foundCount = importedEntries.filter(entry => entry.status === 'found').length;
             const missingCount = importedEntries.length - foundCount;
             const completionText = `Loaded published Topster covers: ${foundCount} available and ${missingCount} missing. No cover lookup was performed on this public page.`;
@@ -3763,6 +3777,36 @@ async function initTopsterImporter(albumCards) {
             return true;
         };
 
+        if (topsterReadOnly && baseSize > 3.2) {
+            // Find the first fitting 0.2px decrement in logarithmic rather than
+            // linear probes. Each probe reads scrollHeight and forces layout;
+            // large desktop Topsters can contain many independent sidebars.
+            // Mirror the exact stopping point of the prior 0.2px loop. Floating
+            // point subtraction can make the last step just below 3.2px.
+            let maxSteps = 0;
+            let lowestSize = baseSize;
+            while (lowestSize > 3.2) {
+                lowestSize -= 0.2;
+                maxSteps++;
+            }
+            const fitsAtStep = step => {
+                pageList.style.fontSize = `${(baseSize - (step * 0.2)).toFixed(2)}px`;
+                return fits();
+            };
+            if (fitsAtStep(0)) return;
+            if (!fitsAtStep(maxSteps)) return;
+            let lower = 0;        // Known not to fit.
+            let upper = maxSteps; // Known to fit.
+            while (upper - lower > 1) {
+                const middle = Math.floor((lower + upper) / 2);
+                if (fitsAtStep(middle)) upper = middle;
+                else lower = middle;
+            }
+            fitsAtStep(upper);
+            return;
+        }
+
+        // Editor pages retain their existing fit behavior.
         let size = baseSize;
         while (size > 3.2 && !fits()) {
             size -= 0.2;
