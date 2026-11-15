@@ -13062,6 +13062,6 @@ STATION TO STATION:
 Station To Station: 11.3
 Golden Years: 8.7
 Word On A Wing: 9.1
-TVC 15: -
-Stay: -
-Wild Is The Wind: -
+TVC 15: 9.2
+Stay: 8.9
+Wild Is The Wind: 8.7
