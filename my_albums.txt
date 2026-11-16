@@ -13067,10 +13067,10 @@ Stay: 8.9
 Wild Is The Wind: 8.7
 
 A TRICK OF THE TAIL:
-Dance On A Volcano: 7.3
-Entangled: 7.2
-Squonk: -
-Mad Man Moon: -
+Dance On A Volcano: 7.2
+Entangled: 7.1
+Squonk: 7.2
+Mad Man Moon: 7.3
 Robbery, Assault And Battery: -
 Ripples: -
 A Trick Of The Tail: -
