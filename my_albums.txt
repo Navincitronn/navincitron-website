@@ -13071,7 +13071,7 @@ Dance On A Volcano: 7.2
 Entangled: 7.1
 Squonk: 7.2
 Mad Man Moon: 7.3
-Robbery, Assault And Battery: -
-Ripples: -
-A Trick Of The Tail: -
-Los Endos: -
+Robbery, Assault And Battery: 7.1
+Ripples: 7.7
+A Trick Of The Tail: 7.1
+Los Endos: 7.4
