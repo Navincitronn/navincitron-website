@@ -8,8 +8,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const clipSecondsInput = document.getElementById("clip-seconds");
     const clipMinSecondsInput = document.getElementById("clip-min-seconds");
     const clipMaxSecondsInput = document.getElementById("clip-max-seconds");
-    const randomStartInput = document.getElementById("random-start");
-    const randomStartRow = document.getElementById("random-start-row");
     const assumedDurationInput = document.getElementById("assumed-duration-seconds");
     const localSeekDelayInput = document.getElementById("local-seek-delay-seconds");
     const songguesserEnabledInput = document.getElementById("songguesser-enabled");
@@ -166,8 +164,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (singleLinkRandomOrderRow) {
             singleLinkRandomOrderRow.hidden = guessing;
         }
-        if (randomStartRow) randomStartRow.hidden = mode !== "file" || guessing;
-        if (randomStartInput) randomStartInput.disabled = mode !== "file" || guessing;
 
         if (samplerLogWrap) {
             samplerLogWrap.hidden = guessing && !songguesserDebuggerVisible;
@@ -1927,9 +1923,9 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("clipSeconds", clipSecondsInput.value || "15");
         formData.append("clipMinSeconds", clipMinSecondsInput.value || "18");
         formData.append("clipMaxSeconds", clipMaxSecondsInput.value || "25");
-        // The file-list clip offset is independent of single-link song order.
-        // Single-link playback starts each selected track at position 0.
-        formData.append("randomStart", sourceMode === "file" && randomStartInput.checked ? "true" : "false");
+        // All modes start each clip at a random, duration-bounded offset.
+        // This is separate from randomizing the order in which songs play.
+        formData.append("randomStart", "true");
         formData.append("assumedDurationSeconds", assumedDurationInput.value || "180");
         formData.append("localSeekDelaySeconds", localSeekDelayInput.value || "0");
 
