@@ -12865,7 +12865,7 @@ Juanito Se Salva De La Inundación: 7.8
 Subo / Bello Jilguero: 7.6
 Se Equivocó La Paloma: 7.6
 
-CONEY ISLAND BABY:
+CONEY ISLAND BABY: 70.74%
 Crazy Feeling: 7.3
 Charley's Girl: 7.5
 She's My Best Friend: 7.2
@@ -12875,7 +12875,7 @@ Ooohhh Baby: 6.9
 Nobody's Business: 7.0
 Coney Island Baby: 7.2
 
-HAMMERSMITH ODEON, LONDON '75:
+HAMMERSMITH ODEON, LONDON '75: 79.00%
 Thunder Road: 8.1
 Tenth Avenue Freeze-Out: 8.3
 Spirit In The Night: 7.8
@@ -12893,7 +12893,7 @@ Detroit Medley: 7.5
 For You: 7.5
 Quarter To Three: 7.4
 
-A NIGHT AT THE OPERA:
+A NIGHT AT THE OPERA: 85.14%
 Death On Two Legs (Dedicated To......: 8.6
 Lazing On A Sunday Afternoon: 8.0
 I'm In Love With My Car: 8.1
@@ -12907,7 +12907,7 @@ Good Company: 8.0
 Bohemian Rhapsody: 11.9
 God Save The Queen: 8.1
 
-THE HISSING OF SUMMER LAWNS:
+THE HISSING OF SUMMER LAWNS: 82.00%
 In France They Kiss On Main Street: 8.2
 The Jungle Line: 8.3
 Edith And The Kingpin: 8.1
@@ -12919,13 +12919,13 @@ Harry's House / Centerpiece: 8.2
 Sweet Bird: 8.2
 Shadows And Light: 8.1
 
-THE KÖLN CONCERT:
+THE KÖLN CONCERT: 63.75%
 KÖLN, January 24, 1975 Part I: 6.5
 KÖLN, January 24, 1975 Part II A: 6.6
 KÖLN, January 24, 1975 Part II B: 6.3
 KÖLN, January 24, 1975 Part II C: 6.1
 
-THE BOOTLEG SERIES, VOL. 5 - BOB DYLAN LIVE 1975: THE ROLLING THUNDER REVUE:
+THE BOOTLEG SERIES, VOL. 5 - BOB DYLAN LIVE 1975: THE ROLLING THUNDER REVUE: 75.77%
 Tonight I'll Be Staying Here With You: 7.6
 It Ain't Me, Babe: 8.2
 A Hard Rain's A-Gonna Fall: 7.4
@@ -12949,7 +12949,7 @@ Sara: 7.5
 Just Like A Woman: 7.7
 Knockin' On Heaven's Door: 7.7
 
-LIVE!:
+LIVE!: 76.33%
 Trenchtown Rock: 7.7
 Burnin' & Lootin': 7.8
 Them Belly Full: 7.7
@@ -12958,7 +12958,7 @@ No Woman, No Cry: 8.2
 I Shot The Sheriff: 7.6
 Get Up, Stand Up: 7.6
 
-LOS JAIVAS:
+LOS JAIVAS: 76.07%
 Pregón Para Iluminarse: 7.9
 Guajira Cosmica: 7.7
 La Conquistada: 7.8
@@ -12966,11 +12966,11 @@ Un Mar De Gente: 7.4
 Un Día De Tus Días: 7.8
 Tarka Y Ocarina: 7.8
 
-EXPENSIVE SHIT:
+EXPENSIVE SHIT: 81.06%
 Expensive Shit: 8.7
 Water No Get Enemy: 8.5
 
-MARCUS GARVEY:
+MARCUS GARVEY: 68.18%
 Marcus Garvey: 7.2
 Slavery Days: 7.3
 The Invasion: 7.0
@@ -12982,22 +12982,17 @@ Jordan River: 6.9
 Red, Gold And Green: 6.9
 Resting Place: 6.7
 
-HORSES:
-Gloria:: 11.6
-In Excelsis Deo: 11.6
-Gloria (Version): 11.6
+HORSES: 89.52%
+Gloria: 11.6
 Redondo Beach: 8.8
 Birdland: 8.0
 Free Money: 9.2
 Kimberly: 9.4
 Break It Up: 9.0
-Land:: 8.7
 Horses: 8.7
-Land, Of A Thousand Dances: 8.7
-La Mer (De): 8.7
 Elegie: 8.2
 
-MOTHERSHIP CONNECTION:
+MOTHERSHIP CONNECTION: 79.58%
 P. Funk (Wants To Get Funked Up): 7.9
 Mothership Connection (Star Child): 8.1
 Unfunky UFO: 8.0
