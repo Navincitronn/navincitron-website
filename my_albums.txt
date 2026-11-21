@@ -13001,7 +13001,7 @@ Handcuffs: 8.1
 Give Up The Funk (Tear The Roof Off The Sucker): 8.3
 Night Of The Thumpasorus Peoples: 8.1
 
-DESIRE:
+DESIRE: 81.09%
 Hurricane: 8.6
 Isis: 8.4
 Mozambique: 8.1
@@ -13012,7 +13012,7 @@ Romance In Durango: 8.2
 Black Diamond Bay: 8.3
 Sara: 8.0
 
-FRAMPTON COMES ALIVE:
+FRAMPTON COMES ALIVE: 75.86%
 Something's Happening: 7.6
 Doobie Wah: 7.5
 Show Me The Way: 7.9
@@ -13028,7 +13028,7 @@ Jumping Jack Flash: 7.6
 Lines On My Face: 7.2
 Do You Feel Like We Do: 8.1
 
-KATE & ANNA MCGARRIGLE:
+KATE & ANNA MCGARRIGLE: 70.95%
 Kiss And Say Goodbye: 7.3
 My Town: 7.3
 Blues In D: 6.9
@@ -13042,7 +13042,7 @@ Jigsaw Puzzle Of Life: 7.0
 Go Leave: 7.1
 Travelling On For Jesus: 7.1
 
-HOW DARE YOU!:
+HOW DARE YOU!: 74.92%
 How Dare You: 7.6
 Lazy Ways: 7.6
 I Wanna Rule The World: 7.4
@@ -13053,7 +13053,7 @@ Rock 'N' Roll Lullaby: 7.4
 Head Room: 7.5
 Don't Hang Up: 7.5
 
-STATION TO STATION:
+STATION TO STATION: 90.72%
 Station To Station: 11.3
 Golden Years: 8.7
 Word On A Wing: 9.1
@@ -13061,7 +13061,7 @@ TVC 15: 9.2
 Stay: 8.9
 Wild Is The Wind: 8.7
 
-A TRICK OF THE TAIL:
+A TRICK OF THE TAIL: 71.07%
 Dance On A Volcano: 7.2
 Entangled: 7.1
 Squonk: 7.2
@@ -13071,7 +13071,7 @@ Ripples: 7.7
 A Trick Of The Tail: 7.1
 Los Endos: 7.4
 
-BRIGHT SIZE LIFE:
+BRIGHT SIZE LIFE: 74.43%
 Bright Size Life: 7.6
 Sirabhorn: 7.6
 Unity Village: 7.5
@@ -13081,18 +13081,18 @@ Unquity Road: 7.4
 Omaha Celebration: 7.4
 Round Trip / Broadway Blues: 7.6
 
-DESTROYER:
+DESTROYER: 75.49%
 Detroit Rock City: 8.4
 King Of The Night Time World: 7.8
 God Of Thunder: 7.8
 Great Expectations: 8.2
-Flaming Youth: -
-Sweet Pain: -
-Shout It Out Loud: -
-Beth: -
-Do You Love Me: -
+Flaming Youth: 7.6
+Sweet Pain: 7.6
+Shout It Out Loud: 7.7
+Beth: 6.5
+Do You Love Me: 7.1
 
-I WANT YOU:
+I WANT YOU: 75.45%
 I Want You (Vocal): 8.1
 Come Live With Me Angel: 7.5
 After The Dance (Instrumental): 7.6
