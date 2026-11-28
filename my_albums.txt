@@ -13151,6 +13151,6 @@ Aristillus: 7.7
 Song Within A Song: 8.1
 Chord Change: 8.0
 Spirit Of The Water: 7.3
-Another Night: -
-Air Born: -
-Lunar Sea: -
+Another Night: 8.4
+Air Born: 7.5
+Lunar Sea: 7.8
